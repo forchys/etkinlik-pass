@@ -7,7 +7,7 @@ import {
   Ticket, Download, Search, Smartphone, User, CheckCircle2, 
   Loader2, AlertCircle, MapPin, CalendarDays, Presentation, 
   Clock, HelpCircle, Film, Theater, ChevronRight, Sparkles, ArrowLeft,
-  Users, Trophy
+  Users, Trophy, Armchair
 } from 'lucide-react';
 
 const ChairSVG = ({ className }: { className?: string }) => (
@@ -19,7 +19,6 @@ const ChairSVG = ({ className }: { className?: string }) => (
   </svg>
 );
 
-// İkonları her render'da Switch-Case ile kontrol etmek yerine statik bir obje olarak tanımladık
 const EVENT_ICONS: Record<string, React.ElementType> = {
   cinema: Film,
   theater: Theater,
@@ -47,7 +46,6 @@ export default function Home() {
 
   const rows = ['N', 'M', 'L', 'K', 'J', 'I', 'H', 'G', 'F', 'E', 'D', 'C', 'B', 'A'];
 
-  // --- TARAYICI GERİ TUŞU YÖNETİMİ ---
   useEffect(() => {
     window.history.pushState({ step }, `Step ${step}`);
     const handlePopState = () => {
@@ -60,7 +58,6 @@ export default function Home() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, [step]);
 
-  // --- SAYAÇ YÖNETİMİ ---
   useEffect(() => {
     if (step !== 2) {
       localStorage.removeItem('flick_timer');
@@ -90,7 +87,6 @@ export default function Home() {
     return () => clearInterval(timer);
   }, [step]);
 
-  // --- VERİ ÇEKME VE REALTIME ---
   useEffect(() => {
     const fetchInitialData = async () => {
       setLoading(true);
@@ -128,7 +124,6 @@ export default function Home() {
     };
   }, [selectedEvent]);
 
-  // --- YARDIMCI FONKSİYONLAR ---
   const formatTime = (seconds: number) => 
     `${Math.floor(seconds / 60).toString().padStart(2, '0')}:${(seconds % 60).toString().padStart(2, '0')}`;
 
@@ -137,7 +132,6 @@ export default function Home() {
     return <Icon size={size} />;
   };
 
-  // Karmaşık if-else bloklarını temizleyip JSX içinden çıkardık
   const getSeatNumber = (row: string, slotIndex: number): number | null => {
     if (['M', 'L', 'K'].includes(row)) {
       if (slotIndex <= 2) return slotIndex;
@@ -181,13 +175,14 @@ export default function Home() {
 
       if (supabaseError || !data) {
         setError("Kayıt bulunamadı. Lütfen bilgilerinizi kontrol edin.");
-        return; // Early return ile gereksiz else bloklarından kurtulduk
+        return; 
       } 
       
       setCurrentUserData(data);
       setUserDisplayName(data.ad_soyad);
       
-      if (data.koltuk_no) { 
+      // KOLTUK KONTROLÜ VE ATLATMA MANTIĞI
+      if (data.koltuk_no || selectedEvent.has_seating === false) { 
         await handleBiletVerisiniGuncelle(data); 
       } else {
         const { data: allParticipants } = await supabase
@@ -201,7 +196,7 @@ export default function Home() {
     } catch (err) { 
       setError("Bağlantı hatası oluştu."); 
     } finally {
-      setLoading(false); // Her durumda çalışıp sistemi rahatlatır
+      setLoading(false); 
     }
   };
 
@@ -239,7 +234,6 @@ export default function Home() {
     if (!canvas) return;
     const qrImage = canvas.toDataURL("image/png");
     
-    // PDF Styling
     doc.setFillColor(10, 15, 30); doc.rect(0, 0, 210, 297, 'F');
     doc.saveGraphicsState(); doc.setGState(new (doc as any).GState({ opacity: 0.07 }));
     doc.setFillColor(59, 135, 245); doc.roundedRect(20, 30, 170, 240, 15, 15, 'F');
@@ -269,7 +263,6 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-[#020617] text-slate-200 p-6 flex flex-col items-center justify-start font-sans overflow-x-hidden relative">
       
-      {/* HEADER */}
       <header className="w-full max-w-2xl py-8 mb-4 text-center z-50">
         <div className="space-y-1">
           <h2 className="text-blue-500 font-bold text-[10px] tracking-[0.3em] uppercase italic">
@@ -281,7 +274,6 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Arka Plan Desenleri */}
       <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none select-none">
         <div className="absolute -inset-[100%] opacity-[0.08] flex flex-col justify-center gap-4 rotate-[-25deg] scale-150">
           {[...Array(50)].map((_, i) => (
@@ -294,7 +286,6 @@ export default function Home() {
         </div>
       </div>
 
-      {/* SÜRE SAYAÇ PANELİ */}
       {step === 2 && (
         <div className="fixed top-24 left-1/2 -translate-x-1/2 z-[100] animate-in slide-in-from-top duration-500">
            <div className={`flex items-center gap-4 px-6 py-3 rounded-2xl border backdrop-blur-2xl shadow-2xl transition-all duration-500 ${timeLeft < 20 ? 'border-rose-500/50 bg-rose-500/10' : 'border-blue-500/30 bg-slate-900/80'}`}>
@@ -320,7 +311,6 @@ export default function Home() {
           </div>
 
           <div className="relative z-10">
-            {/* STEP 0: ETKİNLİK SEÇİMİ */}
             {step === 0 && (
               <div className="view-transition space-y-6">
                 <div className="flex items-center gap-2 mb-2">
@@ -381,7 +371,6 @@ export default function Home() {
               </div>
             )}
 
-            {/* STEP 1: BİLGİ GİRİŞİ */}
             {step === 1 && (
               <div className="view-transition max-w-md mx-auto">
                 <button onClick={() => setStep(0)} className="flex items-center gap-2 text-slate-500 font-bold text-[10px] uppercase tracking-widest mb-6 hover:text-white transition-colors">
@@ -405,7 +394,9 @@ export default function Home() {
                   </div>
                   <button disabled={loading} type="submit" className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 p-5 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all active:scale-95 shadow-xl shadow-blue-900/40">
                     {loading ? <Loader2 className="animate-spin" /> : <Search size={20} />}
-                    <span className="tracking-widest uppercase text-sm">Koltuk Seçimine Geç</span>
+                    <span className="tracking-widest uppercase text-sm">
+                      {selectedEvent?.has_seating === false ? 'Biletimi Hazırla' : 'Koltuk Seçimine Geç'}
+                    </span>
                   </button>
 
                   {selectedEvent && (
@@ -439,7 +430,6 @@ export default function Home() {
               </div>
             )}
 
-            {/* STEP 2: KOLTUK SEÇİMİ */}
             {step === 2 && (
               <div className="view-transition pt-4">
                 <h2 className="text-xl font-black text-center mb-6 tracking-widest uppercase text-white">KOLTUK SEÇİNİZ</h2>
@@ -494,14 +484,14 @@ export default function Home() {
               </div>
             )}
 
-            {/* STEP 3: BİLET EKRANI */}
             {step === 3 && (
               <div className="view-transition flex flex-col items-center">
                 <div className="bg-emerald-500/10 text-emerald-400 px-4 py-2 rounded-full mb-6 flex items-center gap-2 text-xs font-black border border-emerald-500/20 uppercase">
                   <CheckCircle2 size={14} /> Biletiniz Hazır
                 </div>
                 <h2 className="text-2xl font-black mb-1 text-center text-white uppercase">{userDisplayName}</h2>
-                <p className="text-blue-400 font-bold mb-8 text-sm uppercase">KOLTUK: {selectedSeat}</p>
+                {selectedSeat && <p className="text-blue-400 font-bold mb-8 text-sm uppercase">KOLTUK: {selectedSeat}</p>}
+                {!selectedSeat && <p className="text-blue-400 font-bold mb-8 text-sm uppercase">GENEL GİRİŞ</p>}
                 <div className="bg-white p-6 rounded-[2.5rem] shadow-2xl mb-8 relative z-20">
                   <QRCodeCanvas id="ticket-qr" value={qrValue || ""} size={180} level="H" />
                 </div>
