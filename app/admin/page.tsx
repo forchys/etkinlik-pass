@@ -609,7 +609,7 @@ export default function AdminPage() {
                           {isDuplicate && (
                             <div className="flex items-center gap-1 bg-amber-500/20 px-2 py-1 rounded-md border border-amber-500/30">
                               <AlertTriangle size={12} className="text-amber-500" />
-                              <span className="text-[8px] font-bold text-amber-500 uppercase">Mükerrer</span>
+                              <span className="text-[8px] font-bold text-amber-500 uppercase">ORTAK TEL NO</span>
                             </div>
                           )}
                         </div>
