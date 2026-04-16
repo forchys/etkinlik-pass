@@ -21,7 +21,7 @@ export default function AdminPage() {
 
   // --- SLOT YÖNETİMİ STATE'LERİ ---
   const [eventSlots, setEventSlots] = useState<any[]>([]);
-  const [selectedSlotId, setSelectedSlotId] = useState<number>(1); // Varsayılan Slot 1
+  const [selectedSlotId, setSelectedSlotId] = useState<number>(1); 
   const [savingSlotId, setSavingSlotId] = useState<string | null>(null);
 
   const [filterArrived, setFilterArrived] = useState(false);
@@ -47,7 +47,6 @@ export default function AdminPage() {
   const updateLocalSlot = (id: string, field: string, value: any) => {
     setEventSlots(prev => prev.map(slot => {
       if (slot.id === id) {
-        // Yenilik: Deaktif edildiğinde verileri sıfırla
         if (field === 'is_active' && value === false) {
           return { 
             ...slot, 
@@ -87,23 +86,23 @@ export default function AdminPage() {
     return cleaned.slice(-10);
   };
 
-  // --- KATILIMCI ÇEKME (FİLTRELİ) ---
+  // --- KATILIMCI ÇEKME ---
   const fetchParticipants = async () => {
     setLoading(true);
     const { data, error } = await supabase
       .from('katilimcilar')
       .select('*')
-      .eq('etkinlik_id', selectedSlotId) // Sadece seçili slotu getir
+      .eq('etkinlik_id', selectedSlotId)
       .order('ad_soyad', { ascending: true });
     if (!error && data) setParticipants(data);
     setLoading(false);
   };
 
-  // Slot değişince listeyi otomatik yenile
   useEffect(() => {
     if (isAuthenticated) fetchParticipants();
   }, [selectedSlotId, isAuthenticated]);
 
+  // --- HATA DÜZELTİLMİŞ EXCEL YÜKLEME (upsert kullanıldı) ---
   const handleExcelUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -128,15 +127,20 @@ export default function AdminPage() {
               qr_kodu: crypto.randomUUID(),
               geldi_mi: false,
               bilet_alindi_mi: false,
-              etkinlik_id: selectedSlotId // O anki slotu ata
+              etkinlik_id: selectedSlotId
             };
           }
           return null;
         }).filter(item => item !== null);
+
         if (formattedData.length > 0) {
-          const { error } = await supabase.from('katilimcilar').insert(formattedData);
+          // insert yerine upsert kullanıldı: onConflict ile çakışmaları engeller
+          const { error } = await supabase
+            .from('katilimcilar')
+            .upsert(formattedData, { onConflict: 'telefon', ignoreDuplicates: true });
+
           if (!error) {
-            alert(`${formattedData.length} kişi başarıyla eklendi!`);
+            alert(`${formattedData.length} kayıt işlendi (Mükerrer numaralar atlandı).`);
             fetchParticipants();
           } else alert("Supabase Hatası: " + error.message);
         } else alert("Excel'de uygun sütun başlıkları bulunamadı!");
@@ -153,19 +157,27 @@ export default function AdminPage() {
     if (!error) { setIsEditModalOpen(false); fetchParticipants(); } else { alert("Hata: " + error.message); }
   };
 
+  // --- HATA DÜZELTİLMİŞ MANUEL EKLEME (upsert kullanıldı) ---
   const handleAddSinglePerson = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newPerson.ad_soyad.trim() || !newPerson.telefon.trim()) return alert("Eksik bilgi!");
     setAddLoading(true);
-    const { error } = await supabase.from('katilimcilar').insert([{ 
+    
+    const { error } = await supabase.from('katilimcilar').upsert({ 
       ad_soyad: newPerson.ad_soyad.trim(), 
       telefon: formatPhoneNumber(newPerson.telefon), 
       qr_kodu: crypto.randomUUID(), 
       geldi_mi: false, 
       bilet_alindi_mi: false,
-      etkinlik_id: selectedSlotId // O anki slotu ata
-    }]);
-    if (!error) { setNewPerson({ ad_soyad: "", telefon: "" }); fetchParticipants(); }
+      etkinlik_id: selectedSlotId 
+    }, { onConflict: 'telefon' });
+
+    if (!error) { 
+        setNewPerson({ ad_soyad: "", telefon: "" }); 
+        fetchParticipants(); 
+    } else {
+        alert("Bu telefon numarası zaten başka bir kayıtta mevcut!");
+    }
     setAddLoading(false);
   };
 
@@ -233,7 +245,7 @@ export default function AdminPage() {
               const { data: user } = await supabase.from('katilimcilar')
                 .select('*')
                 .eq('qr_kodu', cleanCode)
-                .eq('etkinlik_id', selectedSlotId) // Sadece bu etkinliğin biletini kontrol et
+                .eq('etkinlik_id', selectedSlotId)
                 .maybeSingle();
               
               if (!user) { setScanStatus({ status: 'error', message: 'Geçersiz veya Yanlış Etkinlik!' }); }
@@ -381,7 +393,7 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* YENİ: SLOT SEÇİCİ ARAYÜZÜ */}
+      {/* SLOT SEÇİCİ ARAYÜZÜ */}
       <div className="w-full max-w-lg grid grid-cols-4 gap-2 mb-6">
         {[1, 2, 3, 4].map((num) => (
           <button 
