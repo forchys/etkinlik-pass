@@ -30,6 +30,14 @@ export default function AdminPage() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingPerson, setEditingPerson] = useState<any>(null);
 
+  // --- UI UYARI MODALI STATE'İ ---
+  const [uiWarnings, setUiWarnings] = useState<{
+    isOpen: boolean;
+    messages: string[];
+    onConfirm: () => void;
+    onCancel: () => void;
+  }>({ isOpen: false, messages: [], onConfirm: () => {}, onCancel: () => {} });
+
   const ADMIN_PASSWORD = "flickbaba31";
   const [newPerson, setNewPerson] = useState({ ad_soyad: "", telefon: "" });
   const [addLoading, setAddLoading] = useState(false);
@@ -103,13 +111,23 @@ export default function AdminPage() {
   }, [selectedSlotId, isAuthenticated]);
 
   // --- YENİ: VERİ KALİTE KONTROL FONKSİYONU ---
-  const validateParticipant = (name: string, phone: string, existingList: any[]) => {
+  const validateParticipant = (name: string, rawPhone: string, formattedPhone: string, existingList: any[], seenPhones: Set<string>) => {
     const warnings = [];
     const cleanName = name.trim();
     if (!cleanName.includes(" ")) warnings.push(`"${cleanName}": Soyadı eksik olabilir.`);
     if (cleanName.length > 25) warnings.push(`"${cleanName}": İsim çok uzun.`);
-    const isDuplicate = existingList.some(p => p.telefon === phone);
-    if (isDuplicate) warnings.push(`"${cleanName}": Bu telefon (${phone}) sistemde zaten kayıtlı.`);
+    
+    if (/[a-zA-ZğüşıöçĞÜŞİÖÇ]/.test(String(rawPhone))) {
+      warnings.push(`"${cleanName}": Telefon numarasında metin (harf) bulunuyor (${rawPhone}).`);
+    }
+
+    const isDuplicate = existingList.some(p => p.telefon === formattedPhone);
+    const isDuplicateInBatch = seenPhones.has(formattedPhone);
+    
+    if (isDuplicate || isDuplicateInBatch) {
+      warnings.push(`"${cleanName}": Bu telefon (${formattedPhone}) sistemde veya listede zaten mevcut.`);
+    }
+    
     return warnings;
   };
 
@@ -128,6 +146,7 @@ export default function AdminPage() {
         const data: any[] = XLSX.utils.sheet_to_json(ws);
         
         const allWarnings: string[] = [];
+        const seenPhones = new Set<string>();
         const formattedData = data.map(row => {
           const nameKeys = ["Adınız Soyisimiz", "Adınız Soyisim", "Ad Soyad", "ad_soyad", "Adınız", "İsim Soyisim"];
           const phoneKeys = ["Telefon numarası", "Telefon", "telefon", "No", "Tel"];
@@ -135,11 +154,14 @@ export default function AdminPage() {
           const phoneKey = Object.keys(row).find(k => phoneKeys.includes(k.trim()));
           if (nameKey && phoneKey && row[nameKey] && row[phoneKey]) {
             const name = String(row[nameKey]).trim();
-            const phone = formatPhoneNumber(row[phoneKey]);
+            const rawPhone = String(row[phoneKey]);
+            const phone = formatPhoneNumber(rawPhone);
             
             // Kontrol Et
-            const rowWarnings = validateParticipant(name, phone, participants);
+            const rowWarnings = validateParticipant(name, rawPhone, phone, participants, seenPhones);
             if (rowWarnings.length > 0) allWarnings.push(...rowWarnings);
+
+            seenPhones.add(phone);
 
             return {
               ad_soyad: name,
@@ -153,24 +175,46 @@ export default function AdminPage() {
           return null;
         }).filter(item => item !== null);
 
+        const proceedWithUpload = async () => {
+          setAddLoading(true);
+          if (formattedData.length > 0) {
+            const { error } = await supabase
+              .from('katilimcilar')
+              .upsert(formattedData, { onConflict: 'telefon', ignoreDuplicates: true });
+
+            if (!error) {
+              alert(`${formattedData.length} kayıt işlendi.`);
+              fetchParticipants();
+            } else alert("Supabase Hatası: " + error.message);
+          } else alert("Excel'de uygun sütun bulunamadı!");
+          setAddLoading(false);
+          e.target.value = "";
+        };
+
         if (allWarnings.length > 0) {
-          const proceed = confirm(`Bazı kayıtlar sorunlu görünüyor:\n\n${allWarnings.slice(0, 8).join("\n")}${allWarnings.length > 8 ? "\n..." : ""}\n\nDevam edilsin mi?`);
-          if (!proceed) { setAddLoading(false); return; }
+          setAddLoading(false);
+          setUiWarnings({
+            isOpen: true,
+            messages: allWarnings,
+            onConfirm: () => {
+              setUiWarnings(prev => ({ ...prev, isOpen: false }));
+              proceedWithUpload();
+            },
+            onCancel: () => {
+              setUiWarnings(prev => ({ ...prev, isOpen: false }));
+              e.target.value = "";
+            }
+          });
+          return;
         }
 
-        if (formattedData.length > 0) {
-          const { error } = await supabase
-            .from('katilimcilar')
-            .upsert(formattedData, { onConflict: 'telefon', ignoreDuplicates: true });
+        proceedWithUpload();
 
-          if (!error) {
-            alert(`${formattedData.length} kayıt işlendi.`);
-            fetchParticipants();
-          } else alert("Supabase Hatası: " + error.message);
-        } else alert("Excel'de uygun sütun bulunamadı!");
-      } catch (err) { alert("Dosya okunurken bir hata oluştu."); }
-      setAddLoading(false);
-      e.target.value = "";
+      } catch (err) { 
+        alert("Dosya okunurken bir hata oluştu."); 
+        setAddLoading(false);
+        e.target.value = "";
+      }
     };
     reader.readAsBinaryString(file);
   };
@@ -186,31 +230,47 @@ export default function AdminPage() {
     e.preventDefault();
     if (!newPerson.ad_soyad.trim() || !newPerson.telefon.trim()) return alert("Eksik bilgi!");
     
-    const phone = formatPhoneNumber(newPerson.telefon);
-    const warnings = validateParticipant(newPerson.ad_soyad, phone, participants);
+    const rawPhone = newPerson.telefon;
+    const phone = formatPhoneNumber(rawPhone);
+    const seenPhones = new Set<string>();
+    const warnings = validateParticipant(newPerson.ad_soyad, rawPhone, phone, participants, seenPhones);
     
+    const proceedWithAdd = async () => {
+      setAddLoading(true);
+      const { error } = await supabase.from('katilimcilar').upsert({ 
+        ad_soyad: newPerson.ad_soyad.trim(), 
+        telefon: phone, 
+        qr_kodu: crypto.randomUUID(), 
+        geldi_mi: false, 
+        bilet_alindi_mi: false,
+        etkinlik_id: selectedSlotId 
+      }, { onConflict: 'telefon' });
+
+      if (!error) { 
+          setNewPerson({ ad_soyad: "", telefon: "" }); 
+          fetchParticipants(); 
+      } else {
+          alert("Bu telefon numarası zaten başka bir kayıtta mevcut!");
+      }
+      setAddLoading(false);
+    };
+
     if (warnings.length > 0) {
-      const proceed = confirm(`Uyarılar:\n${warnings.join("\n")}\n\nYine de kaydedilsin mi?`);
-      if (!proceed) return;
+      setUiWarnings({
+        isOpen: true,
+        messages: warnings,
+        onConfirm: () => {
+          setUiWarnings(prev => ({ ...prev, isOpen: false }));
+          proceedWithAdd();
+        },
+        onCancel: () => {
+          setUiWarnings(prev => ({ ...prev, isOpen: false }));
+        }
+      });
+      return;
     }
 
-    setAddLoading(true);
-    const { error } = await supabase.from('katilimcilar').upsert({ 
-      ad_soyad: newPerson.ad_soyad.trim(), 
-      telefon: phone, 
-      qr_kodu: crypto.randomUUID(), 
-      geldi_mi: false, 
-      bilet_alindi_mi: false,
-      etkinlik_id: selectedSlotId 
-    }, { onConflict: 'telefon' });
-
-    if (!error) { 
-        setNewPerson({ ad_soyad: "", telefon: "" }); 
-        fetchParticipants(); 
-    } else {
-        alert("Bu telefon numarası zaten başka bir kayıtta mevcut!");
-    }
-    setAddLoading(false);
+    proceedWithAdd();
   };
 
   useEffect(() => {
@@ -411,6 +471,30 @@ export default function AdminPage() {
         </div>
       )}
 
+      {/* UI UYARI MODALI */}
+      {uiWarnings.isOpen && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
+          <div className="w-full max-w-lg bg-slate-900 border border-amber-500/30 rounded-[2.5rem] p-8 shadow-2xl">
+            <div className="flex items-center gap-3 mb-6 text-amber-500">
+              <AlertTriangle size={32} />
+              <h2 className="text-xl font-black uppercase">Uyarılar Var</h2>
+            </div>
+            <div className="max-h-60 overflow-y-auto mb-6 space-y-2 pr-2 custom-scrollbar">
+              {uiWarnings.messages.map((msg, idx) => (
+                <div key={idx} className="bg-amber-500/10 text-amber-400 p-3 rounded-xl text-xs font-bold border border-amber-500/20">
+                  {msg}
+                </div>
+              ))}
+            </div>
+            <p className="text-sm text-slate-400 mb-6 font-bold">Yine de işleme devam etmek istiyor musunuz?</p>
+            <div className="flex gap-3">
+              <button onClick={uiWarnings.onCancel} className="flex-1 bg-slate-800 text-white p-4 rounded-2xl font-bold uppercase text-xs tracking-widest hover:bg-slate-700 transition-colors">Vazgeç</button>
+              <button onClick={uiWarnings.onConfirm} className="flex-1 bg-amber-600 text-white p-4 rounded-2xl font-bold uppercase text-xs tracking-widest hover:bg-amber-500 transition-colors">Yine de Kaydet</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* HEADER VE NAVİGASYON */}
       <div className="w-full max-w-lg flex justify-between items-center bg-slate-900/40 p-5 rounded-[2rem] border border-white/5 mb-4 backdrop-blur-xl">
         <div className="flex items-center gap-3">
@@ -548,8 +632,11 @@ export default function AdminPage() {
       <style jsx global>{`
         #reader video { width: 100% !important; height: 100% !important; object-fit: cover !important; }
         #reader { border: none !important; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(245, 158, 11, 0.2); border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(245, 158, 11, 0.4); }
       `}</style>
     </main>
   );
 }
-
