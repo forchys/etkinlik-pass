@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
-import * as XLSX from 'xlsx';
+import * as XLSX from 'xlsx'; 
 import { 
   Users, CheckCircle, XCircle, Loader2, Search, X, 
   RefreshCcw, TicketCheck, Camera, ShieldCheck, AlertTriangle, 
@@ -17,7 +17,7 @@ export default function AdminPage() {
   const [participants, setParticipants] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [csvLink, setCsvLink] = useState(""); // Yeni: Google Form Linki için state
+  const [csvLink, setCsvLink] = useState(""); // Google Form için eklendi
   const [scanStatus, setScanStatus] = useState<{status: 'idle' | 'success' | 'error' | 'warning', message: string}>({
     status: 'idle',
     message: ''
@@ -37,24 +37,20 @@ export default function AdminPage() {
 
   const scannerRef = useRef<Html5Qrcode | null>(null);
 
-  // --- TELEFON NUMARASI TEMİZLEME FONKSİYONU ---
   const formatPhoneNumber = (phone: any) => {
     let cleaned = String(phone).replace(/\D/g, ''); 
     if (cleaned.startsWith('90')) cleaned = cleaned.substring(2);
     if (cleaned.startsWith('0')) cleaned = cleaned.substring(1);
-    return cleaned.slice(-10); // Son 10 haneyi al (5xx...)
+    return cleaned.slice(-10); 
   };
 
-  // --- GOOGLE FORM (CSV) SENKRONİZASYON FONKSİYONU ---
+  // --- GOOGLE FORM (CSV) SENKRONİZASYONU (Geri Getirildi) ---
   const handleGoogleSync = async () => {
     if (!csvLink) return alert("Lütfen önce Google Sheets CSV linkini yapıştırın!");
-    
     setAddLoading(true);
     try {
       const response = await fetch(csvLink);
       const csvText = await response.text();
-      
-      // CSV'yi satırlara ayır
       const rows = csvText.split("\n").map(row => row.split(","));
       const headers = rows[0].map(h => h.trim().replace(/"/g, ""));
       
@@ -64,14 +60,11 @@ export default function AdminPage() {
       const nameIndex = headers.findIndex(h => nameKeys.some(key => h.includes(key)));
       const phoneIndex = headers.findIndex(h => phoneKeys.some(key => h.includes(key)));
 
-      if (nameIndex === -1 || phoneIndex === -1) {
-        throw new Error("CSV sütunları algılanamadı. Başlıkları kontrol edin.");
-      }
+      if (nameIndex === -1 || phoneIndex === -1) throw new Error("Sütunlar bulunamadı.");
 
       const formattedData = rows.slice(1).map(row => {
         const name = row[nameIndex]?.replace(/"/g, "").trim();
         const phone = row[phoneIndex]?.replace(/"/g, "").trim();
-
         if (name && phone) {
           return {
             ad_soyad: name,
@@ -85,21 +78,16 @@ export default function AdminPage() {
       }).filter(item => item !== null);
 
       if (formattedData.length > 0) {
-        // Upsert kullanarak aynı telefon numarasına sahip olanları tekrar eklemiyoruz
         const { error } = await supabase.from('katilimcilar').upsert(formattedData, { onConflict: 'telefon' });
         if (!error) {
-          alert(`${formattedData.length} kişi kontrol edildi ve yeni olanlar eklendi!`);
+          alert(`${formattedData.length} kişi işlendi!`);
           fetchParticipants();
-          setCsvLink("");
         } else throw error;
       }
-    } catch (err: any) {
-      alert("Hata: " + err.message);
-    }
+    } catch (err: any) { alert("Hata: " + err.message); }
     setAddLoading(false);
   };
 
-  // --- AKILLI EXCEL YÜKLEME FONKSİYONU ---
   const handleExcelUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -117,7 +105,6 @@ export default function AdminPage() {
         const formattedData = data.map(row => {
           const nameKeys = ["Adınız Soyisimiz", "Adınız Soyisim", "Ad Soyad", "ad_soyad", "Adınız", "İsim Soyisim"];
           const phoneKeys = ["Telefon numarası", "Telefon", "telefon", "No", "Tel"];
-
           const nameKey = Object.keys(row).find(k => nameKeys.includes(k.trim()));
           const phoneKey = Object.keys(row).find(k => phoneKeys.includes(k.trim()));
 
@@ -196,7 +183,6 @@ export default function AdminPage() {
 
   const deleteAllParticipants = async () => {
     const confirmText = prompt("Bütün katılımcı listesini silmek istediğinize emin misiniz? Devam etmek için ONAYLIYORUM yazın.");
-    
     if (confirmText === "ONAYLIYORUM") {
       setLoading(true);
       const { error } = await supabase.from('katilimcilar').delete().neq('id', 0);
@@ -423,6 +409,7 @@ export default function AdminPage() {
               )}
             </div>
 
+            {/* 4 KRİTİK SLOT (Geri Getirildi) */}
             <div className="grid grid-cols-2 gap-4">
               <div className="bg-emerald-500/5 border border-emerald-500/10 p-6 rounded-[2rem] text-center">
                 <p className="text-[10px] text-emerald-500 font-bold uppercase tracking-widest mb-1">İçeride</p>
@@ -432,32 +419,30 @@ export default function AdminPage() {
                 <p className="text-[10px] text-blue-500 font-bold uppercase tracking-widest mb-1">Beklenen</p>
                 <p className="text-4xl font-black text-blue-400">{participants.filter(p => !p.geldi_mi).length}</p>
               </div>
+              <div className="bg-slate-800/30 border border-white/5 p-6 rounded-[2rem] text-center">
+                <p className="text-[10px] text-slate-500 font-bold uppercase mb-1 tracking-widest">Toplam Bilet</p>
+                <p className="text-4xl font-black text-white">{participants.length}</p>
+              </div>
+              <div className="bg-amber-500/5 border border-amber-500/10 p-6 rounded-[2rem] text-center">
+                <p className="text-[10px] text-amber-500 font-bold uppercase mb-1 tracking-widest">Doluluk</p>
+                <p className="text-4xl font-black text-amber-400">%{participants.length > 0 ? Math.round((participants.filter(p => p.geldi_mi).length / participants.length) * 100) : 0}</p>
+              </div>
             </div>
           </div>
         )}
 
         {view === 'add' && (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
-            {/* GOOGLE FORM CSV SENKRONİZASYONU */}
+            {/* GOOGLE FORM SENKRONİZE (Geri Getirildi) */}
             <div className="bg-slate-900/60 border border-white/10 rounded-[2.5rem] p-8 shadow-2xl">
               <div className="flex items-center gap-3 mb-6">
                 <Link2 size={24} className="text-blue-400" />
-                <h2 className="text-lg font-bold text-white uppercase tracking-tight">Google Form Entegrasyonu</h2>
+                <h2 className="text-lg font-bold uppercase tracking-tight">Google Form Senkronize</h2>
               </div>
               <div className="space-y-4">
-                <input 
-                  type="text" 
-                  placeholder="CSV Yayın Linkini Buraya Yapıştırın" 
-                  className="w-full bg-slate-950 border border-white/5 p-5 rounded-2xl outline-none text-xs text-white focus:border-blue-500/30 transition-all"
-                  value={csvLink}
-                  onChange={(e) => setCsvLink(e.target.value)}
-                />
-                <button 
-                  onClick={handleGoogleSync}
-                  disabled={addLoading}
-                  className="w-full bg-blue-600 hover:bg-blue-500 p-5 rounded-2xl font-bold flex items-center justify-center gap-2 uppercase text-xs tracking-widest text-white transition-all active:scale-95 shadow-lg shadow-blue-600/10"
-                >
-                  {addLoading ? <Loader2 className="animate-spin" size={20} /> : <RefreshCcw size={20} />} Formu Senkronize Et
+                <input type="text" placeholder="CSV Yayın Linkini Buraya Yapıştırın" className="w-full bg-slate-950 border border-white/5 p-5 rounded-2xl outline-none text-xs text-white focus:border-blue-500/30 transition-all" value={csvLink} onChange={(e) => setCsvLink(e.target.value)} />
+                <button onClick={handleGoogleSync} disabled={addLoading} className="w-full bg-blue-600 hover:bg-blue-500 p-5 rounded-2xl font-bold flex items-center justify-center gap-2 uppercase text-xs tracking-widest text-white transition-all active:scale-95 shadow-lg shadow-blue-600/10">
+                  {addLoading ? <Loader2 className="animate-spin" size={20} /> : <RefreshCcw size={20} />} Senkronize Et
                 </button>
               </div>
             </div>
