@@ -45,46 +45,7 @@ export default function AdminPage() {
 
   const [sheetUrl, setSheetUrl] = useState("");
   const [syncErrors, setSyncErrors] = useState<any[]>([]);
-
-  // 1. ÖZELLİK: Slot değiştiğinde URL'yi veritabanından çekip kutucuğa yazma
-  useEffect(() => {
-    async function getSavedUrl() {
-      if (!isAuthenticated) return;
-      const { data } = await supabase
-        .from('etkinlik_ayarlari')
-        .select('google_sheet_url')
-        .eq('slot_id', selectedSlotId)
-        .maybeSingle();
-
-      if (data?.google_sheet_url) {
-        setSheetUrl(data.google_sheet_url);
-      } else {
-        setSheetUrl("");
-      }
-    }
-    getSavedUrl();
-  }, [selectedSlotId, isAuthenticated]);
-
-  // --- GOOGLE SHEETS SENKRONİZASYON ---
-  const handleSync = async () => {
-    if (!sheetUrl) return alert("Lütfen bir CSV URL girin.");
-    setAddLoading(true);
-    setSyncErrors([]); // Önceki hataları temizle
-    try {
-      // 2. ÖZELLİK: Senkronize et dendiğinde URL'yi ilgili slota kaydet (Sabitleme)
-      await supabase
-        .from('etkinlik_ayarlari')
-        .upsert({ 
-          slot_id: selectedSlotId, 
-          google_sheet_url: sheetUrl 
-        }, { onConflict: 'slot_id' });
-
-      const response = await fetch(sheetUrl);
-      const csvText = await response.text();
-      const rows = csvText.split('\n').map(row => row.split(',')).slice(1);
-
-      const duplicates: any[] = [];
-      
+  
       // YENİ MANTIK: uniqueDataMap yerine direkt dizi oluşturuyoruz (Mükerrerlere izin verildiği için)
       const finalData = rows.map(row => {
         const adSoyad = row[2]?.replace(/"/g, '').trim(); 
@@ -728,7 +689,7 @@ export default function AdminPage() {
                           {isDuplicate && (
                             <div className="flex items-center gap-1 bg-amber-500/20 px-2 py-1 rounded-md border border-amber-500/30">
                               <AlertTriangle size={12} className="text-amber-500" />
-                              <span className="text-[8px] font-bold text-amber-500 uppercase">Mükerrer</span>
+                              <span className="text-[8px] font-bold text-amber-500 uppercase">AYNI TEL NO</span>
                             </div>
                           )}
                         </div>
