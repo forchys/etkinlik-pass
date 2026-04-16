@@ -37,9 +37,9 @@ export default function AdminPage() {
   const [sheetUrl, setSheetUrl] = useState("");
   const [syncErrors, setSyncErrors] = useState<any[]>([]);
 
-  // YENİ: Seçili slota göre linki veritabanından çekme (SABİTLEME ÖZELLİĞİ)
+  // 1. ÖZELLİK: Slot değiştiğinde URL'yi veritabanından çekip kutucuğa yazma
   useEffect(() => {
-    async function fetchSavedLink() {
+    async function getSavedUrl() {
       if (!isAuthenticated) return;
       const { data } = await supabase
         .from('etkinlik_ayarlari')
@@ -53,7 +53,7 @@ export default function AdminPage() {
         setSheetUrl("");
       }
     }
-    fetchSavedLink();
+    getSavedUrl();
   }, [selectedSlotId, isAuthenticated]);
 
   const handleSync = async () => {
@@ -61,13 +61,12 @@ export default function AdminPage() {
     setAddLoading(true);
     setSyncErrors([]);
     try {
-      // 1. Linki veritabanına kaydet (Sabitle)
+      // 2. ÖZELLİK: Senkronize et dendiğinde URL'yi ilgili slota kaydet (Sabitleme)
       await supabase
         .from('etkinlik_ayarlari')
         .upsert({ 
           slot_id: selectedSlotId, 
-          google_sheet_url: sheetUrl,
-          etkinlik_id: selectedSlotId 
+          google_sheet_url: sheetUrl 
         }, { onConflict: 'slot_id' });
 
       const response = await fetch(sheetUrl);
@@ -81,21 +80,21 @@ export default function AdminPage() {
 
         if (!adSoyad || !telefon || telefon.length < 10) {
           if (adSoyad || (telefon && telefon !== "")) {
-            duplicates.push({ isim: adSoyad || "Bilinmiyor", tel: telefon || "Geçersiz", neden: "Eksik bilgi veya hatalı numara" });
+            duplicates.push({ isim: adSoyad || "Bilinmiyor", tel: telefon || "Geçersiz", neden: "Eksik veri" });
           }
           return acc;
         }
 
-        // MÜKERRER KONTROLÜ: Aynı telefon numarası listede varsa atla
+        // 3. ÖZELLİK: Mükerrer kayıtları temizleme (Aynı numara tekrar etmesin)
         if (acc[telefon]) {
-          duplicates.push({ isim: adSoyad, tel: telefon, neden: "Mükerrer numara (Aynı numara tekrar ediyor)" });
+          duplicates.push({ isim: adSoyad, tel: telefon, neden: "Mükerrer numara" });
           return acc;
         }
         
         acc[telefon] = {
           ad_soyad: adSoyad,
           telefon: telefon,
-          etkinlik_id: selectedSlotId,
+          slot_id: selectedSlotId, // Sütun adını slot_id olarak güncelledik
           bilet_alindi_mi: false,
           geldi_mi: false,
           qr_kodu: crypto.randomUUID()
@@ -113,7 +112,7 @@ export default function AdminPage() {
         .upsert(finalData, { onConflict: 'telefon' });
 
       if (error) throw error;
-      alert(`${finalData.length} kişi senkronize edildi. ${duplicates.length} kayıt temizlendi/atlandı.`);
+      alert(`${finalData.length} kişi işlendi. ${duplicates.length} mükerrer kayıt atlandı.`);
       fetchParticipants();
     } catch (err: any) {
       alert("Hata: " + err.message);
@@ -170,7 +169,7 @@ export default function AdminPage() {
     const { data, error } = await supabase
       .from('katilimcilar')
       .select('*')
-      .eq('etkinlik_id', selectedSlotId)
+      .eq('slot_id', selectedSlotId) // etkinlik_id kaldırıldı, slot_id yapıldı
       .order('ad_soyad', { ascending: true });
     if (!error && data) setParticipants(data);
     setLoading(false);
@@ -204,7 +203,7 @@ export default function AdminPage() {
               qr_kodu: crypto.randomUUID(),
               geldi_mi: false,
               bilet_alindi_mi: false,
-              etkinlik_id: selectedSlotId
+              slot_id: selectedSlotId
             };
           }
           return null;
@@ -239,7 +238,7 @@ export default function AdminPage() {
       qr_kodu: crypto.randomUUID(), 
       geldi_mi: false, 
       bilet_alindi_mi: false,
-      etkinlik_id: selectedSlotId
+      slot_id: selectedSlotId
     }]);
     if (!error) { setNewPerson({ ad_soyad: "", telefon: "" }); fetchParticipants(); }
     setAddLoading(false);
@@ -282,7 +281,7 @@ export default function AdminPage() {
   const deleteAllParticipants = async () => {
     const confirmText = prompt(`Slot ${selectedSlotId} içindeki tüm kayıtları silmek için ONAYLIYORUM yazın.`);
     if (confirmText === "ONAYLIYORUM") {
-      const { error } = await supabase.from('katilimcilar').delete().eq('etkinlik_id', selectedSlotId);
+      const { error } = await supabase.from('katilimcilar').delete().eq('slot_id', selectedSlotId);
       if (!error) fetchParticipants();
     }
   };
@@ -309,7 +308,7 @@ export default function AdminPage() {
               const { data: user } = await supabase.from('katilimcilar')
                 .select('*')
                 .eq('qr_kodu', cleanCode)
-                .eq('etkinlik_id', selectedSlotId)
+                .eq('slot_id', selectedSlotId)
                 .maybeSingle();
               
               if (!user) { setScanStatus({ status: 'error', message: 'Geçersiz veya Yanlış Etkinlik!' }); }
@@ -354,6 +353,7 @@ export default function AdminPage() {
   return (
     <main className="min-h-screen bg-[#020617] text-white p-4 font-sans flex flex-col items-center">
       
+      {/* Modallar ve Layout yapısı aynı şekilde devam eder... */}
       {isSettingsOpen && (
         <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/90 backdrop-blur-xl overflow-y-auto">
           <div className="w-full max-w-4xl bg-slate-950 border border-white/10 rounded-[3rem] p-6 my-8">
@@ -519,7 +519,7 @@ export default function AdminPage() {
                 <div className="mt-4 p-4 bg-rose-500/10 border border-rose-500/20 rounded-2xl">
                   <div className="flex items-center gap-2 text-rose-400 mb-3">
                     <AlertTriangle size={16} />
-                    <span className="text-[10px] font-black uppercase tracking-tight">Temizlenen/Atlanan Kayıtlar ({syncErrors.length})</span>
+                    <span className="text-[10px] font-black uppercase tracking-tight">Atlanan Kayıtlar ({syncErrors.length})</span>
                   </div>
                   <div className="max-h-40 overflow-y-auto space-y-2 pr-2">
                     {syncErrors.map((err, i) => (
@@ -584,7 +584,6 @@ export default function AdminPage() {
                       </div>
                       <div className="flex flex-col gap-1 mt-2">
                         <p className="text-[10px] text-slate-500">TEL: {person.telefon}</p>
-                        <p className="text-[8px] text-slate-600 font-mono">ID: {person.id} | Slot: {person.etkinlik_id}</p>
                       </div>
                     </div>
                     <div className="flex flex-col gap-2">
@@ -603,12 +602,6 @@ export default function AdminPage() {
                   </div>
                 </div>
               ))}
-              {!loading && filteredList.length === 0 && (
-                <div className="text-center p-10 bg-slate-900/20 rounded-[2.5rem] border border-dashed border-white/5">
-                  <Users className="mx-auto text-slate-700 mb-4" size={48} />
-                  <p className="text-slate-500 font-bold uppercase text-xs">Bu slotta henüz kimse yok.</p>
-                </div>
-              )}
             </div>
           </div>
         )}
