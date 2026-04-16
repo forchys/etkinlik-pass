@@ -79,7 +79,7 @@ export default function AdminPage() {
         event_date: slot.event_date,
         event_location: slot.event_location,
         event_type: slot.event_type,
-        is_active: slot.is_active
+        is_active: slot.is_active,
         has_seating: slot.has_seating
       })
       .eq('id', slot.id);
