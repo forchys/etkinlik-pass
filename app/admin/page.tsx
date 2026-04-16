@@ -2,11 +2,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
-import * as XLSX from 'xlsx'; // Bu kütüphanenin yüklü olduğundan emin ol: npm install xlsx
+import * as XLSX from 'xlsx';
 import { 
   Users, CheckCircle, XCircle, Loader2, Search, X, 
   RefreshCcw, TicketCheck, Camera, ShieldCheck, AlertTriangle, 
-  Settings2, Save, Trash2, Lock, UserPlus, Plus, FileUp
+  Settings2, Save, Trash2, Lock, UserPlus, Plus, FileUp, Link2
 } from 'lucide-react';
 
 export default function AdminPage() {
@@ -17,6 +17,7 @@ export default function AdminPage() {
   const [participants, setParticipants] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [csvLink, setCsvLink] = useState(""); // Yeni: Google Form Linki için state
   const [scanStatus, setScanStatus] = useState<{status: 'idle' | 'success' | 'error' | 'warning', message: string}>({
     status: 'idle',
     message: ''
@@ -44,6 +45,60 @@ export default function AdminPage() {
     return cleaned.slice(-10); // Son 10 haneyi al (5xx...)
   };
 
+  // --- GOOGLE FORM (CSV) SENKRONİZASYON FONKSİYONU ---
+  const handleGoogleSync = async () => {
+    if (!csvLink) return alert("Lütfen önce Google Sheets CSV linkini yapıştırın!");
+    
+    setAddLoading(true);
+    try {
+      const response = await fetch(csvLink);
+      const csvText = await response.text();
+      
+      // CSV'yi satırlara ayır
+      const rows = csvText.split("\n").map(row => row.split(","));
+      const headers = rows[0].map(h => h.trim().replace(/"/g, ""));
+      
+      const nameKeys = ["Adınız Soyisimiz", "Adınız Soyisim", "Ad Soyad", "ad_soyad", "Adınız", "İsim Soyisim"];
+      const phoneKeys = ["Telefon numarası", "Telefon", "telefon", "No", "Tel"];
+
+      const nameIndex = headers.findIndex(h => nameKeys.some(key => h.includes(key)));
+      const phoneIndex = headers.findIndex(h => phoneKeys.some(key => h.includes(key)));
+
+      if (nameIndex === -1 || phoneIndex === -1) {
+        throw new Error("CSV sütunları algılanamadı. Başlıkları kontrol edin.");
+      }
+
+      const formattedData = rows.slice(1).map(row => {
+        const name = row[nameIndex]?.replace(/"/g, "").trim();
+        const phone = row[phoneIndex]?.replace(/"/g, "").trim();
+
+        if (name && phone) {
+          return {
+            ad_soyad: name,
+            telefon: formatPhoneNumber(phone),
+            qr_kodu: crypto.randomUUID(),
+            geldi_mi: false,
+            bilet_alindi_mi: true
+          };
+        }
+        return null;
+      }).filter(item => item !== null);
+
+      if (formattedData.length > 0) {
+        // Upsert kullanarak aynı telefon numarasına sahip olanları tekrar eklemiyoruz
+        const { error } = await supabase.from('katilimcilar').upsert(formattedData, { onConflict: 'telefon' });
+        if (!error) {
+          alert(`${formattedData.length} kişi kontrol edildi ve yeni olanlar eklendi!`);
+          fetchParticipants();
+          setCsvLink("");
+        } else throw error;
+      }
+    } catch (err: any) {
+      alert("Hata: " + err.message);
+    }
+    setAddLoading(false);
+  };
+
   // --- AKILLI EXCEL YÜKLEME FONKSİYONU ---
   const handleExcelUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -60,7 +115,6 @@ export default function AdminPage() {
         const data: any[] = XLSX.utils.sheet_to_json(ws);
 
         const formattedData = data.map(row => {
-          // Olası sütun isimlerini eşleştiriyoruz
           const nameKeys = ["Adınız Soyisimiz", "Adınız Soyisim", "Ad Soyad", "ad_soyad", "Adınız", "İsim Soyisim"];
           const phoneKeys = ["Telefon numarası", "Telefon", "telefon", "No", "Tel"];
 
@@ -80,7 +134,7 @@ export default function AdminPage() {
         }).filter(item => item !== null);
 
         if (formattedData.length > 0) {
-          const { error } = await supabase.from('katilimcilar').insert(formattedData);
+          const { error } = await supabase.from('katilimcilar').upsert(formattedData, { onConflict: 'telefon' });
           if (!error) {
             alert(`${formattedData.length} kişi başarıyla eklendi!`);
             fetchParticipants();
@@ -94,7 +148,7 @@ export default function AdminPage() {
         alert("Dosya okunurken bir hata oluştu.");
       }
       setAddLoading(false);
-      e.target.value = ""; // Aynı dosyayı tekrar seçebilmek için
+      e.target.value = ""; 
     };
     reader.readAsBinaryString(file);
   };
@@ -384,7 +438,30 @@ export default function AdminPage() {
 
         {view === 'add' && (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
-            {/* AKILLI EXCEL YÜKLEME ALANI */}
+            {/* GOOGLE FORM CSV SENKRONİZASYONU */}
+            <div className="bg-slate-900/60 border border-white/10 rounded-[2.5rem] p-8 shadow-2xl">
+              <div className="flex items-center gap-3 mb-6">
+                <Link2 size={24} className="text-blue-400" />
+                <h2 className="text-lg font-bold text-white uppercase tracking-tight">Google Form Entegrasyonu</h2>
+              </div>
+              <div className="space-y-4">
+                <input 
+                  type="text" 
+                  placeholder="CSV Yayın Linkini Buraya Yapıştırın" 
+                  className="w-full bg-slate-950 border border-white/5 p-5 rounded-2xl outline-none text-xs text-white focus:border-blue-500/30 transition-all"
+                  value={csvLink}
+                  onChange={(e) => setCsvLink(e.target.value)}
+                />
+                <button 
+                  onClick={handleGoogleSync}
+                  disabled={addLoading}
+                  className="w-full bg-blue-600 hover:bg-blue-500 p-5 rounded-2xl font-bold flex items-center justify-center gap-2 uppercase text-xs tracking-widest text-white transition-all active:scale-95 shadow-lg shadow-blue-600/10"
+                >
+                  {addLoading ? <Loader2 className="animate-spin" size={20} /> : <RefreshCcw size={20} />} Formu Senkronize Et
+                </button>
+              </div>
+            </div>
+
             <div className="bg-slate-900/60 border border-dashed border-white/20 rounded-[2.5rem] p-8 text-center hover:border-emerald-500/50 transition-all group">
               <label className="cursor-pointer">
                 <input type="file" accept=".xlsx, .xls, .csv" className="hidden" onChange={handleExcelUpload} disabled={addLoading} />
