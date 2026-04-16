@@ -2,11 +2,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
-import * as XLSX from 'xlsx'; 
+import * as XLSX from 'xlsx';
 import { 
   Users, CheckCircle, XCircle, Loader2, Search, X, 
   RefreshCcw, TicketCheck, Camera, ShieldCheck, AlertTriangle, 
-  Settings2, Save, Trash2, Lock, UserPlus, Plus, FileUp, Link2
+  Settings2, Save, Trash2, Lock, UserPlus, Plus, FileUp, Edit3, Armchair,
+  Power, Film, Theater, Trophy, MapPin, Calendar, LayoutGrid, Link2
 } from 'lucide-react';
 
 export default function AdminPage() {
@@ -17,81 +18,138 @@ export default function AdminPage() {
   const [participants, setParticipants] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [csvLink, setCsvLink] = useState(""); // Google Form için eklendi
-  const [scanStatus, setScanStatus] = useState<{status: 'idle' | 'success' | 'error' | 'warning', message: string}>({
-    status: 'idle',
-    message: ''
-  });
+
+  // --- SLOT YÖNETİMİ STATE'LERİ ---
+  const [eventSlots, setEventSlots] = useState<any[]>([]);
+  const [selectedSlotId, setSelectedSlotId] = useState<number>(1); 
+  const [savingSlotId, setSavingSlotId] = useState<string | null>(null);
+
+  const [filterArrived, setFilterArrived] = useState(false);
+  const [filterTicketed, setFilterTicketed] = useState(false);
+  const [scanStatus, setScanStatus] = useState<{status: 'idle' | 'success' | 'error' | 'warning', message: string}>({ status: 'idle', message: '' });
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingPerson, setEditingPerson] = useState<any>(null);
 
   const ADMIN_PASSWORD = "flickbaba31";
-
-  const [eventSettings, setEventSettings] = useState({
-    etkinlik_adi: "",
-    tarih_saat: "",
-    konum: ""
-  });
-  const [settingsLoading, setSettingsLoading] = useState(false);
-  
   const [newPerson, setNewPerson] = useState({ ad_soyad: "", telefon: "" });
   const [addLoading, setAddLoading] = useState(false);
-
   const scannerRef = useRef<Html5Qrcode | null>(null);
+
+  // --- GOOGLE SHEETS STATE ---
+  const [sheetUrl, setSheetUrl] = useState("https://docs.google.com/spreadsheets/d/e/2PACX-1vTGAQYsi2nV2ySRo.../pub?output=csv");
+
+  // --- GOOGLE SHEETS SENKRONİZASYON ---
+  const handleSync = async () => {
+    setAddLoading(true);
+    try {
+      const response = await fetch(sheetUrl);
+      const csvText = await response.text();
+      const rows = csvText.split('\n').map(row => row.split(',')).slice(1);
+
+      const uniqueDataMap = rows.reduce((acc: any, row: any) => {
+        // C sütunu (index 2): Ad Soyad | D sütunu (index 3): Telefon
+        const adSoyad = row[2]?.replace(/"/g, '').trim(); 
+        const telefon = formatPhoneNumber(row[3]);
+
+        if (telefon && telefon.length >= 10 && adSoyad) {
+          acc[telefon] = {
+            ad_soyad: adSoyad,
+            telefon: telefon,
+            etkinlik_id: selectedSlotId,
+            bilet_alindi_mi: false,
+            geldi_mi: false,
+            qr_kodu: crypto.randomUUID()
+          };
+        }
+        return acc;
+      }, {});
+
+      const finalData = Object.values(uniqueDataMap);
+
+      if (finalData.length === 0) throw new Error("Geçerli veri bulunamadı.");
+
+      const { error } = await supabase
+        .from('katilimcilar')
+        .upsert(finalData, { onConflict: 'telefon' });
+
+      if (error) throw error;
+      alert(`${finalData.length} kişi Google Sheets'ten senkronize edildi!`);
+      fetchParticipants();
+    } catch (err: any) {
+      alert("Hata: " + err.message);
+    } finally {
+      setAddLoading(false);
+    }
+  };
+
+  const fetchEventSlots = async () => {
+    const { data } = await supabase
+      .from('etkinlik_ayarlari')
+      .select('*')
+      .order('slot_id', { ascending: true });
+    if (data) setEventSlots(data);
+  };
+
+  const updateLocalSlot = (id: string, field: string, value: any) => {
+    setEventSlots(prev => prev.map(slot => {
+      if (slot.id === id) {
+        if (field === 'is_active' && value === false) {
+          return { 
+            ...slot, 
+            is_active: false,
+            event_name: "Çok Yakında",
+            event_date: "bilinmiyor",
+            event_location: "bilinmiyor"
+          };
+        }
+        return { ...slot, [field]: value };
+      }
+      return slot;
+    }));
+  };
+
+  const handleUpdateSlot = async (slot: any) => {
+    setSavingSlotId(slot.id);
+    const { error } = await supabase
+      .from('etkinlik_ayarlari')
+      .update({
+        event_name: slot.event_name,
+        event_date: slot.event_date,
+        event_location: slot.event_location,
+        event_type: slot.event_type,
+        is_active: slot.is_active
+      })
+      .eq('id', slot.id);
+
+    if (error) alert("Hata: " + error.message);
+    setSavingSlotId(null);
+  };
 
   const formatPhoneNumber = (phone: any) => {
     let cleaned = String(phone).replace(/\D/g, ''); 
     if (cleaned.startsWith('90')) cleaned = cleaned.substring(2);
     if (cleaned.startsWith('0')) cleaned = cleaned.substring(1);
-    return cleaned.slice(-10); 
+    return cleaned.slice(-10);
   };
 
-  // --- GOOGLE FORM (CSV) SENKRONİZASYONU (Geri Getirildi) ---
-  const handleGoogleSync = async () => {
-    if (!csvLink) return alert("Lütfen önce Google Sheets CSV linkini yapıştırın!");
-    setAddLoading(true);
-    try {
-      const response = await fetch(csvLink);
-      const csvText = await response.text();
-      const rows = csvText.split("\n").map(row => row.split(","));
-      const headers = rows[0].map(h => h.trim().replace(/"/g, ""));
-      
-      const nameKeys = ["Adınız Soyisimiz", "Adınız Soyisim", "Ad Soyad", "ad_soyad", "Adınız", "İsim Soyisim"];
-      const phoneKeys = ["Telefon numarası", "Telefon", "telefon", "No", "Tel"];
-
-      const nameIndex = headers.findIndex(h => nameKeys.some(key => h.includes(key)));
-      const phoneIndex = headers.findIndex(h => phoneKeys.some(key => h.includes(key)));
-
-      if (nameIndex === -1 || phoneIndex === -1) throw new Error("Sütunlar bulunamadı.");
-
-      const formattedData = rows.slice(1).map(row => {
-        const name = row[nameIndex]?.replace(/"/g, "").trim();
-        const phone = row[phoneIndex]?.replace(/"/g, "").trim();
-        if (name && phone) {
-          return {
-            ad_soyad: name,
-            telefon: formatPhoneNumber(phone),
-            qr_kodu: crypto.randomUUID(),
-            geldi_mi: false,
-            bilet_alindi_mi: true
-          };
-        }
-        return null;
-      }).filter(item => item !== null);
-
-      if (formattedData.length > 0) {
-        const { error } = await supabase.from('katilimcilar').upsert(formattedData, { onConflict: 'telefon' });
-        if (!error) {
-          alert(`${formattedData.length} kişi işlendi!`);
-          fetchParticipants();
-        } else throw error;
-      }
-    } catch (err: any) { alert("Hata: " + err.message); }
-    setAddLoading(false);
+  const fetchParticipants = async () => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from('katilimcilar')
+      .select('*')
+      .eq('etkinlik_id', selectedSlotId)
+      .order('ad_soyad', { ascending: true });
+    if (!error && data) setParticipants(data);
+    setLoading(false);
   };
+
+  useEffect(() => {
+    if (isAuthenticated) fetchParticipants();
+  }, [selectedSlotId, isAuthenticated]);
 
   const handleExcelUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     setAddLoading(true);
     const reader = new FileReader();
     reader.onload = async (evt) => {
@@ -101,101 +159,57 @@ export default function AdminPage() {
         const wsname = wb.SheetNames[0];
         const ws = wb.Sheets[wsname];
         const data: any[] = XLSX.utils.sheet_to_json(ws);
-
         const formattedData = data.map(row => {
           const nameKeys = ["Adınız Soyisimiz", "Adınız Soyisim", "Ad Soyad", "ad_soyad", "Adınız", "İsim Soyisim"];
           const phoneKeys = ["Telefon numarası", "Telefon", "telefon", "No", "Tel"];
           const nameKey = Object.keys(row).find(k => nameKeys.includes(k.trim()));
           const phoneKey = Object.keys(row).find(k => phoneKeys.includes(k.trim()));
-
           if (nameKey && phoneKey && row[nameKey] && row[phoneKey]) {
             return {
               ad_soyad: String(row[nameKey]).trim(),
               telefon: formatPhoneNumber(row[phoneKey]),
               qr_kodu: crypto.randomUUID(),
               geldi_mi: false,
-              bilet_alindi_mi: true
+              bilet_alindi_mi: false,
+              etkinlik_id: selectedSlotId
             };
           }
           return null;
         }).filter(item => item !== null);
-
         if (formattedData.length > 0) {
           const { error } = await supabase.from('katilimcilar').upsert(formattedData, { onConflict: 'telefon' });
           if (!error) {
             alert(`${formattedData.length} kişi başarıyla eklendi!`);
             fetchParticipants();
-          } else {
-            alert("Supabase Hatası: " + error.message);
-          }
-        } else {
-          alert("Excel'de uygun sütun başlıkları bulunamadı!");
-        }
-      } catch (err) {
-        alert("Dosya okunurken bir hata oluştu.");
-      }
+          } else alert("Supabase Hatası: " + error.message);
+        } else alert("Excel'de uygun sütun başlıkları bulunamadı!");
+      } catch (err) { alert("Dosya okunurken bir hata oluştu."); }
       setAddLoading(false);
-      e.target.value = ""; 
+      e.target.value = "";
     };
     reader.readAsBinaryString(file);
   };
 
-  const playScanSound = (isSuccess: boolean) => {
-    try {
-      const context = new (window.AudioContext || (window as any).webkitAudioContext)();
-      const oscillator = context.createOscillator();
-      const gain = context.createGain();
-      oscillator.connect(gain);
-      gain.connect(context.destination);
-      oscillator.type = 'sine';
-      oscillator.frequency.setValueAtTime(isSuccess ? 980 : 220, context.currentTime);
-      gain.gain.setValueAtTime(0.7, context.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, context.currentTime + 0.2);
-      oscillator.start();
-      oscillator.stop(context.currentTime + 0.2);
-    } catch (e) { console.error("Audio error", e); }
+  const handleUpdateParticipant = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const { error } = await supabase.from('katilimcilar').update({ ad_soyad: editingPerson.ad_soyad, telefon: formatPhoneNumber(editingPerson.telefon) }).eq('id', editingPerson.id);
+    if (!error) { setIsEditModalOpen(false); fetchParticipants(); } else { alert("Hata: " + error.message); }
   };
 
   const handleAddSinglePerson = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newPerson.ad_soyad.trim() || !newPerson.telefon.trim()) {
-      return alert("Lütfen hem Ad Soyad hem de Telefon numarasını doldurunuz!");
-    }
-
+    if (!newPerson.ad_soyad.trim() || !newPerson.telefon.trim()) return alert("Eksik bilgi!");
     setAddLoading(true);
-    const { error } = await supabase.from('katilimcilar').insert([{
-      ad_soyad: newPerson.ad_soyad.trim(),
-      telefon: formatPhoneNumber(newPerson.telefon),
-      qr_kodu: crypto.randomUUID(),
-      geldi_mi: false,
-      bilet_alindi_mi: true
+    const { error } = await supabase.from('katilimcilar').insert([{ 
+      ad_soyad: newPerson.ad_soyad.trim(), 
+      telefon: formatPhoneNumber(newPerson.telefon), 
+      qr_kodu: crypto.randomUUID(), 
+      geldi_mi: false, 
+      bilet_alindi_mi: false,
+      etkinlik_id: selectedSlotId
     }]);
-
-    if (!error) {
-      setNewPerson({ ad_soyad: "", telefon: "" });
-      fetchParticipants();
-      alert("Katılımcı başarıyla eklendi!");
-    } else {
-      alert("Hata: " + error.message);
-    }
+    if (!error) { setNewPerson({ ad_soyad: "", telefon: "" }); fetchParticipants(); }
     setAddLoading(false);
-  };
-
-  const deleteAllParticipants = async () => {
-    const confirmText = prompt("Bütün katılımcı listesini silmek istediğinize emin misiniz? Devam etmek için ONAYLIYORUM yazın.");
-    if (confirmText === "ONAYLIYORUM") {
-      setLoading(true);
-      const { error } = await supabase.from('katilimcilar').delete().neq('id', 0);
-      if (!error) {
-        alert("Tüm liste başarıyla temizlendi.");
-        fetchParticipants();
-      } else {
-        alert("Hata: " + error.message);
-      }
-      setLoading(false);
-    } else if (confirmText !== null) {
-      alert("Hatalı onay kelimesi. İşlem iptal edildi.");
-    }
   };
 
   useEffect(() => {
@@ -208,77 +222,41 @@ export default function AdminPage() {
     if (password === ADMIN_PASSWORD) {
       localStorage.setItem('flick_admin_auth', 'true');
       setIsAuthenticated(true);
-    } else {
-      alert("Hatalı şifre!");
-    }
+    } else alert("Hatalı şifre!");
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('flick_admin_auth');
-    setIsAuthenticated(false);
-  };
+  const handleLogout = () => { localStorage.removeItem('flick_admin_auth'); setIsAuthenticated(false); };
 
   useEffect(() => {
     if (!isAuthenticated) return;
-    document.title = "Flick Bilet | Yönetim Paneli";
-    fetchEventSettings();
-    fetchParticipants();
+    fetchEventSlots();
   }, [isAuthenticated]);
 
-  const fetchEventSettings = async () => {
-    const { data, error } = await supabase.from('etkinlik_ayarlari').select('*').single();
-    if (!error && data) {
-      setEventSettings({
-        etkinlik_adi: data.etkinlik_adi,
-        tarih_saat: data.tarih_saat,
-        konum: data.konum
-      });
-    }
-  };
-
-  const handleUpdateSettings = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSettingsLoading(true);
-    const { error } = await supabase.from('etkinlik_ayarlari').update(eventSettings).eq('id', 1);
-    if (!error) {
-      alert("Etkinlik bilgileri başarıyla güncellendi!");
-      setIsSettingsOpen(false);
-    } else alert("Güncelleme sırasında bir hata oluştu.");
-    setSettingsLoading(false);
-  };
-
-  const fetchParticipants = async () => {
-    setLoading(true);
-    const { data, error } = await supabase.from('katilimcilar').select('*').order('ad_soyad', { ascending: true });
-    if (!error && data) setParticipants(data);
-    setLoading(false);
-  };
-
   const deleteUser = async (id: number) => {
-    if (confirm("Bu katılımcıyı tamamen silmek istediğinize emin misiniz?")) {
+    if (confirm("Silinsin mi?")) {
       const { error } = await supabase.from('katilimcilar').delete().eq('id', id);
       if (!error) fetchParticipants();
     }
   };
 
   const resetSeat = async (id: number) => {
-    if (confirm("Bu kullanıcının bilet bilgilerini sıfırlayıp yeni bir QR kod üretmek istiyor musunuz?")) {
-      const { error } = await supabase.from('katilimcilar').update({ 
-        koltuk_no: null, bilet_alindi_mi: false, geldi_mi: false, qr_kodu: crypto.randomUUID() 
-      }).eq('id', id);
+    if (confirm("Sıfırlansın mı?")) {
+      const { error } = await supabase.from('katilimcilar').update({ koltuk_no: null, bilet_alindi_mi: false, geldi_mi: false, qr_kodu: crypto.randomUUID() }).eq('id', id);
       if (!error) fetchParticipants();
-      else alert("Sıfırlama hatası!");
+    }
+  };
+
+  const deleteAllParticipants = async () => {
+    const confirmText = prompt(`Slot ${selectedSlotId} içindeki tüm kayıtları silmek için ONAYLIYORUM yazın.`);
+    if (confirmText === "ONAYLIYORUM") {
+      const { error } = await supabase.from('katilimcilar').delete().eq('etkinlik_id', selectedSlotId);
+      if (!error) fetchParticipants();
     }
   };
 
   const safeStopScanner = async () => {
     if (scannerRef.current && scannerRef.current.isScanning) {
-      try {
-        await scannerRef.current.stop();
-        scannerRef.current = null;
-      } catch (err) {
-        console.error("Scanner stop error:", err);
-      }
+      try { await scannerRef.current.stop(); scannerRef.current = null; } catch (err) {}
     }
   };
 
@@ -295,18 +273,18 @@ export default function AdminPage() {
             async (decodedText) => {
               const cleanCode = decodedText.trim();
               if (scanStatus.status !== 'idle') return;
-              const { data: user } = await supabase.from('katilimcilar').select('*').eq('qr_kodu', cleanCode).maybeSingle();
-              if (!user) {
-                playScanSound(false);
-                setScanStatus({ status: 'error', message: 'Geçersiz bilet!' });
-              } else if (user.geldi_mi) {
-                playScanSound(false);
-                setScanStatus({ status: 'warning', message: `Zaten Giriş Yapıldı: ${user.ad_soyad}` });
-              } else {
-                playScanSound(true);
+              const { data: user } = await supabase.from('katilimcilar')
+                .select('*')
+                .eq('qr_kodu', cleanCode)
+                .eq('etkinlik_id', selectedSlotId)
+                .maybeSingle();
+              
+              if (!user) { setScanStatus({ status: 'error', message: 'Geçersiz veya Yanlış Etkinlik!' }); }
+              else if (user.geldi_mi) { setScanStatus({ status: 'warning', message: 'Zaten Girdi!' }); }
+              else {
                 await supabase.from('katilimcilar').update({ geldi_mi: true }).eq('id', user.id);
                 setParticipants(prev => prev.map(p => p.id === user.id ? { ...p, geldi_mi: true } : p));
-                setScanStatus({ status: 'success', message: `${user.ad_soyad} giriş yaptı!` });
+                setScanStatus({ status: 'success', message: `${user.ad_soyad} girdi!` });
               }
               setTimeout(() => setScanStatus({ status: 'idle', message: '' }), 2000);
             }, () => {}
@@ -314,171 +292,215 @@ export default function AdminPage() {
         } catch (err) {}
       };
       startCamera();
-    } else {
-      safeStopScanner();
-    }
+    } else safeStopScanner();
     return () => { safeStopScanner(); };
-  }, [view, isAuthenticated]);
+  }, [view, isAuthenticated, selectedSlotId]);
 
   if (!isAuthenticated) {
     return (
-      <main className="min-h-screen bg-[#020617] flex items-center justify-center p-6 text-white font-sans">
-        <div className="w-full max-w-md bg-slate-900/40 border border-white/5 p-10 rounded-[2.5rem] backdrop-blur-xl shadow-2xl text-center">
-          <div className="bg-blue-600 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-blue-600/20">
-            <Lock size={32} />
-          </div>
-          <h1 className="text-2xl font-black uppercase tracking-tight mb-2">Flick Admin</h1>
-          <p className="text-slate-500 text-xs uppercase tracking-[0.2em] mb-8">Yönetim Paneline Erişin</p>
+      <main className="min-h-screen bg-[#020617] flex items-center justify-center p-6 text-white">
+        <div className="w-full max-w-md bg-slate-900/40 border border-white/5 p-10 rounded-[2.5rem] text-center">
+          <div className="bg-blue-600 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6"><Lock size={32} /></div>
+          <h1 className="text-2xl font-black mb-8">Flick Admin</h1>
           <form onSubmit={handleLogin} className="space-y-4">
-            <input type="password" placeholder="Erişim Şifresi" className="w-full bg-slate-950 border border-white/10 p-5 rounded-2xl outline-none text-center text-lg text-white tracking-widest focus:border-blue-500/50 transition-all" value={password} onChange={(e) => setPassword(e.target.value)} autoFocus />
-            <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 p-5 rounded-2xl font-bold uppercase text-xs tracking-widest transition-all">Sisteme Giriş Yap</button>
+            <input type="password" placeholder="Şifre" className="w-full bg-slate-950 border border-white/10 p-5 rounded-2xl outline-none text-center" value={password} onChange={(e) => setPassword(e.target.value)} autoFocus />
+            <button type="submit" className="w-full bg-blue-600 p-5 rounded-2xl font-bold uppercase text-xs tracking-widest">Giriş</button>
           </form>
         </div>
       </main>
     );
   }
 
-  const filteredList = participants.filter(p => p.ad_soyad.toLowerCase().includes(searchTerm.toLowerCase()) || (p.telefon && p.telefon.includes(searchTerm)));
+  const filteredList = participants.filter(p => {
+    const matchesSearch = p.ad_soyad.toLowerCase().includes(searchTerm.toLowerCase()) || (p.telefon && p.telefon.includes(searchTerm));
+    const matchesArrived = filterArrived ? p.geldi_mi === true : true;
+    const matchesTicketed = filterTicketed ? p.bilet_alindi_mi === true : true;
+    return matchesSearch && matchesArrived && matchesTicketed;
+  });
 
   return (
-    <main className="min-h-screen bg-[#020617] text-white p-4 font-sans flex flex-col items-center overflow-x-hidden">
+    <main className="min-h-screen bg-[#020617] text-white p-4 font-sans flex flex-col items-center">
       
       {isSettingsOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/90 backdrop-blur-xl overflow-y-auto">
+          <div className="w-full max-w-4xl bg-slate-950 border border-white/10 rounded-[3rem] p-6 my-8">
+            <div className="flex justify-between items-center mb-8 sticky top-0 bg-slate-950 py-2 z-10">
+              <div>
+                <h2 className="text-xl font-black uppercase tracking-tighter">Etkinlik Slotları</h2>
+                <p className="text-[10px] text-slate-500 font-bold tracking-widest">4 AKTİF SLOTU YÖNET</p>
+              </div>
+              <button onClick={() => setIsSettingsOpen(false)} className="bg-slate-900 p-3 rounded-2xl"><X size={24} /></button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {eventSlots.map((slot) => (
+                <div key={slot.id} className={`p-6 rounded-[2.5rem] border transition-all duration-500 ${slot.is_active ? 'bg-slate-900/40 border-blue-500/30' : 'bg-slate-900/10 border-white/5 opacity-60'}`}>
+                  
+                  <div className="flex items-center justify-between mb-6">
+                    <span className="text-[10px] font-black bg-blue-600/20 text-blue-500 px-3 py-1 rounded-lg">SLOT #{slot.slot_id}</span>
+                    <button 
+                      onClick={() => updateLocalSlot(slot.id, 'is_active', !slot.is_active)}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[9px] font-black transition-all ${slot.is_active ? 'bg-emerald-500 text-white' : 'bg-slate-800 text-slate-400'}`}
+                    >
+                      <Power size={14} /> {slot.is_active ? 'AKTİF' : 'PASİF'}
+                    </button>
+                  </div>
+
+                  <div className={`space-y-4 ${!slot.is_active && 'pointer-events-none opacity-50'}`}>
+                    <div className="grid grid-cols-4 gap-2">
+                      {[
+                        { id: 'cinema', icon: <Film size={16}/> },
+                        { id: 'theater', icon: <Theater size={16}/> },
+                        { id: 'social', icon: <Users size={16}/> },
+                        { id: 'quiz', icon: <Trophy size={16}/> }
+                      ].map((t) => (
+                        <button
+                          key={t.id}
+                          onClick={() => updateLocalSlot(slot.id, 'event_type', t.id)}
+                          className={`p-3 rounded-xl flex flex-col items-center gap-1 border transition-all ${slot.event_type === t.id ? 'bg-blue-600 border-blue-400 text-white' : 'bg-slate-950 border-white/5 text-slate-500'}`}
+                        >
+                          {t.icon}
+                          <span className="text-[8px] font-bold uppercase">{t.id}</span>
+                        </button>
+                      ))}
+                    </div>
+
+                    <input placeholder="Etkinlik Adı" className="w-full bg-slate-950 border border-white/5 p-4 rounded-2xl text-xs font-bold outline-none focus:border-blue-500/50" value={slot.event_name || ''} onChange={(e) => updateLocalSlot(slot.id, 'event_name', e.target.value)} />
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="relative">
+                        <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600" size={14} />
+                        <input placeholder="Tarih" className="w-full bg-slate-950 border border-white/5 p-4 pl-10 rounded-2xl text-[10px] font-bold outline-none" value={slot.event_date || ''} onChange={(e) => updateLocalSlot(slot.id, 'event_date', e.target.value)} />
+                      </div>
+                      <div className="relative">
+                        <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600" size={14} />
+                        <input placeholder="Konum" className="w-full bg-slate-950 border border-white/5 p-4 pl-10 rounded-2xl text-[10px] font-bold outline-none" value={slot.event_location || ''} onChange={(e) => updateLocalSlot(slot.id, 'event_location', e.target.value)} />
+                      </div>
+                    </div>
+                  </div>
+
+                  <button 
+                    disabled={savingSlotId === slot.id}
+                    onClick={() => handleUpdateSlot(slot)}
+                    className="w-full bg-white text-black p-4 rounded-2xl font-black text-[10px] tracking-widest mt-6 hover:bg-blue-600 hover:text-white transition-all flex items-center justify-center gap-2"
+                  >
+                    {savingSlotId === slot.id ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
+                    GÜNCELLE
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isEditModalOpen && editingPerson && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
           <div className="w-full max-w-md bg-slate-900 border border-white/10 rounded-[2.5rem] p-8 shadow-2xl">
             <div className="flex justify-between items-center mb-6">
-              <div className="flex items-center gap-2">
-                <Settings2 size={24} className="text-blue-400" />
-                <h2 className="text-lg font-bold uppercase tracking-tight">Etkinlik Bilgileri</h2>
-              </div>
-              <button onClick={() => setIsSettingsOpen(false)} className="p-2 hover:bg-white/5 rounded-full transition-all">
-                <X size={24} />
-              </button>
+              <h2 className="text-lg font-bold uppercase">Bilgileri Düzenle</h2>
+              <button onClick={() => setIsEditModalOpen(false)} className="p-2"><X size={24} /></button>
             </div>
-            <form onSubmit={handleUpdateSettings} className="space-y-4">
-              <input type="text" placeholder="Etkinlik Adı" className="w-full bg-slate-950 border border-white/5 p-4 rounded-2xl outline-none text-sm text-white focus:border-blue-500/30" value={eventSettings.etkinlik_adi} onChange={(e) => setEventSettings({...eventSettings, etkinlik_adi: e.target.value})} />
-              <input type="text" placeholder="Tarih" className="w-full bg-slate-950 border border-white/5 p-4 rounded-2xl outline-none text-sm text-white focus:border-blue-500/30" value={eventSettings.tarih_saat} onChange={(e) => setEventSettings({...eventSettings, tarih_saat: e.target.value})} />
-              <input type="text" placeholder="Konum" className="w-full bg-slate-950 border border-white/5 p-4 rounded-2xl outline-none text-sm text-white focus:border-blue-500/30" value={eventSettings.konum} onChange={(e) => setEventSettings({...eventSettings, konum: e.target.value})} />
-              <button disabled={settingsLoading} type="submit" className="w-full bg-blue-600 p-5 rounded-2xl font-bold flex items-center justify-center gap-2 uppercase text-xs tracking-widest text-white transition-all mt-4">
-                {settingsLoading ? <Loader2 className="animate-spin" size={20} /> : <Save size={20} />} Bilgileri Kaydet
-              </button>
+            <form onSubmit={handleUpdateParticipant} className="space-y-4">
+              <input type="text" className="w-full bg-slate-950 border border-white/5 p-4 rounded-2xl outline-none text-white" value={editingPerson.ad_soyad} onChange={(e) => setEditingPerson({...editingPerson, ad_soyad: e.target.value})} />
+              <input type="text" className="w-full bg-slate-950 border border-white/5 p-4 rounded-2xl outline-none text-white" value={editingPerson.telefon} onChange={(e) => setEditingPerson({...editingPerson, telefon: e.target.value})} />
+              <button type="submit" className="w-full bg-blue-600 p-5 rounded-2xl font-bold uppercase text-xs tracking-widest flex items-center justify-center gap-2"><Save size={18}/> Güncelle</button>
             </form>
           </div>
         </div>
       )}
 
-      <div className="w-full max-w-lg flex justify-between items-center bg-slate-900/40 p-5 rounded-[2rem] border border-white/5 mb-6 backdrop-blur-xl shadow-2xl relative z-[60]">
+      {/* HEADER VE NAVİGASYON */}
+      <div className="w-full max-w-lg flex justify-between items-center bg-slate-900/40 p-5 rounded-[2rem] border border-white/5 mb-4 backdrop-blur-xl">
         <div className="flex items-center gap-3">
           <div className="bg-blue-600 p-2 rounded-xl"><ShieldCheck size={24} /></div>
-          <div>
-            <h1 className="text-lg font-bold uppercase tracking-tight">Flick Admin</h1>
-            <button onClick={handleLogout} className="text-[10px] text-rose-500 uppercase font-bold tracking-widest hover:underline text-left block leading-none mt-1">Sistemden Çık</button>
-          </div>
+          <div><h1 className="text-lg font-bold uppercase">Flick Admin</h1><button onClick={handleLogout} className="text-[10px] text-rose-500 font-bold uppercase">Çıkış</button></div>
         </div>
         <div className="flex gap-2">
-          <button onClick={() => setIsSettingsOpen(true)} className="bg-slate-800 p-3 rounded-2xl border border-white/5 transition-all text-blue-400 hover:bg-slate-700">
-            <Settings2 size={22} />
-          </button>
-          <button onClick={() => setView('add')} className={`${view === 'add' ? 'bg-emerald-600' : 'bg-slate-800'} p-3 rounded-2xl border border-white/5 transition-all`}>
-            <Plus size={22} />
-          </button>
-          <button onClick={() => setView('list')} className={`${view === 'list' ? 'bg-blue-600' : 'bg-slate-800'} p-3 rounded-2xl border border-white/5 transition-all relative`}>
-            <Users size={22} />
-            <span className="absolute -top-1 -right-1 bg-blue-600 text-[10px] w-5 h-5 rounded-full flex items-center justify-center border-2 border-[#020617] font-bold">{participants.length}</span>
-          </button>
-          <button onClick={() => setView('scanner')} className={`${view === 'scanner' ? 'bg-blue-600' : 'bg-slate-800'} p-3 rounded-2xl border border-white/5 transition-all`}>
-            <Camera size={22} />
-          </button>
+          <button onClick={() => setIsSettingsOpen(true)} className="bg-slate-800 p-3 rounded-2xl text-blue-400"><Settings2 size={22} /></button>
+          <button onClick={() => setView('add')} className={`${view === 'add' ? 'bg-emerald-600' : 'bg-slate-800'} p-3 rounded-2xl`}><Plus size={22} /></button>
+          <button onClick={() => setView('list')} className={`${view === 'list' ? 'bg-blue-600' : 'bg-slate-800'} p-3 rounded-2xl relative`}><Users size={22} /></button>
+          <button onClick={() => setView('scanner')} className={`${view === 'scanner' ? 'bg-blue-600' : 'bg-slate-800'} p-3 rounded-2xl`}><Camera size={22} /></button>
         </div>
+      </div>
+
+      {/* SLOT SEÇİCİ ARAYÜZÜ */}
+      <div className="w-full max-w-lg grid grid-cols-4 gap-2 mb-6">
+        {[1, 2, 3, 4].map((num) => (
+          <button 
+            key={num}
+            onClick={() => setSelectedSlotId(num)}
+            className={`py-3 rounded-2xl border transition-all flex flex-col items-center justify-center gap-1 ${
+              selectedSlotId === num 
+              ? 'bg-blue-600 border-blue-400 shadow-[0_0_15px_rgba(37,99,235,0.3)] scale-105 z-10' 
+              : 'bg-slate-900/40 border-white/5 text-slate-500 hover:bg-slate-800'
+            }`}
+          >
+            <LayoutGrid size={14} className={selectedSlotId === num ? 'text-white' : 'text-slate-600'} />
+            <span className="text-[9px] font-black uppercase">Slot {num}</span>
+          </button>
+        ))}
       </div>
 
       <div className="w-full max-w-lg flex flex-col gap-6">
         {view === 'scanner' && (
           <div className="space-y-6">
-            <div className={`relative transition-all duration-300 border-[4px] rounded-[2.5rem] overflow-hidden shadow-2xl min-h-[300px] ${
-              scanStatus.status === 'success' ? 'border-emerald-500' : 
-              scanStatus.status === 'error' ? 'border-rose-500' : 
-              scanStatus.status === 'warning' ? 'border-amber-500' : 'border-white/10'
-            }`}>
+            <div className={`relative border-[4px] rounded-[2.5rem] overflow-hidden min-h-[300px] ${scanStatus.status === 'success' ? 'border-emerald-500' : scanStatus.status === 'error' ? 'border-rose-500' : scanStatus.status === 'warning' ? 'border-amber-500' : 'border-white/10'}`}>
               <div id="reader" className="w-full aspect-square bg-black"></div>
-              {scanStatus.status !== 'idle' && (
-                <div className="absolute bottom-6 left-6 right-6 p-4 rounded-2xl border backdrop-blur-md shadow-2xl flex items-center justify-center gap-2 font-bold text-sm uppercase bg-black/60">
-                  {scanStatus.status === 'success' ? <CheckCircle className="text-emerald-400" size={20} /> : <AlertTriangle className={scanStatus.status === 'warning' ? "text-amber-400" : "text-rose-400"} size={20} />}
-                  <span className={scanStatus.status === 'success' ? 'text-emerald-400' : scanStatus.status === 'warning' ? 'text-amber-400' : 'text-rose-400'}>{scanStatus.message}</span>
+              {scanStatus.message && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm z-50">
+                   <div className="text-center animate-in zoom-in duration-300">
+                      <p className={`text-xl font-black uppercase ${scanStatus.status === 'success' ? 'text-emerald-400' : 'text-rose-400'}`}>{scanStatus.message}</p>
+                   </div>
                 </div>
               )}
             </div>
-
-            {/* 4 KRİTİK SLOT (Geri Getirildi) */}
             <div className="grid grid-cols-2 gap-4">
-              <div className="bg-emerald-500/5 border border-emerald-500/10 p-6 rounded-[2rem] text-center">
-                <p className="text-[10px] text-emerald-500 font-bold uppercase tracking-widest mb-1">İçeride</p>
-                <p className="text-4xl font-black text-emerald-400">{participants.filter(p => p.geldi_mi).length}</p>
-              </div>
-              <div className="bg-blue-500/5 border border-blue-500/10 p-6 rounded-[2rem] text-center">
-                <p className="text-[10px] text-blue-500 font-bold uppercase tracking-widest mb-1">Beklenen</p>
-                <p className="text-4xl font-black text-blue-400">{participants.filter(p => !p.geldi_mi).length}</p>
-              </div>
-              <div className="bg-slate-800/30 border border-white/5 p-6 rounded-[2rem] text-center">
-                <p className="text-[10px] text-slate-500 font-bold uppercase mb-1 tracking-widest">Toplam Bilet</p>
-                <p className="text-4xl font-black text-white">{participants.length}</p>
-              </div>
-              <div className="bg-amber-500/5 border border-amber-500/10 p-6 rounded-[2rem] text-center">
-                <p className="text-[10px] text-amber-500 font-bold uppercase mb-1 tracking-widest">Doluluk</p>
-                <p className="text-4xl font-black text-amber-400">%{participants.length > 0 ? Math.round((participants.filter(p => p.geldi_mi).length / participants.length) * 100) : 0}</p>
-              </div>
+              <div className="bg-emerald-500/5 border border-emerald-500/10 p-6 rounded-[2rem] text-center"><p className="text-[10px] text-emerald-500 font-bold uppercase mb-1">İçeride</p><p className="text-4xl font-black text-emerald-400">{participants.filter(p => p.geldi_mi).length}</p></div>
+              <div className="bg-blue-500/5 border border-blue-500/10 p-6 rounded-[2rem] text-center"><p className="text-[10px] text-blue-500 font-bold uppercase mb-1">Beklenen</p><p className="text-4xl font-black text-blue-400">{participants.filter(p => !p.geldi_mi).length}</p></div>
             </div>
           </div>
         )}
 
         {view === 'add' && (
-          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
-            {/* GOOGLE FORM SENKRONİZE (Geri Getirildi) */}
-            <div className="bg-slate-900/60 border border-white/10 rounded-[2.5rem] p-8 shadow-2xl">
-              <div className="flex items-center gap-3 mb-6">
+          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
+            {/* GOOGLE SHEETS SENKRONİZASYON BÖLÜMÜ */}
+            <div className="bg-slate-900/60 border border-white/10 rounded-[2.5rem] p-8 space-y-4">
+              <div className="flex items-center gap-3 mb-2">
                 <Link2 size={24} className="text-blue-400" />
-                <h2 className="text-lg font-bold uppercase tracking-tight">Google Form Senkronize</h2>
+                <h2 className="text-lg font-bold uppercase">Google Sheets Senkronize</h2>
               </div>
-              <div className="space-y-4">
-                <input type="text" placeholder="CSV Yayın Linkini Buraya Yapıştırın" className="w-full bg-slate-950 border border-white/5 p-5 rounded-2xl outline-none text-xs text-white focus:border-blue-500/30 transition-all" value={csvLink} onChange={(e) => setCsvLink(e.target.value)} />
-                <button onClick={handleGoogleSync} disabled={addLoading} className="w-full bg-blue-600 hover:bg-blue-500 p-5 rounded-2xl font-bold flex items-center justify-center gap-2 uppercase text-xs tracking-widest text-white transition-all active:scale-95 shadow-lg shadow-blue-600/10">
-                  {addLoading ? <Loader2 className="animate-spin" size={20} /> : <RefreshCcw size={20} />} Senkronize Et
-                </button>
-              </div>
+              <input 
+                type="text" 
+                placeholder="CSV URL" 
+                className="w-full bg-slate-950 border border-white/5 p-4 rounded-2xl text-[10px] font-mono outline-none" 
+                value={sheetUrl} 
+                onChange={(e) => setSheetUrl(e.target.value)} 
+              />
+              <button 
+                onClick={handleSync} 
+                disabled={addLoading} 
+                className="w-full bg-blue-600 hover:bg-blue-500 p-5 rounded-2xl font-bold uppercase text-xs tracking-widest flex items-center justify-center gap-3 transition-all"
+              >
+                {addLoading ? <Loader2 className="animate-spin" /> : <RefreshCcw size={18} />}
+                {selectedSlotId}. Slotu Senkronize Et
+              </button>
             </div>
 
-            <div className="bg-slate-900/60 border border-dashed border-white/20 rounded-[2.5rem] p-8 text-center hover:border-emerald-500/50 transition-all group">
-              <label className="cursor-pointer">
-                <input type="file" accept=".xlsx, .xls, .csv" className="hidden" onChange={handleExcelUpload} disabled={addLoading} />
+            <div className="bg-slate-900/60 border border-dashed border-white/20 rounded-[2.5rem] p-8 text-center cursor-pointer">
+              <label className="cursor-pointer"><input type="file" accept=".xlsx, .xls, .csv" className="hidden" onChange={handleExcelUpload} disabled={addLoading} />
                 <div className="flex flex-col items-center gap-4">
-                  <div className="bg-emerald-500/10 p-5 rounded-2xl group-hover:scale-110 transition-transform">
-                    {addLoading ? <Loader2 className="animate-spin text-emerald-400" size={40} /> : <FileUp size={40} className="text-emerald-400" />}
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-bold uppercase tracking-tight">Excel'den Toplu Ekle</h3>
-                    <p className="text-[10px] text-slate-500 mt-1 uppercase tracking-widest">Başlıklar otomatik algılanır</p>
-                  </div>
+                  <div className="bg-emerald-500/10 p-5 rounded-2xl">{addLoading ? <Loader2 className="animate-spin text-emerald-400" size={40} /> : <FileUp size={40} className="text-emerald-400" />}</div>
+                  <h3 className="text-lg font-bold uppercase tracking-tight">Slot {selectedSlotId}'e Excel Yükle</h3>
                 </div>
               </label>
             </div>
 
-            <div className="bg-slate-900/60 border border-white/10 rounded-[2.5rem] p-8 shadow-2xl">
-              <div className="flex items-center gap-3 mb-6">
-                <UserPlus size={24} className="text-emerald-400" />
-                <h2 className="text-lg font-bold text-white uppercase tracking-tight">Manuel Katılımcı Ekle</h2>
-              </div>
+            <div className="bg-slate-900/60 border border-white/10 rounded-[2.5rem] p-8">
+              <div className="flex items-center gap-3 mb-6"><UserPlus size={24} className="text-emerald-400" /><h2 className="text-lg font-bold uppercase">Manuel Ekle (Slot {selectedSlotId})</h2></div>
               <form onSubmit={handleAddSinglePerson} className="space-y-4">
-                <div>
-                  <label className="text-[10px] text-slate-500 font-bold uppercase tracking-widest ml-1 mb-2 block">Ad Soyad (Zorunlu)</label>
-                  <input type="text" placeholder="Örn: Ahmet Yılmaz" className="w-full bg-slate-950 border border-white/5 p-5 rounded-2xl outline-none text-white focus:border-emerald-500/30 transition-all" value={newPerson.ad_soyad} onChange={(e) => setNewPerson({...newPerson, ad_soyad: e.target.value})} />
-                </div>
-                <div>
-                  <label className="text-[10px] text-slate-500 font-bold uppercase tracking-widest ml-1 mb-2 block">Telefon (Zorunlu)</label>
-                  <input type="text" placeholder="Örn: 05xx xxx xx xx" className="w-full bg-slate-950 border border-white/5 p-5 rounded-2xl outline-none text-white focus:border-emerald-500/30 transition-all" value={newPerson.telefon} onChange={(e) => setNewPerson({...newPerson, telefon: e.target.value})} />
-                </div>
-                <button disabled={addLoading} type="submit" className="w-full bg-emerald-600 hover:bg-emerald-500 p-5 rounded-2xl font-bold flex items-center justify-center gap-2 uppercase text-xs tracking-widest text-white transition-all active:scale-95 shadow-lg shadow-emerald-600/10 mt-4">
-                  {addLoading ? <Loader2 className="animate-spin" size={20} /> : <CheckCircle size={20} />} Listeye Kaydet
-                </button>
+                <input type="text" placeholder="Ad Soyad" className="w-full bg-slate-950 border border-white/5 p-5 rounded-2xl text-white outline-none" value={newPerson.ad_soyad} onChange={(e) => setNewPerson({...newPerson, ad_soyad: e.target.value})} />
+                <input type="text" placeholder="Telefon" className="w-full bg-slate-950 border border-white/5 p-5 rounded-2xl text-white outline-none" value={newPerson.telefon} onChange={(e) => setNewPerson({...newPerson, telefon: e.target.value})} />
+                <button disabled={addLoading} type="submit" className="w-full bg-emerald-600 p-5 rounded-2xl font-bold uppercase text-xs tracking-widest mt-4">Listeye Kaydet</button>
               </form>
             </div>
           </div>
@@ -486,44 +508,60 @@ export default function AdminPage() {
 
         {view === 'list' && (
           <div className="space-y-4">
-            <div className="flex gap-2">
-              <input type="text" placeholder="İsim veya telefonla ara..." className="flex-1 bg-slate-900 border border-white/5 p-4 rounded-2xl outline-none text-sm text-white" onChange={(e) => setSearchTerm(e.target.value)} />
-              <button onClick={fetchParticipants} className="bg-slate-800 p-4 rounded-2xl text-white active:rotate-180 transition-all duration-500"><RefreshCcw size={20} /></button>
+            <div className="bg-slate-900/40 p-4 rounded-[2.5rem] border border-white/5 space-y-4">
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
+                  <input type="text" placeholder="Bu slotta ara..." className="w-full bg-slate-950 border border-white/5 pl-11 pr-4 py-3 rounded-xl outline-none text-sm text-white" onChange={(e) => setSearchTerm(e.target.value)} />
+                </div>
+                <button onClick={fetchParticipants} className="bg-slate-800 p-3 rounded-xl text-white"><RefreshCcw size={20} /></button>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => setFilterArrived(!filterArrived)} className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-[10px] font-bold border transition-all ${filterArrived ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-slate-950 border-white/5 text-slate-500'}`}><CheckCircle size={14} /> GELENLER</button>
+                <button onClick={() => setFilterTicketed(!filterTicketed)} className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-[10px] font-bold border transition-all ${filterTicketed ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-950 border-white/5 text-slate-500'}`}><TicketCheck size={14} /> BİLET ALANLAR</button>
+              </div>
             </div>
-            
-            <button 
-              onClick={deleteAllParticipants}
-              className="w-full bg-rose-500/10 border border-rose-500/20 text-rose-500 p-4 rounded-2xl font-bold uppercase text-[10px] tracking-[0.2em] flex items-center justify-center gap-2 hover:bg-rose-500 hover:text-white transition-all group"
-            >
-              <Trash2 size={16} /> Tüm Katılımcı Listesini Sil
-            </button>
-
+            <button onClick={deleteAllParticipants} className="w-full bg-rose-500/10 border border-rose-500/20 text-rose-500 p-4 rounded-2xl font-bold uppercase text-[10px] tracking-[0.2em] flex items-center justify-center gap-2"><Trash2 size={16} /> Slot {selectedSlotId} Listesini Sil</button>
             <div className="space-y-3 pb-10">
-              {filteredList.map((person) => (
+              {loading ? (
+                <div className="flex justify-center p-10"><Loader2 className="animate-spin text-blue-500" size={32} /></div>
+              ) : filteredList.map((person) => (
                 <div key={person.id} className="bg-slate-900/40 p-5 rounded-[2.5rem] border border-white/5 shadow-xl">
                   <div className="flex justify-between items-start">
                     <div className="space-y-2">
                       <p className="font-bold text-lg leading-tight">{person.ad_soyad}</p>
                       <div className="flex flex-wrap gap-2">
                         <span className={`text-[9px] font-bold px-2 py-1 rounded-md border ${person.geldi_mi ? 'bg-emerald-500 text-white' : 'bg-slate-800 text-slate-500 border-white/5'}`}>{person.geldi_mi ? 'İÇERİDE' : 'GELMEDİ'}</span>
+                        <span className={`text-[9px] font-bold px-2 py-1 rounded-md border ${person.bilet_alindi_mi ? 'bg-blue-500 text-white border-blue-500' : 'bg-amber-500/10 text-amber-500 border-amber-500/20'}`}>{person.bilet_alindi_mi ? 'BİLET ALINDI' : 'BİLET ALINMADI'}</span>
+                        {person.koltuk_no && <span className="text-[9px] font-bold px-2 py-1 rounded-md border bg-slate-800 text-blue-300 border-white/10 flex items-center gap-1"><Armchair size={10} /> {person.koltuk_no}</span>}
                       </div>
-                      <p className="text-[10px] text-slate-500">{person.telefon}</p>
+                      <div className="flex flex-col gap-1 mt-2">
+                        <p className="text-[10px] text-slate-500">TEL: {person.telefon}</p>
+                        <p className="text-[8px] text-slate-600 font-mono">ID: {person.id} | Slot: {person.etkinlik_id}</p>
+                      </div>
                     </div>
                     <div className="flex flex-col gap-2">
                       {!person.geldi_mi && (
                         <button onClick={async () => {
-                          if(confirm(`${person.ad_soyad} giriş yapsın mı?`)) {
+                          if(confirm(`${person.ad_soyad} girsin mi?`)) {
                             const { error } = await supabase.from('katilimcilar').update({ geldi_mi: true }).eq('id', person.id);
                             if (!error) setParticipants(prev => prev.map(p => p.id === person.id ? { ...p, geldi_mi: true } : p));
                           }
                         }} className="p-3 bg-emerald-500/10 text-emerald-400 rounded-xl border border-emerald-500/20"><TicketCheck size={18} /></button>
                       )}
+                      <button onClick={() => { setEditingPerson(person); setIsEditModalOpen(true); }} className="p-3 bg-blue-500/10 text-blue-400 rounded-xl border border-blue-500/20"><Edit3 size={18} /></button>
                       <button onClick={() => resetSeat(person.id)} className="p-3 bg-amber-500/10 text-amber-500 rounded-xl border border-amber-500/20"><RefreshCcw size={18} /></button>
                       <button onClick={() => deleteUser(person.id)} className="p-3 bg-rose-500/10 text-rose-500 rounded-xl border border-rose-500/20"><Trash2 size={18} /></button>
                     </div>
                   </div>
                 </div>
               ))}
+              {!loading && filteredList.length === 0 && (
+                <div className="text-center p-10 bg-slate-900/20 rounded-[2.5rem] border border-dashed border-white/5">
+                  <Users className="mx-auto text-slate-700 mb-4" size={48} />
+                  <p className="text-slate-500 font-bold uppercase text-xs">Bu slotta henüz kimse yok.</p>
+                </div>
+              )}
             </div>
           </div>
         )}
