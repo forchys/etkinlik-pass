@@ -19,7 +19,6 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
 
-  // --- SLOT YÖNETİMİ STATE'LERİ ---
   const [eventSlots, setEventSlots] = useState<any[]>([]);
   const [selectedSlotId, setSelectedSlotId] = useState<number>(1); 
   const [savingSlotId, setSavingSlotId] = useState<string | null>(null);
@@ -35,16 +34,42 @@ export default function AdminPage() {
   const [addLoading, setAddLoading] = useState(false);
   const scannerRef = useRef<Html5Qrcode | null>(null);
 
-  // --- GOOGLE SHEETS STATE ---
-  const [sheetUrl, setSheetUrl] = useState("https://docs.google.com/spreadsheets/d/e/2PACX-1vTGAQYsi2nV2ySRo.../pub?output=csv");
-  // YENİ: Eklenemeyen kişileri tutan state
+  const [sheetUrl, setSheetUrl] = useState("");
   const [syncErrors, setSyncErrors] = useState<any[]>([]);
 
-  // --- GOOGLE SHEETS SENKRONİZASYON ---
+  // YENİ: Seçili slota göre linki veritabanından çekme
+  useEffect(() => {
+    async function fetchSavedLink() {
+      if (!isAuthenticated) return;
+      const { data, error } = await supabase
+        .from('etkinlik_ayarlari')
+        .select('google_sheet_url')
+        .eq('slot_id', selectedSlotId)
+        .maybeSingle();
+
+      if (data?.google_sheet_url) {
+        setSheetUrl(data.google_sheet_url);
+      } else {
+        setSheetUrl("");
+      }
+    }
+    fetchSavedLink();
+  }, [selectedSlotId, isAuthenticated]);
+
   const handleSync = async () => {
+    if (!sheetUrl) return alert("Lütfen bir CSV URL girin.");
     setAddLoading(true);
-    setSyncErrors([]); // Önceki hataları temizle
+    setSyncErrors([]);
     try {
+      // 1. Linki veritabanına kaydet (Sabitle)
+      await supabase
+        .from('etkinlik_ayarlari')
+        .upsert({ 
+          slot_id: selectedSlotId, 
+          google_sheet_url: sheetUrl,
+          etkinlik_id: selectedSlotId 
+        }, { onConflict: 'slot_id' });
+
       const response = await fetch(sheetUrl);
       const csvText = await response.text();
       const rows = csvText.split('\n').map(row => row.split(',')).slice(1);
@@ -54,7 +79,6 @@ export default function AdminPage() {
         const adSoyad = row[2]?.replace(/"/g, '').trim(); 
         const telefon = formatPhoneNumber(row[3]);
 
-        // Veri geçerlilik kontrolü
         if (!adSoyad || !telefon || telefon.length < 10) {
           if (adSoyad || (telefon && telefon !== "")) {
             duplicates.push({ isim: adSoyad || "Bilinmiyor", tel: telefon || "Geçersiz", neden: "Eksik bilgi veya hatalı numara" });
@@ -62,9 +86,9 @@ export default function AdminPage() {
           return acc;
         }
 
-        // Mükerrer (Duplicate) kontrolü
         if (acc[telefon]) {
           duplicates.push({ isim: adSoyad, tel: telefon, neden: "Mükerrer numara (Aynı numara tekrar ediyor)" });
+          return acc; // Mevcut olanı koru, yeniyi ekleme
         }
         
         acc[telefon] = {
@@ -78,7 +102,7 @@ export default function AdminPage() {
         return acc;
       }, {});
 
-      setSyncErrors(duplicates); // Atlananları listeye kaydet
+      setSyncErrors(duplicates);
       const finalData = Object.values(uniqueDataMap);
 
       if (finalData.length === 0) throw new Error("Geçerli veri bulunamadı.");
@@ -88,7 +112,7 @@ export default function AdminPage() {
         .upsert(finalData, { onConflict: 'telefon' });
 
       if (error) throw error;
-      alert(`${finalData.length} kişi senkronize edildi. ${duplicates.length} kişi atlandı.`);
+      alert(`${finalData.length} kişi senkronize edildi. ${duplicates.length} kayıt temizlendi/atlandı.`);
       fetchParticipants();
     } catch (err: any) {
       alert("Hata: " + err.message);
@@ -109,13 +133,7 @@ export default function AdminPage() {
     setEventSlots(prev => prev.map(slot => {
       if (slot.id === id) {
         if (field === 'is_active' && value === false) {
-          return { 
-            ...slot, 
-            is_active: false,
-            event_name: "Çok Yakında",
-            event_date: "bilinmiyor",
-            event_location: "bilinmiyor"
-          };
+          return { ...slot, is_active: false, event_name: "Çok Yakında", event_date: "bilinmiyor", event_location: "bilinmiyor" };
         }
         return { ...slot, [field]: value };
       }
@@ -135,7 +153,6 @@ export default function AdminPage() {
         is_active: slot.is_active
       })
       .eq('id', slot.id);
-
     if (error) alert("Hata: " + error.message);
     setSavingSlotId(null);
   };
@@ -424,7 +441,6 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* HEADER VE NAVİGASYON */}
       <div className="w-full max-w-lg flex justify-between items-center bg-slate-900/40 p-5 rounded-[2rem] border border-white/5 mb-4 backdrop-blur-xl">
         <div className="flex items-center gap-3">
           <div className="bg-blue-600 p-2 rounded-xl"><ShieldCheck size={24} /></div>
@@ -438,7 +454,6 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* SLOT SEÇİCİ ARAYÜZÜ */}
       <div className="w-full max-w-lg grid grid-cols-4 gap-2 mb-6">
         {[1, 2, 3, 4].map((num) => (
           <button 
@@ -478,7 +493,6 @@ export default function AdminPage() {
 
         {view === 'add' && (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
-            {/* GOOGLE SHEETS SENKRONİZASYON BÖLÜMÜ */}
             <div className="bg-slate-900/60 border border-white/10 rounded-[2.5rem] p-8 space-y-4">
               <div className="flex items-center gap-3 mb-2">
                 <Link2 size={24} className="text-blue-400" />
@@ -500,12 +514,11 @@ export default function AdminPage() {
                 {selectedSlotId}. Slotu Senkronize Et
               </button>
 
-              {/* YENİ: ATLANAN KAYITLARIN GÖSTERİLDİĞİ HATA PANELİ */}
               {syncErrors.length > 0 && (
                 <div className="mt-4 p-4 bg-rose-500/10 border border-rose-500/20 rounded-2xl">
                   <div className="flex items-center gap-2 text-rose-400 mb-3">
                     <AlertTriangle size={16} />
-                    <span className="text-[10px] font-black uppercase tracking-tight">Atlanan Kayıtlar ({syncErrors.length})</span>
+                    <span className="text-[10px] font-black uppercase tracking-tight">Temizlenen/Atlanan Kayıtlar ({syncErrors.length})</span>
                   </div>
                   <div className="max-h-40 overflow-y-auto space-y-2 pr-2">
                     {syncErrors.map((err, i) => (
