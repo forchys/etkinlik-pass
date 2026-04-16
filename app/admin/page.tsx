@@ -37,11 +37,11 @@ export default function AdminPage() {
   const [sheetUrl, setSheetUrl] = useState("");
   const [syncErrors, setSyncErrors] = useState<any[]>([]);
 
-  // YENİ: Seçili slota göre linki veritabanından çekme
+  // YENİ: Seçili slota göre linki veritabanından çekme (SABİTLEME ÖZELLİĞİ)
   useEffect(() => {
     async function fetchSavedLink() {
       if (!isAuthenticated) return;
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('etkinlik_ayarlari')
         .select('google_sheet_url')
         .eq('slot_id', selectedSlotId)
@@ -86,9 +86,10 @@ export default function AdminPage() {
           return acc;
         }
 
+        // MÜKERRER KONTROLÜ: Aynı telefon numarası listede varsa atla
         if (acc[telefon]) {
           duplicates.push({ isim: adSoyad, tel: telefon, neden: "Mükerrer numara (Aynı numara tekrar ediyor)" });
-          return acc; // Mevcut olanı koru, yeniyi ekleme
+          return acc;
         }
         
         acc[telefon] = {
