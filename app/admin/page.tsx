@@ -37,33 +37,48 @@ export default function AdminPage() {
 
   // --- GOOGLE SHEETS STATE ---
   const [sheetUrl, setSheetUrl] = useState("https://docs.google.com/spreadsheets/d/e/2PACX-1vTGAQYsi2nV2ySRo.../pub?output=csv");
+  // YENİ: Eklenemeyen kişileri tutan state
+  const [syncErrors, setSyncErrors] = useState<any[]>([]);
 
   // --- GOOGLE SHEETS SENKRONİZASYON ---
   const handleSync = async () => {
     setAddLoading(true);
+    setSyncErrors([]); // Önceki hataları temizle
     try {
       const response = await fetch(sheetUrl);
       const csvText = await response.text();
       const rows = csvText.split('\n').map(row => row.split(',')).slice(1);
 
+      const duplicates: any[] = [];
       const uniqueDataMap = rows.reduce((acc: any, row: any) => {
-        // C sütunu (index 2): Ad Soyad | D sütunu (index 3): Telefon
         const adSoyad = row[2]?.replace(/"/g, '').trim(); 
         const telefon = formatPhoneNumber(row[3]);
 
-        if (telefon && telefon.length >= 10 && adSoyad) {
-          acc[telefon] = {
-            ad_soyad: adSoyad,
-            telefon: telefon,
-            etkinlik_id: selectedSlotId,
-            bilet_alindi_mi: false,
-            geldi_mi: false,
-            qr_kodu: crypto.randomUUID()
-          };
+        // Veri geçerlilik kontrolü
+        if (!adSoyad || !telefon || telefon.length < 10) {
+          if (adSoyad || (telefon && telefon !== "")) {
+            duplicates.push({ isim: adSoyad || "Bilinmiyor", tel: telefon || "Geçersiz", neden: "Eksik bilgi veya hatalı numara" });
+          }
+          return acc;
         }
+
+        // Mükerrer (Duplicate) kontrolü
+        if (acc[telefon]) {
+          duplicates.push({ isim: adSoyad, tel: telefon, neden: "Mükerrer numara (Aynı numara tekrar ediyor)" });
+        }
+        
+        acc[telefon] = {
+          ad_soyad: adSoyad,
+          telefon: telefon,
+          etkinlik_id: selectedSlotId,
+          bilet_alindi_mi: false,
+          geldi_mi: false,
+          qr_kodu: crypto.randomUUID()
+        };
         return acc;
       }, {});
 
+      setSyncErrors(duplicates); // Atlananları listeye kaydet
       const finalData = Object.values(uniqueDataMap);
 
       if (finalData.length === 0) throw new Error("Geçerli veri bulunamadı.");
@@ -73,7 +88,7 @@ export default function AdminPage() {
         .upsert(finalData, { onConflict: 'telefon' });
 
       if (error) throw error;
-      alert(`${finalData.length} kişi Google Sheets'ten senkronize edildi!`);
+      alert(`${finalData.length} kişi senkronize edildi. ${duplicates.length} kişi atlandı.`);
       fetchParticipants();
     } catch (err: any) {
       alert("Hata: " + err.message);
@@ -484,6 +499,24 @@ export default function AdminPage() {
                 {addLoading ? <Loader2 className="animate-spin" /> : <RefreshCcw size={18} />}
                 {selectedSlotId}. Slotu Senkronize Et
               </button>
+
+              {/* YENİ: ATLANAN KAYITLARIN GÖSTERİLDİĞİ HATA PANELİ */}
+              {syncErrors.length > 0 && (
+                <div className="mt-4 p-4 bg-rose-500/10 border border-rose-500/20 rounded-2xl">
+                  <div className="flex items-center gap-2 text-rose-400 mb-3">
+                    <AlertTriangle size={16} />
+                    <span className="text-[10px] font-black uppercase tracking-tight">Atlanan Kayıtlar ({syncErrors.length})</span>
+                  </div>
+                  <div className="max-h-40 overflow-y-auto space-y-2 pr-2">
+                    {syncErrors.map((err, i) => (
+                      <div key={i} className="text-[9px] border-b border-white/5 pb-2 last:border-0">
+                        <p className="font-bold text-white">{err.isim}</p>
+                        <p className="text-slate-500 font-mono italic">{err.tel} — {err.neden}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="bg-slate-900/60 border border-dashed border-white/20 rounded-[2.5rem] p-8 text-center cursor-pointer">
