@@ -7,7 +7,7 @@ import {
   Users, CheckCircle, XCircle, Loader2, Search, X, 
   RefreshCcw, TicketCheck, Camera, ShieldCheck, AlertTriangle, 
   Settings2, Save, Trash2, Lock, UserPlus, Plus, FileUp, Edit3, Armchair,
-  Power, Film, Theater, Trophy, MapPin, Calendar, LayoutGrid
+  Power, Film, Theater, Trophy, MapPin, Calendar, LayoutGrid, Zap, UserCheck
 } from 'lucide-react';
 
 export default function AdminPage() {
@@ -18,6 +18,9 @@ export default function AdminPage() {
   const [participants, setParticipants] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+
+  // --- CANLI AKIŞ STATE ---
+  const [liveCheckins, setLiveCheckins] = useState<any[]>([]);
 
   // --- SLOT YÖNETİMİ STATE'LERİ ---
   const [eventSlots, setEventSlots] = useState<any[]>([]);
@@ -30,7 +33,6 @@ export default function AdminPage() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingPerson, setEditingPerson] = useState<any>(null);
 
-  // --- UI UYARI MODALI STATE'İ ---
   const [uiWarnings, setUiWarnings] = useState<{
     isOpen: boolean;
     messages: string[];
@@ -43,7 +45,42 @@ export default function AdminPage() {
   const [addLoading, setAddLoading] = useState(false);
   const scannerRef = useRef<Html5Qrcode | null>(null);
 
-  // --- SLOT VERİSİNİ ÇEKME ---
+  // --- SES EFEKTİ FONKSİYONU ---
+  const playSuccessSound = () => {
+    const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3'); 
+    audio.volume = 0.4;
+    audio.play().catch(() => console.log("Ses çalma izni bekleniyor..."));
+  };
+
+  // --- CANLI AKIŞ REALTIME ABONELİĞİ ---
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const channel = supabase
+      .channel('admin_live_feed')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'katilimcilar',
+          filter: `etkinlik_id=eq.${selectedSlotId}`
+        },
+        (payload) => {
+          // Eğer geldi_mi alanı false'tan true'ya döndüyse
+          if (payload.old.geldi_mi === false && payload.new.geldi_mi === true) {
+            setLiveCheckins((prev) => [payload.new, ...prev].slice(0, 3));
+            playSuccessSound();
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [isAuthenticated, selectedSlotId]);
+
   const fetchEventSlots = async () => {
     const { data } = await supabase
       .from('etkinlik_ayarlari')
@@ -56,13 +93,7 @@ export default function AdminPage() {
     setEventSlots(prev => prev.map(slot => {
       if (slot.id === id) {
         if (field === 'is_active' && value === false) {
-          return { 
-            ...slot, 
-            is_active: false,
-            event_name: "Çok Yakında",
-            event_date: "bilinmiyor",
-            event_location: "bilinmiyor"
-          };
+          return { ...slot, is_active: false, event_name: "Çok Yakında", event_date: "bilinmiyor", event_location: "bilinmiyor" };
         }
         return { ...slot, [field]: value };
       }
@@ -72,17 +103,13 @@ export default function AdminPage() {
 
   const handleUpdateSlot = async (slot: any) => {
     setSavingSlotId(slot.id);
-    const { error } = await supabase
-      .from('etkinlik_ayarlari')
-      .update({
+    const { error } = await supabase.from('etkinlik_ayarlari').update({
         event_name: slot.event_name,
         event_date: slot.event_date,
         event_location: slot.event_location,
         event_type: slot.event_type,
         is_active: slot.is_active
-      })
-      .eq('id', slot.id);
-
+    }).eq('id', slot.id);
     if (error) alert("Hata: " + error.message);
     setSavingSlotId(null);
   };
@@ -94,14 +121,9 @@ export default function AdminPage() {
     return cleaned.slice(-10);
   };
 
-  // --- KATILIMCI ÇEKME ---
   const fetchParticipants = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('katilimcilar')
-      .select('*')
-      .eq('etkinlik_id', selectedSlotId)
-      .order('ad_soyad', { ascending: true });
+    const { data, error } = await supabase.from('katilimcilar').select('*').eq('etkinlik_id', selectedSlotId).order('ad_soyad', { ascending: true });
     if (!error && data) setParticipants(data);
     setLoading(false);
   };
@@ -115,22 +137,13 @@ export default function AdminPage() {
     const cleanName = name.trim();
     if (!cleanName.includes(" ")) warnings.push(`"${cleanName}": Soyadı eksik olabilir.`);
     if (cleanName.length > 25) warnings.push(`"${cleanName}": İsim çok uzun.`);
-    
-    if (/[a-zA-ZğüşıöçĞÜŞİÖÇ]/.test(String(rawPhone))) {
-      warnings.push(`"${cleanName}": Telefon numarasında metin (harf) bulunuyor (${rawPhone}).`);
-    }
-
+    if (/[a-zA-ZğüşıöçĞÜŞİÖÇ]/.test(String(rawPhone))) warnings.push(`"${cleanName}": Telefon numarasında metin bulunuyor (${rawPhone}).`);
     const isDuplicate = existingList.some(p => p.telefon === formattedPhone);
     const isDuplicateInBatch = seenPhones.has(formattedPhone);
-    
-    if (isDuplicate || isDuplicateInBatch) {
-      warnings.push(`Uyarı: "${cleanName}" ile aynı telefon (${formattedPhone}) listeye eklenecek.`);
-    }
-    
+    if (isDuplicate || isDuplicateInBatch) warnings.push(`Uyarı: "${cleanName}" ile aynı telefon (${formattedPhone}) listeye eklenecek.`);
     return warnings;
   };
 
-  // --- EXCEL YÜKLEME ---
   const handleExcelUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -141,9 +154,7 @@ export default function AdminPage() {
         const bstr = evt.target?.result;
         const wb = XLSX.read(bstr, { type: 'binary' });
         const wsname = wb.SheetNames[0];
-        const ws = wb.Sheets[wsname];
-        const data: any[] = XLSX.utils.sheet_to_json(ws);
-        
+        const data: any[] = XLSX.utils.sheet_to_json(wb.Sheets[wsname]);
         const allWarnings: string[] = [];
         const seenPhones = new Set<string>();
         const formattedData = data.map(row => {
@@ -155,20 +166,10 @@ export default function AdminPage() {
             const name = String(row[nameKey]).trim();
             const rawPhone = String(row[phoneKey]);
             const phone = formatPhoneNumber(rawPhone);
-            
             const rowWarnings = validateParticipant(name, rawPhone, phone, participants, seenPhones);
             if (rowWarnings.length > 0) allWarnings.push(...rowWarnings);
-
             seenPhones.add(phone);
-
-            return {
-              ad_soyad: name,
-              telefon: phone,
-              qr_kodu: crypto.randomUUID(),
-              geldi_mi: false,
-              bilet_alindi_mi: false,
-              etkinlik_id: selectedSlotId
-            };
+            return { ad_soyad: name, telefon: phone, qr_kodu: crypto.randomUUID(), geldi_mi: false, bilet_alindi_mi: false, etkinlik_id: selectedSlotId };
           }
           return null;
         }).filter(item => item !== null);
@@ -176,43 +177,20 @@ export default function AdminPage() {
         const proceedWithUpload = async () => {
           setAddLoading(true);
           if (formattedData.length > 0) {
-            const { error } = await supabase
-              .from('katilimcilar')
-              .insert(formattedData);
-
-            if (!error) {
-              alert(`${formattedData.length} kayıt işlendi.`);
-              fetchParticipants();
-            } else alert("Supabase Hatası: " + error.message);
+            const { error } = await supabase.from('katilimcilar').insert(formattedData);
+            if (!error) { alert(`${formattedData.length} kayıt işlendi.`); fetchParticipants(); } 
+            else alert("Supabase Hatası: " + error.message);
           } else alert("Excel'de uygun sütun bulunamadı!");
-          setAddLoading(false);
-          e.target.value = "";
+          setAddLoading(false); e.target.value = "";
         };
 
         if (allWarnings.length > 0) {
           setAddLoading(false);
-          setUiWarnings({
-            isOpen: true,
-            messages: allWarnings,
-            onConfirm: () => {
-              setUiWarnings(prev => ({ ...prev, isOpen: false }));
-              proceedWithUpload();
-            },
-            onCancel: () => {
-              setUiWarnings(prev => ({ ...prev, isOpen: false }));
-              e.target.value = "";
-            }
-          });
+          setUiWarnings({ isOpen: true, messages: allWarnings, onConfirm: () => { setUiWarnings(prev => ({ ...prev, isOpen: false })); proceedWithUpload(); }, onCancel: () => { setUiWarnings(prev => ({ ...prev, isOpen: false })); e.target.value = ""; } });
           return;
         }
-
         proceedWithUpload();
-
-      } catch (err) { 
-        alert("Dosya okunurken bir hata oluştu."); 
-        setAddLoading(false);
-        e.target.value = "";
-      }
+      } catch (err) { alert("Dosya okunurken bir hata oluştu."); setAddLoading(false); e.target.value = ""; }
     };
     reader.readAsBinaryString(file);
   };
@@ -223,51 +201,24 @@ export default function AdminPage() {
     if (!error) { setIsEditModalOpen(false); fetchParticipants(); } else { alert("Hata: " + error.message); }
   };
 
-  // --- MANUEL EKLEME ---
   const handleAddSinglePerson = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newPerson.ad_soyad.trim() || !newPerson.telefon.trim()) return alert("Eksik bilgi!");
-    
-    const rawPhone = newPerson.telefon;
-    const phone = formatPhoneNumber(rawPhone);
-    const seenPhones = new Set<string>();
-    const warnings = validateParticipant(newPerson.ad_soyad, rawPhone, phone, participants, seenPhones);
+    const phone = formatPhoneNumber(newPerson.telefon);
+    const warnings = validateParticipant(newPerson.ad_soyad, newPerson.telefon, phone, participants, new Set());
     
     const proceedWithAdd = async () => {
       setAddLoading(true);
-      const { error } = await supabase.from('katilimcilar').insert([{ 
-        ad_soyad: newPerson.ad_soyad.trim(), 
-        telefon: phone, 
-        qr_kodu: crypto.randomUUID(), 
-        geldi_mi: false, 
-        bilet_alindi_mi: false,
-        etkinlik_id: selectedSlotId 
-      }]);
-
-      if (!error) { 
-          setNewPerson({ ad_soyad: "", telefon: "" }); 
-          fetchParticipants(); 
-      } else {
-          alert("Hata: " + error.message);
-      }
+      const { error } = await supabase.from('katilimcilar').insert([{ ad_soyad: newPerson.ad_soyad.trim(), telefon: phone, qr_kodu: crypto.randomUUID(), geldi_mi: false, bilet_alindi_mi: false, etkinlik_id: selectedSlotId }]);
+      if (!error) { setNewPerson({ ad_soyad: "", telefon: "" }); fetchParticipants(); } 
+      else alert("Hata: " + error.message);
       setAddLoading(false);
     };
 
     if (warnings.length > 0) {
-      setUiWarnings({
-        isOpen: true,
-        messages: warnings,
-        onConfirm: () => {
-          setUiWarnings(prev => ({ ...prev, isOpen: false }));
-          proceedWithAdd();
-        },
-        onCancel: () => {
-          setUiWarnings(prev => ({ ...prev, isOpen: false }));
-        }
-      });
+      setUiWarnings({ isOpen: true, messages: warnings, onConfirm: () => { setUiWarnings(prev => ({ ...prev, isOpen: false })); proceedWithAdd(); }, onCancel: () => setUiWarnings(prev => ({ ...prev, isOpen: false })) });
       return;
     }
-
     proceedWithAdd();
   };
 
@@ -278,10 +229,8 @@ export default function AdminPage() {
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (password === ADMIN_PASSWORD) {
-      localStorage.setItem('flick_admin_auth', 'true');
-      setIsAuthenticated(true);
-    } else alert("Hatalı şifre!");
+    if (password === ADMIN_PASSWORD) { localStorage.setItem('flick_admin_auth', 'true'); setIsAuthenticated(true); } 
+    else alert("Hatalı şifre!");
   };
 
   const handleLogout = () => { localStorage.removeItem('flick_admin_auth'); setIsAuthenticated(false); };
@@ -332,12 +281,7 @@ export default function AdminPage() {
             async (decodedText) => {
               const cleanCode = decodedText.trim();
               if (scanStatus.status !== 'idle') return;
-              const { data: user } = await supabase.from('katilimcilar')
-                .select('*')
-                .eq('qr_kodu', cleanCode)
-                .eq('etkinlik_id', selectedSlotId)
-                .maybeSingle();
-              
+              const { data: user } = await supabase.from('katilimcilar').select('*').eq('qr_kodu', cleanCode).eq('etkinlik_id', selectedSlotId).maybeSingle();
               if (!user) { setScanStatus({ status: 'error', message: 'Geçersiz veya Yanlış Etkinlik!' }); }
               else if (user.geldi_mi) { setScanStatus({ status: 'warning', message: 'Zaten Girdi!' }); }
               else {
@@ -380,71 +324,46 @@ export default function AdminPage() {
   return (
     <main className="min-h-screen bg-[#020617] text-white p-4 font-sans flex flex-col items-center">
       
+      {/* --- CANLI GİRİŞ AKIŞI UI --- */}
+      <div className="fixed bottom-6 right-6 w-64 z-[200] space-y-2 pointer-events-none">
+        {liveCheckins.map((person, idx) => (
+          <div key={person.id + idx} className="bg-slate-900/90 backdrop-blur-xl border border-emerald-500/30 p-3 rounded-2xl flex items-center gap-3 animate-in slide-in-from-right duration-500 pointer-events-auto shadow-2xl">
+            <div className="bg-emerald-500/20 p-2 rounded-full text-emerald-400 shrink-0"><UserCheck size={16} /></div>
+            <div className="min-w-0">
+              <p className="text-white font-bold text-xs truncate uppercase leading-none">{person.ad_soyad}</p>
+              <p className="text-[9px] text-slate-500 font-black mt-1 uppercase">KOLTUK: {person.koltuk_no || '---'}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
       {isSettingsOpen && (
         <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/90 backdrop-blur-xl overflow-y-auto">
           <div className="w-full max-w-4xl bg-slate-950 border border-white/10 rounded-[3rem] p-6 my-8">
             <div className="flex justify-between items-center mb-8 sticky top-0 bg-slate-950 py-2 z-10">
-              <div>
-                <h2 className="text-xl font-black uppercase tracking-tighter">Etkinlik Slotları</h2>
-                <p className="text-[10px] text-slate-500 font-bold tracking-widest">4 AKTİF SLOTU YÖNET</p>
-              </div>
+              <div><h2 className="text-xl font-black uppercase tracking-tighter">Etkinlik Slotları</h2><p className="text-[10px] text-slate-500 font-bold tracking-widest">4 AKTİF SLOTU YÖNET</p></div>
               <button onClick={() => setIsSettingsOpen(false)} className="bg-slate-900 p-3 rounded-2xl"><X size={24} /></button>
             </div>
-
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {eventSlots.map((slot) => (
                 <div key={slot.id} className={`p-6 rounded-[2.5rem] border transition-all duration-500 ${slot.is_active ? 'bg-slate-900/40 border-blue-500/30' : 'bg-slate-900/10 border-white/5 opacity-60'}`}>
-                  
                   <div className="flex items-center justify-between mb-6">
                     <span className="text-[10px] font-black bg-blue-600/20 text-blue-500 px-3 py-1 rounded-lg">SLOT #{slot.slot_id}</span>
-                    <button 
-                      onClick={() => updateLocalSlot(slot.id, 'is_active', !slot.is_active)}
-                      className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[9px] font-black transition-all ${slot.is_active ? 'bg-emerald-500 text-white' : 'bg-slate-800 text-slate-400'}`}
-                    >
-                      <Power size={14} /> {slot.is_active ? 'AKTİF' : 'PASİF'}
-                    </button>
+                    <button onClick={() => updateLocalSlot(slot.id, 'is_active', !slot.is_active)} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[9px] font-black transition-all ${slot.is_active ? 'bg-emerald-500 text-white' : 'bg-slate-800 text-slate-400'}`}><Power size={14} /> {slot.is_active ? 'AKTİF' : 'PASİF'}</button>
                   </div>
-
                   <div className={`space-y-4 ${!slot.is_active && 'pointer-events-none opacity-50'}`}>
                     <div className="grid grid-cols-4 gap-2">
-                      {[
-                        { id: 'cinema', icon: <Film size={16}/> },
-                        { id: 'theater', icon: <Theater size={16}/> },
-                        { id: 'social', icon: <Users size={16}/> },
-                        { id: 'quiz', icon: <Trophy size={16}/> }
-                      ].map((t) => (
-                        <button
-                          key={t.id}
-                          onClick={() => updateLocalSlot(slot.id, 'event_type', t.id)}
-                          className={`p-3 rounded-xl flex flex-col items-center gap-1 border transition-all ${slot.event_type === t.id ? 'bg-blue-600 border-blue-400 text-white' : 'bg-slate-950 border-white/5 text-slate-500'}`}
-                        >
-                          {t.icon}
-                          <span className="text-[8px] font-bold uppercase">{t.id}</span>
-                        </button>
+                      {[{ id: 'cinema', icon: <Film size={16}/> }, { id: 'theater', icon: <Theater size={16}/> }, { id: 'social', icon: <Users size={16}/> }, { id: 'quiz', icon: <Trophy size={16}/> }].map((t) => (
+                        <button key={t.id} onClick={() => updateLocalSlot(slot.id, 'event_type', t.id)} className={`p-3 rounded-xl flex flex-col items-center gap-1 border transition-all ${slot.event_type === t.id ? 'bg-blue-600 border-blue-400 text-white' : 'bg-slate-950 border-white/5 text-slate-500'}`}>{t.icon}<span className="text-[8px] font-bold uppercase">{t.id}</span></button>
                       ))}
                     </div>
-
-                    <input placeholder="Etkinlik Adı" className="w-full bg-slate-950 border border-white/5 p-4 rounded-2xl text-xs font-bold outline-none focus:border-blue-500/50" value={slot.event_name || ''} onChange={(e) => updateLocalSlot(slot.id, 'event_name', e.target.value)} />
+                    <input placeholder="Etkinlik Adı" className="w-full bg-slate-950 border border-white/5 p-4 rounded-2xl text-xs font-bold outline-none" value={slot.event_name || ''} onChange={(e) => updateLocalSlot(slot.id, 'event_name', e.target.value)} />
                     <div className="grid grid-cols-2 gap-3">
-                      <div className="relative">
-                        <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600" size={14} />
-                        <input placeholder="Tarih" className="w-full bg-slate-950 border border-white/5 p-4 pl-10 rounded-2xl text-[10px] font-bold outline-none" value={slot.event_date || ''} onChange={(e) => updateLocalSlot(slot.id, 'event_date', e.target.value)} />
-                      </div>
-                      <div className="relative">
-                        <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600" size={14} />
-                        <input placeholder="Konum" className="w-full bg-slate-950 border border-white/5 p-4 pl-10 rounded-2xl text-[10px] font-bold outline-none" value={slot.event_location || ''} onChange={(e) => updateLocalSlot(slot.id, 'event_location', e.target.value)} />
-                      </div>
+                        <input placeholder="Tarih" className="w-full bg-slate-950 border border-white/5 p-4 rounded-2xl text-[10px] font-bold outline-none" value={slot.event_date || ''} onChange={(e) => updateLocalSlot(slot.id, 'event_date', e.target.value)} />
+                        <input placeholder="Konum" className="w-full bg-slate-950 border border-white/5 p-4 rounded-2xl text-[10px] font-bold outline-none" value={slot.event_location || ''} onChange={(e) => updateLocalSlot(slot.id, 'event_location', e.target.value)} />
                     </div>
                   </div>
-
-                  <button 
-                    disabled={savingSlotId === slot.id}
-                    onClick={() => handleUpdateSlot(slot)}
-                    className="w-full bg-white text-black p-4 rounded-2xl font-black text-[10px] tracking-widest mt-6 hover:bg-blue-600 hover:text-white transition-all flex items-center justify-center gap-2"
-                  >
-                    {savingSlotId === slot.id ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
-                    GÜNCELLE
-                  </button>
+                  <button disabled={savingSlotId === slot.id} onClick={() => handleUpdateSlot(slot)} className="w-full bg-white text-black p-4 rounded-2xl font-black text-[10px] tracking-widest mt-6 hover:bg-blue-600 hover:text-white transition-all flex items-center justify-center gap-2">{savingSlotId === slot.id ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />} GÜNCELLE</button>
                 </div>
               ))}
             </div>
@@ -455,10 +374,7 @@ export default function AdminPage() {
       {isEditModalOpen && editingPerson && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
           <div className="w-full max-w-md bg-slate-900 border border-white/10 rounded-[2.5rem] p-8 shadow-2xl">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-lg font-bold uppercase">Bilgileri Düzenle</h2>
-              <button onClick={() => setIsEditModalOpen(false)} className="p-2"><X size={24} /></button>
-            </div>
+            <div className="flex justify-between items-center mb-6"><h2 className="text-lg font-bold uppercase">Bilgileri Düzenle</h2><button onClick={() => setIsEditModalOpen(false)} className="p-2"><X size={24} /></button></div>
             <form onSubmit={handleUpdateParticipant} className="space-y-4">
               <input type="text" className="w-full bg-slate-950 border border-white/5 p-4 rounded-2xl outline-none text-white" value={editingPerson.ad_soyad} onChange={(e) => setEditingPerson({...editingPerson, ad_soyad: e.target.value})} />
               <input type="text" className="w-full bg-slate-950 border border-white/5 p-4 rounded-2xl outline-none text-white" value={editingPerson.telefon} onChange={(e) => setEditingPerson({...editingPerson, telefon: e.target.value})} />
@@ -471,30 +387,20 @@ export default function AdminPage() {
       {uiWarnings.isOpen && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
           <div className="w-full max-w-lg bg-slate-900 border border-amber-500/30 rounded-[2.5rem] p-8 shadow-2xl">
-            <div className="flex items-center gap-3 mb-6 text-amber-500">
-              <AlertTriangle size={32} />
-              <h2 className="text-xl font-black uppercase">Uyarılar Var</h2>
-            </div>
-            <div className="max-h-60 overflow-y-auto mb-6 space-y-2 pr-2 custom-scrollbar">
-              {uiWarnings.messages.map((msg, idx) => (
-                <div key={idx} className="bg-amber-500/10 text-amber-400 p-3 rounded-xl text-xs font-bold border border-amber-500/20">
-                  {msg}
-                </div>
-              ))}
-            </div>
-            <p className="text-sm text-slate-400 mb-6 font-bold">Yine de işleme devam etmek istiyor musunuz?</p>
-            <div className="flex gap-3">
-              <button onClick={uiWarnings.onCancel} className="flex-1 bg-slate-800 text-white p-4 rounded-2xl font-bold uppercase text-xs tracking-widest hover:bg-slate-700 transition-colors">Vazgeç</button>
-              <button onClick={uiWarnings.onConfirm} className="flex-1 bg-amber-600 text-white p-4 rounded-2xl font-bold uppercase text-xs tracking-widest hover:bg-amber-500 transition-colors">Yine de Kaydet</button>
-            </div>
+            <div className="flex items-center gap-3 mb-6 text-amber-500"><AlertTriangle size={32} /><h2 className="text-xl font-black uppercase">Uyarılar Var</h2></div>
+            <div className="max-h-60 overflow-y-auto mb-6 space-y-2 pr-2 custom-scrollbar">{uiWarnings.messages.map((msg, idx) => (<div key={idx} className="bg-amber-500/10 text-amber-400 p-3 rounded-xl text-xs font-bold border border-amber-500/20">{msg}</div>))}</div>
+            <div className="flex gap-3"><button onClick={uiWarnings.onCancel} className="flex-1 bg-slate-800 text-white p-4 rounded-2xl font-bold uppercase text-xs tracking-widest">Vazgeç</button><button onClick={uiWarnings.onConfirm} className="flex-1 bg-amber-600 text-white p-4 rounded-2xl font-bold uppercase text-xs tracking-widest">Yine de Kaydet</button></div>
           </div>
         </div>
       )}
 
       <div className="w-full max-w-lg flex justify-between items-center bg-slate-900/40 p-5 rounded-[2rem] border border-white/5 mb-4 backdrop-blur-xl">
         <div className="flex items-center gap-3">
-          <div className="bg-blue-600 p-2 rounded-xl"><ShieldCheck size={24} /></div>
-          <div><h1 className="text-lg font-bold uppercase">Flick Admin</h1><button onClick={handleLogout} className="text-[10px] text-rose-500 font-bold uppercase">Çıkış</button></div>
+          <div className="bg-blue-600 p-2 rounded-xl relative">
+            <ShieldCheck size={24} />
+            {liveCheckins.length > 0 && <span className="absolute -top-1 -right-1 w-3 h-3 bg-emerald-500 rounded-full animate-ping"></span>}
+          </div>
+          <div><h1 className="text-lg font-bold uppercase leading-none">Flick Admin</h1><button onClick={handleLogout} className="text-[10px] text-rose-500 font-bold uppercase">Çıkış</button></div>
         </div>
         <div className="flex gap-2">
           <button onClick={() => setIsSettingsOpen(true)} className="bg-slate-800 p-3 rounded-2xl text-blue-400"><Settings2 size={22} /></button>
@@ -506,18 +412,7 @@ export default function AdminPage() {
 
       <div className="w-full max-w-lg grid grid-cols-4 gap-2 mb-6">
         {[1, 2, 3, 4].map((num) => (
-          <button 
-            key={num}
-            onClick={() => setSelectedSlotId(num)}
-            className={`py-3 rounded-2xl border transition-all flex flex-col items-center justify-center gap-1 ${
-              selectedSlotId === num 
-              ? 'bg-blue-600 border-blue-400 shadow-[0_0_15px_rgba(37,99,235,0.3)] scale-105 z-10' 
-              : 'bg-slate-900/40 border-white/5 text-slate-500 hover:bg-slate-800'
-            }`}
-          >
-            <LayoutGrid size={14} className={selectedSlotId === num ? 'text-white' : 'text-slate-600'} />
-            <span className="text-[9px] font-black uppercase">Slot {num}</span>
-          </button>
+          <button key={num} onClick={() => setSelectedSlotId(num)} className={`py-3 rounded-2xl border transition-all flex flex-col items-center justify-center gap-1 ${selectedSlotId === num ? 'bg-blue-600 border-blue-400 shadow-[0_0_15px_rgba(37,99,235,0.3)] scale-105 z-10' : 'bg-slate-900/40 border-white/5 text-slate-500 hover:bg-slate-800'}`}><LayoutGrid size={14} /><span className="text-[9px] font-black uppercase">Slot {num}</span></button>
         ))}
       </div>
 
@@ -526,13 +421,7 @@ export default function AdminPage() {
           <div className="space-y-6">
             <div className={`relative border-[4px] rounded-[2.5rem] overflow-hidden min-h-[300px] ${scanStatus.status === 'success' ? 'border-emerald-500' : scanStatus.status === 'error' ? 'border-rose-500' : scanStatus.status === 'warning' ? 'border-amber-500' : 'border-white/10'}`}>
               <div id="reader" className="w-full aspect-square bg-black"></div>
-              {scanStatus.message && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm z-50">
-                   <div className="text-center animate-in zoom-in duration-300">
-                      <p className={`text-xl font-black uppercase ${scanStatus.status === 'success' ? 'text-emerald-400' : 'text-rose-400'}`}>{scanStatus.message}</p>
-                   </div>
-                </div>
-              )}
+              {scanStatus.message && (<div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm z-50"><p className={`text-xl font-black uppercase ${scanStatus.status === 'success' ? 'text-emerald-400' : 'text-rose-400'}`}>{scanStatus.message}</p></div>)}
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="bg-emerald-500/5 border border-emerald-500/10 p-6 rounded-[2rem] text-center"><p className="text-[10px] text-emerald-500 font-bold uppercase mb-1">İçeride</p><p className="text-4xl font-black text-emerald-400">{participants.filter(p => p.geldi_mi).length}</p></div>
@@ -551,9 +440,8 @@ export default function AdminPage() {
                 </div>
               </label>
             </div>
-
             <div className="bg-slate-900/60 border border-white/10 rounded-[2.5rem] p-8">
-              <div className="flex items-center gap-3 mb-6"><UserPlus size={24} className="text-emerald-400" /><h2 className="text-lg font-bold uppercase">Manuel Ekle (Slot {selectedSlotId})</h2></div>
+              <div className="flex items-center gap-3 mb-6"><UserPlus size={24} className="text-emerald-400" /><h2 className="text-lg font-bold uppercase">Manuel Ekle</h2></div>
               <form onSubmit={handleAddSinglePerson} className="space-y-4">
                 <input type="text" placeholder="Ad Soyad" className="w-full bg-slate-950 border border-white/5 p-5 rounded-2xl text-white outline-none" value={newPerson.ad_soyad} onChange={(e) => setNewPerson({...newPerson, ad_soyad: e.target.value})} />
                 <input type="text" placeholder="Telefon" className="w-full bg-slate-950 border border-white/5 p-5 rounded-2xl text-white outline-none" value={newPerson.telefon} onChange={(e) => setNewPerson({...newPerson, telefon: e.target.value})} />
@@ -584,19 +472,13 @@ export default function AdminPage() {
                 <div className="flex justify-center p-10"><Loader2 className="animate-spin text-blue-500" size={32} /></div>
               ) : filteredList.map((person) => {
                 const isDuplicate = participants.filter(p => p.telefon === person.telefon).length > 1;
-
                 return (
                   <div key={person.id} className="bg-slate-900/40 p-5 rounded-[2.5rem] border border-white/5 shadow-xl">
                     <div className="flex justify-between items-start">
                       <div className="space-y-2">
                         <div className="flex items-center gap-2">
                           <p className="font-bold text-lg leading-tight">{person.ad_soyad}</p>
-                          {isDuplicate && (
-                            <div className="flex items-center gap-1 bg-amber-500/20 px-2 py-1 rounded-md border border-amber-500/30">
-                              <AlertTriangle size={12} className="text-amber-500" />
-                              <span className="text-[8px] font-bold text-amber-500 uppercase">Mükerrer</span>
-                            </div>
-                          )}
+                          {isDuplicate && (<div className="flex items-center gap-1 bg-amber-500/20 px-2 py-1 rounded-md border border-amber-500/30"><AlertTriangle size={12} className="text-amber-500" /><span className="text-[8px] font-bold text-amber-500 uppercase">Mükerrer</span></div>)}
                         </div>
                         <div className="flex flex-wrap gap-2">
                           <span className={`text-[9px] font-bold px-2 py-1 rounded-md border ${person.geldi_mi ? 'bg-emerald-500 text-white' : 'bg-slate-800 text-slate-500 border-white/5'}`}>{person.geldi_mi ? 'İÇERİDE' : 'GELMEDİ'}</span>
@@ -625,12 +507,6 @@ export default function AdminPage() {
                   </div>
                 );
               })}
-              {!loading && filteredList.length === 0 && (
-                <div className="text-center p-10 bg-slate-900/20 rounded-[2.5rem] border border-dashed border-white/5">
-                  <Users className="mx-auto text-slate-700 mb-4" size={48} />
-                  <p className="text-slate-500 font-bold uppercase text-xs">Bu slotta henüz kimse yok.</p>
-                </div>
-              )}
             </div>
           </div>
         )}
@@ -642,7 +518,6 @@ export default function AdminPage() {
         .custom-scrollbar::-webkit-scrollbar { width: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); border-radius: 10px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(245, 158, 11, 0.2); border-radius: 10px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(245, 158, 11, 0.4); }
       `}</style>
     </main>
   );
