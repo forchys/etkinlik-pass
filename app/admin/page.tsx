@@ -7,7 +7,7 @@ import {
   Users, CheckCircle, XCircle, Loader2, Search, X, 
   RefreshCcw, TicketCheck, Camera, ShieldCheck, AlertTriangle, 
   Settings2, Save, Trash2, Lock, UserPlus, Plus, FileUp, Edit3, Armchair,
-  Power, Film, Theater, Trophy, MapPin, Calendar, LayoutGrid, Link2, Info
+  Power, Film, Theater, Trophy, MapPin, Calendar, LayoutGrid
 } from 'lucide-react';
 
 export default function AdminPage() {
@@ -42,50 +42,6 @@ export default function AdminPage() {
   const [newPerson, setNewPerson] = useState({ ad_soyad: "", telefon: "" });
   const [addLoading, setAddLoading] = useState(false);
   const scannerRef = useRef<Html5Qrcode | null>(null);
-
-  const [sheetUrl, setSheetUrl] = useState("");
-  const [syncErrors, setSyncErrors] = useState<any[]>([]);
-  
-      // YENİ MANTIK: uniqueDataMap yerine direkt dizi oluşturuyoruz (Mükerrerlere izin verildiği için)
-      const finalData = rows.map(row => {
-        const adSoyad = row[2]?.replace(/"/g, '').trim(); 
-        const telefon = formatPhoneNumber(row[3]);
-
-        if (!adSoyad || !telefon || telefon.length < 10) {
-          if (adSoyad || (telefon && telefon !== "")) {
-            duplicates.push({ isim: adSoyad || "Bilinmiyor", tel: telefon || "Geçersiz", neden: "Eksik bilgi veya hatalı numara" });
-          }
-          return null;
-        }
-
-        return {
-          ad_soyad: adSoyad,
-          telefon: telefon,
-          etkinlik_id: selectedSlotId,
-          bilet_alindi_mi: false,
-          geldi_mi: false,
-          qr_kodu: crypto.randomUUID()
-        };
-      }).filter(item => item !== null);
-
-      setSyncErrors(duplicates); 
-
-      if (finalData.length === 0) throw new Error("Geçerli veri bulunamadı.");
-
-      // UPSERT YERİNE INSERT: Mükerrer telefon numarası hatası almamak için insert kullanıyoruz
-      const { error } = await supabase
-        .from('katilimcilar')
-        .insert(finalData);
-
-      if (error) throw error;
-      alert(`${finalData.length} kişi senkronize edildi. ${duplicates.length} hatalı kayıt atlandı.`);
-      fetchParticipants();
-    } catch (err: any) {
-      alert("Hata: " + err.message);
-    } finally {
-      setAddLoading(false);
-    }
-  };
 
   // --- SLOT VERİSİNİ ÇEKME ---
   const fetchEventSlots = async () => {
@@ -154,7 +110,6 @@ export default function AdminPage() {
     if (isAuthenticated) fetchParticipants();
   }, [selectedSlotId, isAuthenticated]);
 
-  // --- YENİ: VERİ KALİTE KONTROL FONKSİYONU ---
   const validateParticipant = (name: string, rawPhone: string, formattedPhone: string, existingList: any[], seenPhones: Set<string>) => {
     const warnings = [];
     const cleanName = name.trim();
@@ -169,7 +124,6 @@ export default function AdminPage() {
     const isDuplicateInBatch = seenPhones.has(formattedPhone);
     
     if (isDuplicate || isDuplicateInBatch) {
-      // Mükerrer uyarı olarak değiştirildi (Hata değil, kaydetmeye izin vereceğiz)
       warnings.push(`Uyarı: "${cleanName}" ile aynı telefon (${formattedPhone}) listeye eklenecek.`);
     }
     
@@ -202,7 +156,6 @@ export default function AdminPage() {
             const rawPhone = String(row[phoneKey]);
             const phone = formatPhoneNumber(rawPhone);
             
-            // Kontrol Et
             const rowWarnings = validateParticipant(name, rawPhone, phone, participants, seenPhones);
             if (rowWarnings.length > 0) allWarnings.push(...rowWarnings);
 
@@ -223,7 +176,6 @@ export default function AdminPage() {
         const proceedWithUpload = async () => {
           setAddLoading(true);
           if (formattedData.length > 0) {
-            // UPSERT YERİNE INSERT: Mükerrer numaralara izin veriyoruz
             const { error } = await supabase
               .from('katilimcilar')
               .insert(formattedData);
@@ -283,7 +235,6 @@ export default function AdminPage() {
     
     const proceedWithAdd = async () => {
       setAddLoading(true);
-      // UPSERT YERİNE INSERT
       const { error } = await supabase.from('katilimcilar').insert([{ 
         ad_soyad: newPerson.ad_soyad.trim(), 
         telefon: phone, 
@@ -429,7 +380,6 @@ export default function AdminPage() {
   return (
     <main className="min-h-screen bg-[#020617] text-white p-4 font-sans flex flex-col items-center">
       
-      {/* 4 SLOTLU AYARLAR MODALI */}
       {isSettingsOpen && (
         <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/90 backdrop-blur-xl overflow-y-auto">
           <div className="w-full max-w-4xl bg-slate-950 border border-white/10 rounded-[3rem] p-6 my-8">
@@ -518,7 +468,6 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* UI UYARI MODALI */}
       {uiWarnings.isOpen && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
           <div className="w-full max-w-lg bg-slate-900 border border-amber-500/30 rounded-[2.5rem] p-8 shadow-2xl">
@@ -542,7 +491,6 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* HEADER VE NAVİGASYON */}
       <div className="w-full max-w-lg flex justify-between items-center bg-slate-900/40 p-5 rounded-[2rem] border border-white/5 mb-4 backdrop-blur-xl">
         <div className="flex items-center gap-3">
           <div className="bg-blue-600 p-2 rounded-xl"><ShieldCheck size={24} /></div>
@@ -556,7 +504,6 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* SLOT SEÇİCİ ARAYÜZÜ */}
       <div className="w-full max-w-lg grid grid-cols-4 gap-2 mb-6">
         {[1, 2, 3, 4].map((num) => (
           <button 
@@ -596,46 +543,6 @@ export default function AdminPage() {
 
         {view === 'add' && (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
-            {/* GOOGLE SHEETS SENKRONİZASYON BÖLÜMÜ */}
-            <div className="bg-slate-900/60 border border-white/10 rounded-[2.5rem] p-8 space-y-4">
-              <div className="flex items-center gap-3 mb-2">
-                <Link2 size={24} className="text-blue-400" />
-                <h2 className="text-lg font-bold uppercase">Google Sheets Senkronize</h2>
-              </div>
-              <input 
-                type="text" 
-                placeholder="CSV URL" 
-                className="w-full bg-slate-950 border border-white/5 p-4 rounded-2xl text-[10px] font-mono outline-none" 
-                value={sheetUrl} 
-                onChange={(e) => setSheetUrl(e.target.value)} 
-              />
-              <button 
-                onClick={handleSync} 
-                disabled={addLoading} 
-                className="w-full bg-blue-600 hover:bg-blue-500 p-5 rounded-2xl font-bold uppercase text-xs tracking-widest flex items-center justify-center gap-3 transition-all"
-              >
-                {addLoading ? <Loader2 className="animate-spin" /> : <RefreshCcw size={18} />}
-                {selectedSlotId}. Slotu Senkronize Et
-              </button>
-
-              {syncErrors.length > 0 && (
-                <div className="mt-4 p-4 bg-rose-500/10 border border-rose-500/20 rounded-2xl">
-                  <div className="flex items-center gap-2 text-rose-400 mb-3">
-                    <AlertTriangle size={16} />
-                    <span className="text-[10px] font-black uppercase tracking-tight">Atlanan Kayıtlar ({syncErrors.length})</span>
-                  </div>
-                  <div className="max-h-40 overflow-y-auto space-y-2 pr-2">
-                    {syncErrors.map((err, i) => (
-                      <div key={i} className="text-[9px] border-b border-white/5 pb-2 last:border-0">
-                        <p className="font-bold text-white">{err.isim}</p>
-                        <p className="text-slate-500 font-mono italic">{err.tel} — {err.neden}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
             <div className="bg-slate-900/60 border border-dashed border-white/20 rounded-[2.5rem] p-8 text-center cursor-pointer">
               <label className="cursor-pointer"><input type="file" accept=".xlsx, .xls, .csv" className="hidden" onChange={handleExcelUpload} disabled={addLoading} />
                 <div className="flex flex-col items-center gap-4">
@@ -676,7 +583,6 @@ export default function AdminPage() {
               {loading ? (
                 <div className="flex justify-center p-10"><Loader2 className="animate-spin text-blue-500" size={32} /></div>
               ) : filteredList.map((person) => {
-                // YENİ: Listede mükerrer numaraları bul
                 const isDuplicate = participants.filter(p => p.telefon === person.telefon).length > 1;
 
                 return (
@@ -685,11 +591,10 @@ export default function AdminPage() {
                       <div className="space-y-2">
                         <div className="flex items-center gap-2">
                           <p className="font-bold text-lg leading-tight">{person.ad_soyad}</p>
-                          {/* MÜKERRER UYARI İKONU */}
                           {isDuplicate && (
                             <div className="flex items-center gap-1 bg-amber-500/20 px-2 py-1 rounded-md border border-amber-500/30">
                               <AlertTriangle size={12} className="text-amber-500" />
-                              <span className="text-[8px] font-bold text-amber-500 uppercase">AYNI TEL NO</span>
+                              <span className="text-[8px] font-bold text-amber-500 uppercase">Mükerrer</span>
                             </div>
                           )}
                         </div>
