@@ -59,7 +59,7 @@ export default function AdminPage() {
           return { 
             ...slot, 
             is_active: false,
-            event_name: "Çok Yakında",
+            event_name: "Gelecek Etkinlik",
             event_date: "bilinmiyor",
             event_location: "bilinmiyor"
           };
