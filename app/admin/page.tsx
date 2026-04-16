@@ -7,7 +7,7 @@ import {
   Users, CheckCircle, XCircle, Loader2, Search, X, 
   RefreshCcw, TicketCheck, Camera, ShieldCheck, AlertTriangle, 
   Settings2, Save, Trash2, Lock, UserPlus, Plus, FileUp, Edit3, Armchair,
-  Power, Film, Theater, Trophy, MapPin, Calendar, LayoutGrid
+  Power, Film, Theater, Trophy, MapPin, Calendar, LayoutGrid, ToggleLeft, ToggleRight
 } from 'lucide-react';
 
 export default function AdminPage() {
@@ -59,7 +59,7 @@ export default function AdminPage() {
           return { 
             ...slot, 
             is_active: false,
-            event_name: "Gelecek Etkinlik",
+            event_name: "Çok Yakında",
             event_date: "bilinmiyor",
             event_location: "bilinmiyor"
           };
@@ -80,7 +80,7 @@ export default function AdminPage() {
         event_location: slot.event_location,
         event_type: slot.event_type,
         is_active: slot.is_active,
-        has_seating: slot.has_seating
+        has_seating: slot.has_seating // YENİ: Koltuk seçimi ayarı
       })
       .eq('id', slot.id);
 
@@ -372,12 +372,14 @@ export default function AdminPage() {
   }
 
   const filteredList = participants.filter(p => {
-    const currentSlotSettings = eventSlots.find(s => s.slot_id === selectedSlotId);
     const matchesSearch = p.ad_soyad.toLowerCase().includes(searchTerm.toLowerCase()) || (p.telefon && p.telefon.includes(searchTerm));
     const matchesArrived = filterArrived ? p.geldi_mi === true : true;
     const matchesTicketed = filterTicketed ? p.bilet_alindi_mi === true : true;
     return matchesSearch && matchesArrived && matchesTicketed;
   });
+
+  // Seçili slotun koltuk ayarını bul
+  const currentSlotSettings = eventSlots.find(s => s.slot_id === selectedSlotId);
 
   return (
     <main className="min-h-screen bg-[#020617] text-white p-4 font-sans flex flex-col items-center">
@@ -399,19 +401,23 @@ export default function AdminPage() {
                   
                   <div className="flex items-center justify-between mb-6">
                     <span className="text-[10px] font-black bg-blue-600/20 text-blue-500 px-3 py-1 rounded-lg">SLOT #{slot.slot_id}</span>
-                    {/* Koltuk Seçimi Açma/Kapatma Butonu */}
-<button 
-  onClick={() => updateLocalSlot(slot.id, 'has_seating', !slot.has_seating)}
-  className={`flex items-center gap-2 px-3 py-2 rounded-xl text-[8px] font-black transition-all ${slot.has_seating ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-500'}`}
->
-  <Armchair size={12} /> {slot.has_seating ? 'KOLTUK AÇIK' : 'KOLTUK KAPALI'}
-</button>
-                    <button 
-                      onClick={() => updateLocalSlot(slot.id, 'is_active', !slot.is_active)}
-                      className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[9px] font-black transition-all ${slot.is_active ? 'bg-emerald-500 text-white' : 'bg-slate-800 text-slate-400'}`}
-                    >
-                      <Power size={14} /> {slot.is_active ? 'AKTİF' : 'PASİF'}
-                    </button>
+                    <div className="flex gap-2">
+                       {/* YENİ: Koltuk Seçimi Butonu */}
+                       <button 
+                        onClick={() => updateLocalSlot(slot.id, 'has_seating', !slot.has_seating)}
+                        className={`flex items-center gap-2 px-3 py-2 rounded-xl text-[8px] font-black transition-all ${slot.has_seating ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-500'}`}
+                        title="Koltuk Seçimi"
+                      >
+                        <Armchair size={12} /> {slot.has_seating ? 'KOLTUK AÇIK' : 'KOLTUK KAPALI'}
+                      </button>
+
+                      <button 
+                        onClick={() => updateLocalSlot(slot.id, 'is_active', !slot.is_active)}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[9px] font-black transition-all ${slot.is_active ? 'bg-emerald-500 text-white' : 'bg-slate-800 text-slate-400'}`}
+                      >
+                        <Power size={14} /> {slot.is_active ? 'AKTİF' : 'PASİF'}
+                      </button>
+                    </div>
                   </div>
 
                   <div className={`space-y-4 ${!slot.is_active && 'pointer-events-none opacity-50'}`}>
@@ -610,11 +616,12 @@ export default function AdminPage() {
                         <div className="flex flex-wrap gap-2">
                           <span className={`text-[9px] font-bold px-2 py-1 rounded-md border ${person.geldi_mi ? 'bg-emerald-500 text-white' : 'bg-slate-800 text-slate-500 border-white/5'}`}>{person.geldi_mi ? 'İÇERİDE' : 'GELMEDİ'}</span>
                           <span className={`text-[9px] font-bold px-2 py-1 rounded-md border ${person.bilet_alindi_mi ? 'bg-blue-500 text-white border-blue-500' : 'bg-amber-500/10 text-amber-500 border-amber-500/20'}`}>{person.bilet_alindi_mi ? 'BİLET ALINDI' : 'BİLET ALINMADI'}</span>
+                          {/* YENİ: Koltuk No Sadece Slot Ayarı Açıksa Gözükür */}
                           {currentSlotSettings?.has_seating && person.koltuk_no && (
-  <span className="text-[9px] font-bold px-2 py-1 rounded-md border bg-slate-800 text-blue-300 border-white/10 flex items-center gap-1">
-    <Armchair size={10} /> {person.koltuk_no}
-  </span>
-)}
+                            <span className="text-[9px] font-bold px-2 py-1 rounded-md border bg-slate-800 text-blue-300 border-white/10 flex items-center gap-1">
+                              <Armchair size={10} /> {person.koltuk_no}
+                            </span>
+                          )}
                         </div>
                         <div className="flex flex-col gap-1 mt-2">
                           <p className={`text-[10px] ${isDuplicate ? 'text-amber-400 font-bold' : 'text-slate-500'}`}>TEL: {person.telefon}</p>
@@ -625,13 +632,16 @@ export default function AdminPage() {
                         {!person.geldi_mi && (
                           <button onClick={async () => {
                             if(confirm(`${person.ad_soyad} girsin mi?`)) {
-                              const { error } = await supabase.from('katilimcilar').update({ geldi_mi: true }).eq('id', person.id);
+                              const { error } = await supabase.from('katilimcilar').update({ geldimi: true }).eq('id', person.id);
                               if (!error) setParticipants(prev => prev.map(p => p.id === person.id ? { ...p, geldi_mi: true } : p));
                             }
                           }} className="p-3 bg-emerald-500/10 text-emerald-400 rounded-xl border border-emerald-500/20"><TicketCheck size={18} /></button>
                         )}
                         <button onClick={() => { setEditingPerson(person); setIsEditModalOpen(true); }} className="p-3 bg-blue-500/10 text-blue-400 rounded-xl border border-blue-500/20"><Edit3 size={18} /></button>
+                        
+                        {/* Sıfırlama butonu: Slot koltukluysa koltuğu da siler, değilse sadece durumu siler */}
                         <button onClick={() => resetSeat(person.id)} className="p-3 bg-amber-500/10 text-amber-500 rounded-xl border border-amber-500/20"><RefreshCcw size={18} /></button>
+                        
                         <button onClick={() => deleteUser(person.id)} className="p-3 bg-rose-500/10 text-rose-500 rounded-xl border border-rose-500/20"><Trash2 size={18} /></button>
                       </div>
                     </div>
@@ -660,4 +670,3 @@ export default function AdminPage() {
     </main>
   );
 }
-
