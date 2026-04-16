@@ -7,7 +7,7 @@ import {
   Users, CheckCircle, XCircle, Loader2, Search, X, 
   RefreshCcw, TicketCheck, Camera, ShieldCheck, AlertTriangle, 
   Settings2, Save, Trash2, Lock, UserPlus, Plus, FileUp, Edit3, Armchair,
-  Power, Film, Theater, Trophy, MapPin, Calendar, LayoutGrid
+  Power, Film, Theater, Trophy, MapPin, Calendar, LayoutGrid, Link2, Info
 } from 'lucide-react';
 
 export default function AdminPage() {
@@ -42,6 +42,89 @@ export default function AdminPage() {
   const [newPerson, setNewPerson] = useState({ ad_soyad: "", telefon: "" });
   const [addLoading, setAddLoading] = useState(false);
   const scannerRef = useRef<Html5Qrcode | null>(null);
+
+  const [sheetUrl, setSheetUrl] = useState("");
+  const [syncErrors, setSyncErrors] = useState<any[]>([]);
+
+  // 1. ÖZELLİK: Slot değiştiğinde URL'yi veritabanından çekip kutucuğa yazma
+  useEffect(() => {
+    async function getSavedUrl() {
+      if (!isAuthenticated) return;
+      const { data } = await supabase
+        .from('etkinlik_ayarlari')
+        .select('google_sheet_url')
+        .eq('slot_id', selectedSlotId)
+        .maybeSingle();
+
+      if (data?.google_sheet_url) {
+        setSheetUrl(data.google_sheet_url);
+      } else {
+        setSheetUrl("");
+      }
+    }
+    getSavedUrl();
+  }, [selectedSlotId, isAuthenticated]);
+
+  // --- GOOGLE SHEETS SENKRONİZASYON ---
+  const handleSync = async () => {
+    if (!sheetUrl) return alert("Lütfen bir CSV URL girin.");
+    setAddLoading(true);
+    setSyncErrors([]); // Önceki hataları temizle
+    try {
+      // 2. ÖZELLİK: Senkronize et dendiğinde URL'yi ilgili slota kaydet (Sabitleme)
+      await supabase
+        .from('etkinlik_ayarlari')
+        .upsert({ 
+          slot_id: selectedSlotId, 
+          google_sheet_url: sheetUrl 
+        }, { onConflict: 'slot_id' });
+
+      const response = await fetch(sheetUrl);
+      const csvText = await response.text();
+      const rows = csvText.split('\n').map(row => row.split(',')).slice(1);
+
+      const duplicates: any[] = [];
+      
+      // YENİ MANTIK: uniqueDataMap yerine direkt dizi oluşturuyoruz (Mükerrerlere izin verildiği için)
+      const finalData = rows.map(row => {
+        const adSoyad = row[2]?.replace(/"/g, '').trim(); 
+        const telefon = formatPhoneNumber(row[3]);
+
+        if (!adSoyad || !telefon || telefon.length < 10) {
+          if (adSoyad || (telefon && telefon !== "")) {
+            duplicates.push({ isim: adSoyad || "Bilinmiyor", tel: telefon || "Geçersiz", neden: "Eksik bilgi veya hatalı numara" });
+          }
+          return null;
+        }
+
+        return {
+          ad_soyad: adSoyad,
+          telefon: telefon,
+          etkinlik_id: selectedSlotId,
+          bilet_alindi_mi: false,
+          geldi_mi: false,
+          qr_kodu: crypto.randomUUID()
+        };
+      }).filter(item => item !== null);
+
+      setSyncErrors(duplicates); 
+
+      if (finalData.length === 0) throw new Error("Geçerli veri bulunamadı.");
+
+      // UPSERT YERİNE INSERT: Mükerrer telefon numarası hatası almamak için insert kullanıyoruz
+      const { error } = await supabase
+        .from('katilimcilar')
+        .insert(finalData);
+
+      if (error) throw error;
+      alert(`${finalData.length} kişi senkronize edildi. ${duplicates.length} hatalı kayıt atlandı.`);
+      fetchParticipants();
+    } catch (err: any) {
+      alert("Hata: " + err.message);
+    } finally {
+      setAddLoading(false);
+    }
+  };
 
   // --- SLOT VERİSİNİ ÇEKME ---
   const fetchEventSlots = async () => {
@@ -125,7 +208,8 @@ export default function AdminPage() {
     const isDuplicateInBatch = seenPhones.has(formattedPhone);
     
     if (isDuplicate || isDuplicateInBatch) {
-      warnings.push(`"${cleanName}": Bu telefon (${formattedPhone}) sistemde veya listede zaten mevcut.`);
+      // Mükerrer uyarı olarak değiştirildi (Hata değil, kaydetmeye izin vereceğiz)
+      warnings.push(`Uyarı: "${cleanName}" ile aynı telefon (${formattedPhone}) listeye eklenecek.`);
     }
     
     return warnings;
@@ -178,9 +262,10 @@ export default function AdminPage() {
         const proceedWithUpload = async () => {
           setAddLoading(true);
           if (formattedData.length > 0) {
+            // UPSERT YERİNE INSERT: Mükerrer numaralara izin veriyoruz
             const { error } = await supabase
               .from('katilimcilar')
-              .upsert(formattedData, { onConflict: 'telefon', ignoreDuplicates: true });
+              .insert(formattedData);
 
             if (!error) {
               alert(`${formattedData.length} kayıt işlendi.`);
@@ -237,20 +322,21 @@ export default function AdminPage() {
     
     const proceedWithAdd = async () => {
       setAddLoading(true);
-      const { error } = await supabase.from('katilimcilar').upsert({ 
+      // UPSERT YERİNE INSERT
+      const { error } = await supabase.from('katilimcilar').insert([{ 
         ad_soyad: newPerson.ad_soyad.trim(), 
         telefon: phone, 
         qr_kodu: crypto.randomUUID(), 
         geldi_mi: false, 
         bilet_alindi_mi: false,
         etkinlik_id: selectedSlotId 
-      }, { onConflict: 'telefon' });
+      }]);
 
       if (!error) { 
           setNewPerson({ ad_soyad: "", telefon: "" }); 
           fetchParticipants(); 
       } else {
-          alert("Bu telefon numarası zaten başka bir kayıtta mevcut!");
+          alert("Hata: " + error.message);
       }
       setAddLoading(false);
     };
@@ -549,14 +635,55 @@ export default function AdminPage() {
 
         {view === 'add' && (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
+            {/* GOOGLE SHEETS SENKRONİZASYON BÖLÜMÜ */}
+            <div className="bg-slate-900/60 border border-white/10 rounded-[2.5rem] p-8 space-y-4">
+              <div className="flex items-center gap-3 mb-2">
+                <Link2 size={24} className="text-blue-400" />
+                <h2 className="text-lg font-bold uppercase">Google Sheets Senkronize</h2>
+              </div>
+              <input 
+                type="text" 
+                placeholder="CSV URL" 
+                className="w-full bg-slate-950 border border-white/5 p-4 rounded-2xl text-[10px] font-mono outline-none" 
+                value={sheetUrl} 
+                onChange={(e) => setSheetUrl(e.target.value)} 
+              />
+              <button 
+                onClick={handleSync} 
+                disabled={addLoading} 
+                className="w-full bg-blue-600 hover:bg-blue-500 p-5 rounded-2xl font-bold uppercase text-xs tracking-widest flex items-center justify-center gap-3 transition-all"
+              >
+                {addLoading ? <Loader2 className="animate-spin" /> : <RefreshCcw size={18} />}
+                {selectedSlotId}. Slotu Senkronize Et
+              </button>
+
+              {syncErrors.length > 0 && (
+                <div className="mt-4 p-4 bg-rose-500/10 border border-rose-500/20 rounded-2xl">
+                  <div className="flex items-center gap-2 text-rose-400 mb-3">
+                    <AlertTriangle size={16} />
+                    <span className="text-[10px] font-black uppercase tracking-tight">Atlanan Kayıtlar ({syncErrors.length})</span>
+                  </div>
+                  <div className="max-h-40 overflow-y-auto space-y-2 pr-2">
+                    {syncErrors.map((err, i) => (
+                      <div key={i} className="text-[9px] border-b border-white/5 pb-2 last:border-0">
+                        <p className="font-bold text-white">{err.isim}</p>
+                        <p className="text-slate-500 font-mono italic">{err.tel} — {err.neden}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div className="bg-slate-900/60 border border-dashed border-white/20 rounded-[2.5rem] p-8 text-center cursor-pointer">
               <label className="cursor-pointer"><input type="file" accept=".xlsx, .xls, .csv" className="hidden" onChange={handleExcelUpload} disabled={addLoading} />
                 <div className="flex flex-col items-center gap-4">
                   <div className="bg-emerald-500/10 p-5 rounded-2xl">{addLoading ? <Loader2 className="animate-spin text-emerald-400" size={40} /> : <FileUp size={40} className="text-emerald-400" />}</div>
-                  <h3 className="text-lg font-bold uppercase tracking-tight">Slot {selectedSlotId}'e Toplu Ekle</h3>
+                  <h3 className="text-lg font-bold uppercase tracking-tight">Slot {selectedSlotId}'e Excel Yükle</h3>
                 </div>
               </label>
             </div>
+
             <div className="bg-slate-900/60 border border-white/10 rounded-[2.5rem] p-8">
               <div className="flex items-center gap-3 mb-6"><UserPlus size={24} className="text-emerald-400" /><h2 className="text-lg font-bold uppercase">Manuel Ekle (Slot {selectedSlotId})</h2></div>
               <form onSubmit={handleAddSinglePerson} className="space-y-4">
@@ -587,37 +714,51 @@ export default function AdminPage() {
             <div className="space-y-3 pb-10">
               {loading ? (
                 <div className="flex justify-center p-10"><Loader2 className="animate-spin text-blue-500" size={32} /></div>
-              ) : filteredList.map((person) => (
-                <div key={person.id} className="bg-slate-900/40 p-5 rounded-[2.5rem] border border-white/5 shadow-xl">
-                  <div className="flex justify-between items-start">
-                    <div className="space-y-2">
-                      <p className="font-bold text-lg leading-tight">{person.ad_soyad}</p>
-                      <div className="flex flex-wrap gap-2">
-                        <span className={`text-[9px] font-bold px-2 py-1 rounded-md border ${person.geldi_mi ? 'bg-emerald-500 text-white' : 'bg-slate-800 text-slate-500 border-white/5'}`}>{person.geldi_mi ? 'İÇERİDE' : 'GELMEDİ'}</span>
-                        <span className={`text-[9px] font-bold px-2 py-1 rounded-md border ${person.bilet_alindi_mi ? 'bg-blue-500 text-white border-blue-500' : 'bg-amber-500/10 text-amber-500 border-amber-500/20'}`}>{person.bilet_alindi_mi ? 'BİLET ALINDI' : 'BİLET ALINMADI'}</span>
-                        {person.koltuk_no && <span className="text-[9px] font-bold px-2 py-1 rounded-md border bg-slate-800 text-blue-300 border-white/10 flex items-center gap-1"><Armchair size={10} /> {person.koltuk_no}</span>}
+              ) : filteredList.map((person) => {
+                // YENİ: Listede mükerrer numaraları bul
+                const isDuplicate = participants.filter(p => p.telefon === person.telefon).length > 1;
+
+                return (
+                  <div key={person.id} className="bg-slate-900/40 p-5 rounded-[2.5rem] border border-white/5 shadow-xl">
+                    <div className="flex justify-between items-start">
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <p className="font-bold text-lg leading-tight">{person.ad_soyad}</p>
+                          {/* MÜKERRER UYARI İKONU */}
+                          {isDuplicate && (
+                            <div className="flex items-center gap-1 bg-amber-500/20 px-2 py-1 rounded-md border border-amber-500/30">
+                              <AlertTriangle size={12} className="text-amber-500" />
+                              <span className="text-[8px] font-bold text-amber-500 uppercase">Mükerrer</span>
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <span className={`text-[9px] font-bold px-2 py-1 rounded-md border ${person.geldi_mi ? 'bg-emerald-500 text-white' : 'bg-slate-800 text-slate-500 border-white/5'}`}>{person.geldi_mi ? 'İÇERİDE' : 'GELMEDİ'}</span>
+                          <span className={`text-[9px] font-bold px-2 py-1 rounded-md border ${person.bilet_alindi_mi ? 'bg-blue-500 text-white border-blue-500' : 'bg-amber-500/10 text-amber-500 border-amber-500/20'}`}>{person.bilet_alindi_mi ? 'BİLET ALINDI' : 'BİLET ALINMADI'}</span>
+                          {person.koltuk_no && <span className="text-[9px] font-bold px-2 py-1 rounded-md border bg-slate-800 text-blue-300 border-white/10 flex items-center gap-1"><Armchair size={10} /> {person.koltuk_no}</span>}
+                        </div>
+                        <div className="flex flex-col gap-1 mt-2">
+                          <p className={`text-[10px] ${isDuplicate ? 'text-amber-400 font-bold' : 'text-slate-500'}`}>TEL: {person.telefon}</p>
+                          <p className="text-[8px] text-slate-600 font-mono">ID: {person.id} | Slot: {person.etkinlik_id}</p>
+                        </div>
                       </div>
-                      <div className="flex flex-col gap-1 mt-2">
-                        <p className="text-[10px] text-slate-500">TEL: {person.telefon}</p>
-                        <p className="text-[8px] text-slate-600 font-mono">ID: {person.id} | Slot: {person.etkinlik_id}</p>
+                      <div className="flex flex-col gap-2">
+                        {!person.geldi_mi && (
+                          <button onClick={async () => {
+                            if(confirm(`${person.ad_soyad} girsin mi?`)) {
+                              const { error } = await supabase.from('katilimcilar').update({ geldi_mi: true }).eq('id', person.id);
+                              if (!error) setParticipants(prev => prev.map(p => p.id === person.id ? { ...p, geldi_mi: true } : p));
+                            }
+                          }} className="p-3 bg-emerald-500/10 text-emerald-400 rounded-xl border border-emerald-500/20"><TicketCheck size={18} /></button>
+                        )}
+                        <button onClick={() => { setEditingPerson(person); setIsEditModalOpen(true); }} className="p-3 bg-blue-500/10 text-blue-400 rounded-xl border border-blue-500/20"><Edit3 size={18} /></button>
+                        <button onClick={() => resetSeat(person.id)} className="p-3 bg-amber-500/10 text-amber-500 rounded-xl border border-amber-500/20"><RefreshCcw size={18} /></button>
+                        <button onClick={() => deleteUser(person.id)} className="p-3 bg-rose-500/10 text-rose-500 rounded-xl border border-rose-500/20"><Trash2 size={18} /></button>
                       </div>
-                    </div>
-                    <div className="flex flex-col gap-2">
-                      {!person.geldi_mi && (
-                        <button onClick={async () => {
-                          if(confirm(`${person.ad_soyad} girsin mi?`)) {
-                            const { error } = await supabase.from('katilimcilar').update({ geldi_mi: true }).eq('id', person.id);
-                            if (!error) setParticipants(prev => prev.map(p => p.id === person.id ? { ...p, geldi_mi: true } : p));
-                          }
-                        }} className="p-3 bg-emerald-500/10 text-emerald-400 rounded-xl border border-emerald-500/20"><TicketCheck size={18} /></button>
-                      )}
-                      <button onClick={() => { setEditingPerson(person); setIsEditModalOpen(true); }} className="p-3 bg-blue-500/10 text-blue-400 rounded-xl border border-blue-500/20"><Edit3 size={18} /></button>
-                      <button onClick={() => resetSeat(person.id)} className="p-3 bg-amber-500/10 text-amber-500 rounded-xl border border-amber-500/20"><RefreshCcw size={18} /></button>
-                      <button onClick={() => deleteUser(person.id)} className="p-3 bg-rose-500/10 text-rose-500 rounded-xl border border-rose-500/20"><Trash2 size={18} /></button>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
               {!loading && filteredList.length === 0 && (
                 <div className="text-center p-10 bg-slate-900/20 rounded-[2.5rem] border border-dashed border-white/5">
                   <Users className="mx-auto text-slate-700 mb-4" size={48} />
