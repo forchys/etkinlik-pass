@@ -80,6 +80,7 @@ export default function AdminPage() {
         event_location: slot.event_location,
         event_type: slot.event_type,
         is_active: slot.is_active
+        has_seating: slot.has_seating
       })
       .eq('id', slot.id);
 
@@ -371,6 +372,7 @@ export default function AdminPage() {
   }
 
   const filteredList = participants.filter(p => {
+    const currentSlotSettings = eventSlots.find(s => s.slot_id === selectedSlotId);
     const matchesSearch = p.ad_soyad.toLowerCase().includes(searchTerm.toLowerCase()) || (p.telefon && p.telefon.includes(searchTerm));
     const matchesArrived = filterArrived ? p.geldi_mi === true : true;
     const matchesTicketed = filterTicketed ? p.bilet_alindi_mi === true : true;
@@ -397,6 +399,13 @@ export default function AdminPage() {
                   
                   <div className="flex items-center justify-between mb-6">
                     <span className="text-[10px] font-black bg-blue-600/20 text-blue-500 px-3 py-1 rounded-lg">SLOT #{slot.slot_id}</span>
+                    {/* Koltuk Seçimi Açma/Kapatma Butonu */}
+<button 
+  onClick={() => updateLocalSlot(slot.id, 'has_seating', !slot.has_seating)}
+  className={`flex items-center gap-2 px-3 py-2 rounded-xl text-[8px] font-black transition-all ${slot.has_seating ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-500'}`}
+>
+  <Armchair size={12} /> {slot.has_seating ? 'KOLTUK AÇIK' : 'KOLTUK KAPALI'}
+</button>
                     <button 
                       onClick={() => updateLocalSlot(slot.id, 'is_active', !slot.is_active)}
                       className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[9px] font-black transition-all ${slot.is_active ? 'bg-emerald-500 text-white' : 'bg-slate-800 text-slate-400'}`}
@@ -601,7 +610,11 @@ export default function AdminPage() {
                         <div className="flex flex-wrap gap-2">
                           <span className={`text-[9px] font-bold px-2 py-1 rounded-md border ${person.geldi_mi ? 'bg-emerald-500 text-white' : 'bg-slate-800 text-slate-500 border-white/5'}`}>{person.geldi_mi ? 'İÇERİDE' : 'GELMEDİ'}</span>
                           <span className={`text-[9px] font-bold px-2 py-1 rounded-md border ${person.bilet_alindi_mi ? 'bg-blue-500 text-white border-blue-500' : 'bg-amber-500/10 text-amber-500 border-amber-500/20'}`}>{person.bilet_alindi_mi ? 'BİLET ALINDI' : 'BİLET ALINMADI'}</span>
-                          {person.koltuk_no && <span className="text-[9px] font-bold px-2 py-1 rounded-md border bg-slate-800 text-blue-300 border-white/10 flex items-center gap-1"><Armchair size={10} /> {person.koltuk_no}</span>}
+                          {currentSlotSettings?.has_seating && person.koltuk_no && (
+  <span className="text-[9px] font-bold px-2 py-1 rounded-md border bg-slate-800 text-blue-300 border-white/10 flex items-center gap-1">
+    <Armchair size={10} /> {person.koltuk_no}
+  </span>
+)}
                         </div>
                         <div className="flex flex-col gap-1 mt-2">
                           <p className={`text-[10px] ${isDuplicate ? 'text-amber-400 font-bold' : 'text-slate-500'}`}>TEL: {person.telefon}</p>
