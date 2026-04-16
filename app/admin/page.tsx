@@ -19,6 +19,7 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
 
+  // --- SLOT YÖNETİMİ STATE'LERİ ---
   const [eventSlots, setEventSlots] = useState<any[]>([]);
   const [selectedSlotId, setSelectedSlotId] = useState<number>(1); 
   const [savingSlotId, setSavingSlotId] = useState<string | null>(null);
@@ -34,41 +35,16 @@ export default function AdminPage() {
   const [addLoading, setAddLoading] = useState(false);
   const scannerRef = useRef<Html5Qrcode | null>(null);
 
-  const [sheetUrl, setSheetUrl] = useState("");
+  // --- GOOGLE SHEETS STATE ---
+  const [sheetUrl, setSheetUrl] = useState("https://docs.google.com/spreadsheets/d/e/2PACX-1vTGAQYsi2nV2ySRo.../pub?output=csv");
+  // YENİ: Eklenemeyen kişileri tutan state
   const [syncErrors, setSyncErrors] = useState<any[]>([]);
 
-  // 1. ÖZELLİK: URL'yi 'etkinlik_ayarlari' tablosundan slot_id ile çek ve kutuda SABİTLE
-  useEffect(() => {
-    async function getSavedUrl() {
-      if (!isAuthenticated) return;
-      const { data } = await supabase
-        .from('etkinlik_ayarlari')
-        .select('google_sheet_url')
-        .eq('slot_id', selectedSlotId)
-        .maybeSingle();
-
-      if (data?.google_sheet_url) {
-        setSheetUrl(data.google_sheet_url);
-      } else {
-        setSheetUrl(""); 
-      }
-    }
-    getSavedUrl();
-  }, [selectedSlotId, isAuthenticated]);
-
+  // --- GOOGLE SHEETS SENKRONİZASYON ---
   const handleSync = async () => {
-    if (!sheetUrl) return alert("Lütfen bir CSV URL girin.");
     setAddLoading(true);
-    setSyncErrors([]);
+    setSyncErrors([]); // Önceki hataları temizle
     try {
-      // 2. ÖZELLİK: URL'yi 'etkinlik_ayarlari' tablosuna 'slot_id'ye göre kaydet
-      await supabase
-        .from('etkinlik_ayarlari')
-        .upsert({ 
-          slot_id: selectedSlotId, 
-          google_sheet_url: sheetUrl 
-        }, { onConflict: 'slot_id' });
-
       const response = await fetch(sheetUrl);
       const csvText = await response.text();
       const rows = csvText.split('\n').map(row => row.split(',')).slice(1);
@@ -78,22 +54,23 @@ export default function AdminPage() {
         const adSoyad = row[2]?.replace(/"/g, '').trim(); 
         const telefon = formatPhoneNumber(row[3]);
 
+        // Veri geçerlilik kontrolü
         if (!adSoyad || !telefon || telefon.length < 10) {
           if (adSoyad || (telefon && telefon !== "")) {
-            duplicates.push({ isim: adSoyad || "Bilinmiyor", tel: telefon || "Geçersiz", neden: "Eksik veri" });
+            duplicates.push({ isim: adSoyad || "Bilinmiyor", tel: telefon || "Geçersiz", neden: "Eksik bilgi veya hatalı numara" });
           }
           return acc;
         }
 
+        // Mükerrer (Duplicate) kontrolü
         if (acc[telefon]) {
-          duplicates.push({ isim: adSoyad, tel: telefon, neden: "Mükerrer numara" });
-          return acc;
+          duplicates.push({ isim: adSoyad, tel: telefon, neden: "Mükerrer numara (Aynı numara tekrar ediyor)" });
         }
         
         acc[telefon] = {
           ad_soyad: adSoyad,
           telefon: telefon,
-          etkinlik_id: selectedSlotId, // Katılımcılar tablosundaki doğru sütun adı
+          etkinlik_id: selectedSlotId,
           bilet_alindi_mi: false,
           geldi_mi: false,
           qr_kodu: crypto.randomUUID()
@@ -101,7 +78,7 @@ export default function AdminPage() {
         return acc;
       }, {});
 
-      setSyncErrors(duplicates);
+      setSyncErrors(duplicates); // Atlananları listeye kaydet
       const finalData = Object.values(uniqueDataMap);
 
       if (finalData.length === 0) throw new Error("Geçerli veri bulunamadı.");
@@ -111,26 +88,13 @@ export default function AdminPage() {
         .upsert(finalData, { onConflict: 'telefon' });
 
       if (error) throw error;
-      alert(`${finalData.length} kişi işlendi. URL kaydedildi.`);
+      alert(`${finalData.length} kişi senkronize edildi. ${duplicates.length} kişi atlandı.`);
       fetchParticipants();
     } catch (err: any) {
       alert("Hata: " + err.message);
     } finally {
       setAddLoading(false);
     }
-  };
-
-  const fetchParticipants = async () => {
-    setLoading(true);
-    // HATA DÜZELTİLDİ: Katılımcılar tablosunda 'etkinlik_id' kullanılıyor
-    const { data, error } = await supabase
-      .from('katilimcilar')
-      .select('*')
-      .eq('etkinlik_id', selectedSlotId) 
-      .order('ad_soyad', { ascending: true });
-    
-    if (!error && data) setParticipants(data);
-    setLoading(false);
   };
 
   const fetchEventSlots = async () => {
@@ -145,7 +109,13 @@ export default function AdminPage() {
     setEventSlots(prev => prev.map(slot => {
       if (slot.id === id) {
         if (field === 'is_active' && value === false) {
-          return { ...slot, is_active: false, event_name: "Çok Yakında", event_date: "bilinmiyor", event_location: "bilinmiyor" };
+          return { 
+            ...slot, 
+            is_active: false,
+            event_name: "Çok Yakında",
+            event_date: "bilinmiyor",
+            event_location: "bilinmiyor"
+          };
         }
         return { ...slot, [field]: value };
       }
@@ -165,6 +135,7 @@ export default function AdminPage() {
         is_active: slot.is_active
       })
       .eq('id', slot.id);
+
     if (error) alert("Hata: " + error.message);
     setSavingSlotId(null);
   };
@@ -174,6 +145,17 @@ export default function AdminPage() {
     if (cleaned.startsWith('90')) cleaned = cleaned.substring(2);
     if (cleaned.startsWith('0')) cleaned = cleaned.substring(1);
     return cleaned.slice(-10);
+  };
+
+  const fetchParticipants = async () => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from('katilimcilar')
+      .select('*')
+      .eq('etkinlik_id', selectedSlotId)
+      .order('ad_soyad', { ascending: true });
+    if (!error && data) setParticipants(data);
+    setLoading(false);
   };
 
   useEffect(() => {
@@ -215,7 +197,7 @@ export default function AdminPage() {
             alert(`${formattedData.length} kişi başarıyla eklendi!`);
             fetchParticipants();
           } else alert("Supabase Hatası: " + error.message);
-        }
+        } else alert("Excel'de uygun sütun başlıkları bulunamadı!");
       } catch (err) { alert("Dosya okunurken bir hata oluştu."); }
       setAddLoading(false);
       e.target.value = "";
@@ -312,7 +294,7 @@ export default function AdminPage() {
                 .eq('etkinlik_id', selectedSlotId)
                 .maybeSingle();
               
-              if (!user) { setScanStatus({ status: 'error', message: 'Geçersiz QR!' }); }
+              if (!user) { setScanStatus({ status: 'error', message: 'Geçersiz veya Yanlış Etkinlik!' }); }
               else if (user.geldi_mi) { setScanStatus({ status: 'warning', message: 'Zaten Girdi!' }); }
               else {
                 await supabase.from('katilimcilar').update({ geldi_mi: true }).eq('id', user.id);
@@ -354,7 +336,6 @@ export default function AdminPage() {
   return (
     <main className="min-h-screen bg-[#020617] text-white p-4 font-sans flex flex-col items-center">
       
-      {/* Settings Modal */}
       {isSettingsOpen && (
         <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/90 backdrop-blur-xl overflow-y-auto">
           <div className="w-full max-w-4xl bg-slate-950 border border-white/10 rounded-[3rem] p-6 my-8">
@@ -369,23 +350,57 @@ export default function AdminPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {eventSlots.map((slot) => (
                 <div key={slot.id} className={`p-6 rounded-[2.5rem] border transition-all duration-500 ${slot.is_active ? 'bg-slate-900/40 border-blue-500/30' : 'bg-slate-900/10 border-white/5 opacity-60'}`}>
+                  
                   <div className="flex items-center justify-between mb-6">
                     <span className="text-[10px] font-black bg-blue-600/20 text-blue-500 px-3 py-1 rounded-lg">SLOT #{slot.slot_id}</span>
-                    <button onClick={() => updateLocalSlot(slot.id, 'is_active', !slot.is_active)} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[9px] font-black transition-all ${slot.is_active ? 'bg-emerald-500 text-white' : 'bg-slate-800 text-slate-400'}`}><Power size={14} /> {slot.is_active ? 'AKTİF' : 'PASİF'}</button>
+                    <button 
+                      onClick={() => updateLocalSlot(slot.id, 'is_active', !slot.is_active)}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[9px] font-black transition-all ${slot.is_active ? 'bg-emerald-500 text-white' : 'bg-slate-800 text-slate-400'}`}
+                    >
+                      <Power size={14} /> {slot.is_active ? 'AKTİF' : 'PASİF'}
+                    </button>
                   </div>
+
                   <div className={`space-y-4 ${!slot.is_active && 'pointer-events-none opacity-50'}`}>
                     <div className="grid grid-cols-4 gap-2">
-                      {[{ id: 'cinema', icon: <Film size={16}/> }, { id: 'theater', icon: <Theater size={16}/> }, { id: 'social', icon: <Users size={16}/> }, { id: 'quiz', icon: <Trophy size={16}/> }].map((t) => (
-                        <button key={t.id} onClick={() => updateLocalSlot(slot.id, 'event_type', t.id)} className={`p-3 rounded-xl flex flex-col items-center gap-1 border transition-all ${slot.event_type === t.id ? 'bg-blue-600 border-blue-400 text-white' : 'bg-slate-950 border-white/5 text-slate-500'}`}>{t.icon}<span className="text-[8px] font-bold uppercase">{t.id}</span></button>
+                      {[
+                        { id: 'cinema', icon: <Film size={16}/> },
+                        { id: 'theater', icon: <Theater size={16}/> },
+                        { id: 'social', icon: <Users size={16}/> },
+                        { id: 'quiz', icon: <Trophy size={16}/> }
+                      ].map((t) => (
+                        <button
+                          key={t.id}
+                          onClick={() => updateLocalSlot(slot.id, 'event_type', t.id)}
+                          className={`p-3 rounded-xl flex flex-col items-center gap-1 border transition-all ${slot.event_type === t.id ? 'bg-blue-600 border-blue-400 text-white' : 'bg-slate-950 border-white/5 text-slate-500'}`}
+                        >
+                          {t.icon}
+                          <span className="text-[8px] font-bold uppercase">{t.id}</span>
+                        </button>
                       ))}
                     </div>
-                    <input placeholder="Etkinlik Adı" className="w-full bg-slate-950 border border-white/5 p-4 rounded-2xl text-xs font-bold outline-none" value={slot.event_name || ''} onChange={(e) => updateLocalSlot(slot.id, 'event_name', e.target.value)} />
+
+                    <input placeholder="Etkinlik Adı" className="w-full bg-slate-950 border border-white/5 p-4 rounded-2xl text-xs font-bold outline-none focus:border-blue-500/50" value={slot.event_name || ''} onChange={(e) => updateLocalSlot(slot.id, 'event_name', e.target.value)} />
                     <div className="grid grid-cols-2 gap-3">
-                      <div className="relative"><Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600" size={14} /><input placeholder="Tarih" className="w-full bg-slate-950 border border-white/5 p-4 pl-10 rounded-2xl text-[10px] font-bold outline-none" value={slot.event_date || ''} onChange={(e) => updateLocalSlot(slot.id, 'event_date', e.target.value)} /></div>
-                      <div className="relative"><MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600" size={14} /><input placeholder="Konum" className="w-full bg-slate-950 border border-white/5 p-4 pl-10 rounded-2xl text-[10px] font-bold outline-none" value={slot.event_location || ''} onChange={(e) => updateLocalSlot(slot.id, 'event_location', e.target.value)} /></div>
+                      <div className="relative">
+                        <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600" size={14} />
+                        <input placeholder="Tarih" className="w-full bg-slate-950 border border-white/5 p-4 pl-10 rounded-2xl text-[10px] font-bold outline-none" value={slot.event_date || ''} onChange={(e) => updateLocalSlot(slot.id, 'event_date', e.target.value)} />
+                      </div>
+                      <div className="relative">
+                        <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600" size={14} />
+                        <input placeholder="Konum" className="w-full bg-slate-950 border border-white/5 p-4 pl-10 rounded-2xl text-[10px] font-bold outline-none" value={slot.event_location || ''} onChange={(e) => updateLocalSlot(slot.id, 'event_location', e.target.value)} />
+                      </div>
                     </div>
                   </div>
-                  <button disabled={savingSlotId === slot.id} onClick={() => handleUpdateSlot(slot)} className="w-full bg-white text-black p-4 rounded-2xl font-black text-[10px] tracking-widest mt-6 hover:bg-blue-600 hover:text-white transition-all flex items-center justify-center gap-2">{savingSlotId === slot.id ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}GÜNCELLE</button>
+
+                  <button 
+                    disabled={savingSlotId === slot.id}
+                    onClick={() => handleUpdateSlot(slot)}
+                    className="w-full bg-white text-black p-4 rounded-2xl font-black text-[10px] tracking-widest mt-6 hover:bg-blue-600 hover:text-white transition-all flex items-center justify-center gap-2"
+                  >
+                    {savingSlotId === slot.id ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
+                    GÜNCELLE
+                  </button>
                 </div>
               ))}
             </div>
@@ -393,21 +408,23 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* Düzenleme Modalı */}
       {isEditModalOpen && editingPerson && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
           <div className="w-full max-w-md bg-slate-900 border border-white/10 rounded-[2.5rem] p-8 shadow-2xl">
-            <div className="flex justify-between items-center mb-6"><h2 className="text-lg font-bold uppercase">Bilgileri Düzenle</h2><button onClick={() => setIsEditModalOpen(false)} className="p-2"><X size={24} /></button></div>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-lg font-bold uppercase">Bilgileri Düzenle</h2>
+              <button onClick={() => setIsEditModalOpen(false)} className="p-2"><X size={24} /></button>
+            </div>
             <form onSubmit={handleUpdateParticipant} className="space-y-4">
-              <input type="text" className="w-full bg-slate-950 border border-white/5 p-4 rounded-2xl outline-none" value={editingPerson.ad_soyad} onChange={(e) => setEditingPerson({...editingPerson, ad_soyad: e.target.value})} />
-              <input type="text" className="w-full bg-slate-950 border border-white/5 p-4 rounded-2xl outline-none" value={editingPerson.telefon} onChange={(e) => setEditingPerson({...editingPerson, telefon: e.target.value})} />
-              <button type="submit" className="w-full bg-blue-600 p-5 rounded-2xl font-bold uppercase text-xs flex items-center justify-center gap-2"><Save size={18}/> Güncelle</button>
+              <input type="text" className="w-full bg-slate-950 border border-white/5 p-4 rounded-2xl outline-none text-white" value={editingPerson.ad_soyad} onChange={(e) => setEditingPerson({...editingPerson, ad_soyad: e.target.value})} />
+              <input type="text" className="w-full bg-slate-950 border border-white/5 p-4 rounded-2xl outline-none text-white" value={editingPerson.telefon} onChange={(e) => setEditingPerson({...editingPerson, telefon: e.target.value})} />
+              <button type="submit" className="w-full bg-blue-600 p-5 rounded-2xl font-bold uppercase text-xs tracking-widest flex items-center justify-center gap-2"><Save size={18}/> Güncelle</button>
             </form>
           </div>
         </div>
       )}
 
-      {/* Navigasyon Barı */}
+      {/* HEADER VE NAVİGASYON */}
       <div className="w-full max-w-lg flex justify-between items-center bg-slate-900/40 p-5 rounded-[2rem] border border-white/5 mb-4 backdrop-blur-xl">
         <div className="flex items-center gap-3">
           <div className="bg-blue-600 p-2 rounded-xl"><ShieldCheck size={24} /></div>
@@ -416,51 +433,107 @@ export default function AdminPage() {
         <div className="flex gap-2">
           <button onClick={() => setIsSettingsOpen(true)} className="bg-slate-800 p-3 rounded-2xl text-blue-400"><Settings2 size={22} /></button>
           <button onClick={() => setView('add')} className={`${view === 'add' ? 'bg-emerald-600' : 'bg-slate-800'} p-3 rounded-2xl`}><Plus size={22} /></button>
-          <button onClick={() => setView('list')} className={`${view === 'list' ? 'bg-blue-600' : 'bg-slate-800'} p-3 rounded-2xl`}><Users size={22} /></button>
+          <button onClick={() => setView('list')} className={`${view === 'list' ? 'bg-blue-600' : 'bg-slate-800'} p-3 rounded-2xl relative`}><Users size={22} /></button>
           <button onClick={() => setView('scanner')} className={`${view === 'scanner' ? 'bg-blue-600' : 'bg-slate-800'} p-3 rounded-2xl`}><Camera size={22} /></button>
         </div>
       </div>
 
-      {/* Slot Seçici */}
+      {/* SLOT SEÇİCİ ARAYÜZÜ */}
       <div className="w-full max-w-lg grid grid-cols-4 gap-2 mb-6">
         {[1, 2, 3, 4].map((num) => (
-          <button key={num} onClick={() => setSelectedSlotId(num)} className={`py-3 rounded-2xl border transition-all flex flex-col items-center justify-center gap-1 ${selectedSlotId === num ? 'bg-blue-600 border-blue-400 scale-105 z-10' : 'bg-slate-900/40 border-white/5 text-slate-500'}`}><LayoutGrid size={14} /><span className="text-[9px] font-black uppercase">Slot {num}</span></button>
+          <button 
+            key={num}
+            onClick={() => setSelectedSlotId(num)}
+            className={`py-3 rounded-2xl border transition-all flex flex-col items-center justify-center gap-1 ${
+              selectedSlotId === num 
+              ? 'bg-blue-600 border-blue-400 shadow-[0_0_15px_rgba(37,99,235,0.3)] scale-105 z-10' 
+              : 'bg-slate-900/40 border-white/5 text-slate-500 hover:bg-slate-800'
+            }`}
+          >
+            <LayoutGrid size={14} className={selectedSlotId === num ? 'text-white' : 'text-slate-600'} />
+            <span className="text-[9px] font-black uppercase">Slot {num}</span>
+          </button>
         ))}
       </div>
 
-      {/* Ana Görünümler */}
       <div className="w-full max-w-lg flex flex-col gap-6">
         {view === 'scanner' && (
           <div className="space-y-6">
-            <div className={`relative border-[4px] rounded-[2.5rem] overflow-hidden min-h-[300px] ${scanStatus.status === 'success' ? 'border-emerald-500' : scanStatus.status === 'error' ? 'border-rose-500' : 'border-white/10'}`}>
+            <div className={`relative border-[4px] rounded-[2.5rem] overflow-hidden min-h-[300px] ${scanStatus.status === 'success' ? 'border-emerald-500' : scanStatus.status === 'error' ? 'border-rose-500' : scanStatus.status === 'warning' ? 'border-amber-500' : 'border-white/10'}`}>
               <div id="reader" className="w-full aspect-square bg-black"></div>
-              {scanStatus.message && <div className="absolute inset-0 flex items-center justify-center bg-black/60 z-50"><p className="text-xl font-black uppercase">{scanStatus.message}</p></div>}
+              {scanStatus.message && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm z-50">
+                   <div className="text-center animate-in zoom-in duration-300">
+                      <p className={`text-xl font-black uppercase ${scanStatus.status === 'success' ? 'text-emerald-400' : 'text-rose-400'}`}>{scanStatus.message}</p>
+                   </div>
+                </div>
+              )}
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <div className="bg-emerald-500/5 border border-emerald-500/10 p-6 rounded-[2rem] text-center"><p className="text-[10px] text-emerald-500 font-bold uppercase mb-1">İçeride</p><p className="text-4xl font-black">{participants.filter(p => p.geldi_mi).length}</p></div>
-              <div className="bg-blue-500/5 border border-blue-500/10 p-6 rounded-[2rem] text-center"><p className="text-[10px] text-blue-500 font-bold uppercase mb-1">Beklenen</p><p className="text-4xl font-black">{participants.filter(p => !p.geldi_mi).length}</p></div>
+              <div className="bg-emerald-500/5 border border-emerald-500/10 p-6 rounded-[2rem] text-center"><p className="text-[10px] text-emerald-500 font-bold uppercase mb-1">İçeride</p><p className="text-4xl font-black text-emerald-400">{participants.filter(p => p.geldi_mi).length}</p></div>
+              <div className="bg-blue-500/5 border border-blue-500/10 p-6 rounded-[2rem] text-center"><p className="text-[10px] text-blue-500 font-bold uppercase mb-1">Beklenen</p><p className="text-4xl font-black text-blue-400">{participants.filter(p => !p.geldi_mi).length}</p></div>
             </div>
           </div>
         )}
 
         {view === 'add' && (
-          <div className="space-y-6">
+          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
+            {/* GOOGLE SHEETS SENKRONİZASYON BÖLÜMÜ */}
             <div className="bg-slate-900/60 border border-white/10 rounded-[2.5rem] p-8 space-y-4">
-              <div className="flex items-center gap-3 mb-2"><Link2 size={24} className="text-blue-400" /><h2 className="text-lg font-bold uppercase">Google Sheets Sync</h2></div>
-              <input type="text" placeholder="CSV URL" className="w-full bg-slate-950 border border-white/5 p-4 rounded-2xl text-[10px] font-mono outline-none" value={sheetUrl} onChange={(e) => setSheetUrl(e.target.value)} />
-              <button onClick={handleSync} disabled={addLoading} className="w-full bg-blue-600 p-5 rounded-2xl font-bold uppercase text-xs flex items-center justify-center gap-3">{addLoading ? <Loader2 className="animate-spin" /> : <RefreshCcw size={18} />}Senkronize Et ve URL'yi Sabitle</button>
+              <div className="flex items-center gap-3 mb-2">
+                <Link2 size={24} className="text-blue-400" />
+                <h2 className="text-lg font-bold uppercase">Google Sheets Senkronize</h2>
+              </div>
+              <input 
+                type="text" 
+                placeholder="CSV URL" 
+                className="w-full bg-slate-950 border border-white/5 p-4 rounded-2xl text-[10px] font-mono outline-none" 
+                value={sheetUrl} 
+                onChange={(e) => setSheetUrl(e.target.value)} 
+              />
+              <button 
+                onClick={handleSync} 
+                disabled={addLoading} 
+                className="w-full bg-blue-600 hover:bg-blue-500 p-5 rounded-2xl font-bold uppercase text-xs tracking-widest flex items-center justify-center gap-3 transition-all"
+              >
+                {addLoading ? <Loader2 className="animate-spin" /> : <RefreshCcw size={18} />}
+                {selectedSlotId}. Slotu Senkronize Et
+              </button>
+
+              {/* YENİ: ATLANAN KAYITLARIN GÖSTERİLDİĞİ HATA PANELİ */}
+              {syncErrors.length > 0 && (
+                <div className="mt-4 p-4 bg-rose-500/10 border border-rose-500/20 rounded-2xl">
+                  <div className="flex items-center gap-2 text-rose-400 mb-3">
+                    <AlertTriangle size={16} />
+                    <span className="text-[10px] font-black uppercase tracking-tight">Atlanan Kayıtlar ({syncErrors.length})</span>
+                  </div>
+                  <div className="max-h-40 overflow-y-auto space-y-2 pr-2">
+                    {syncErrors.map((err, i) => (
+                      <div key={i} className="text-[9px] border-b border-white/5 pb-2 last:border-0">
+                        <p className="font-bold text-white">{err.isim}</p>
+                        <p className="text-slate-500 font-mono italic">{err.tel} — {err.neden}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
-            <div className="bg-slate-900/60 border border-dashed border-white/20 rounded-[2.5rem] p-8 text-center">
-              <label className="cursor-pointer"><input type="file" accept=".xlsx, .xls, .csv" className="hidden" onChange={handleExcelUpload} />
-                <div className="flex flex-col items-center gap-4"><FileUp size={40} className="text-emerald-400" /><h3 className="text-lg font-bold uppercase tracking-tight">Slot {selectedSlotId} Excel Yükle</h3></div>
+
+            <div className="bg-slate-900/60 border border-dashed border-white/20 rounded-[2.5rem] p-8 text-center cursor-pointer">
+              <label className="cursor-pointer"><input type="file" accept=".xlsx, .xls, .csv" className="hidden" onChange={handleExcelUpload} disabled={addLoading} />
+                <div className="flex flex-col items-center gap-4">
+                  <div className="bg-emerald-500/10 p-5 rounded-2xl">{addLoading ? <Loader2 className="animate-spin text-emerald-400" size={40} /> : <FileUp size={40} className="text-emerald-400" />}</div>
+                  <h3 className="text-lg font-bold uppercase tracking-tight">Slot {selectedSlotId}'e Excel Yükle</h3>
+                </div>
               </label>
             </div>
+
             <div className="bg-slate-900/60 border border-white/10 rounded-[2.5rem] p-8">
-              <div className="flex items-center gap-3 mb-6"><UserPlus size={24} className="text-emerald-400" /><h2 className="text-lg font-bold uppercase">Manuel Ekle</h2></div>
+              <div className="flex items-center gap-3 mb-6"><UserPlus size={24} className="text-emerald-400" /><h2 className="text-lg font-bold uppercase">Manuel Ekle (Slot {selectedSlotId})</h2></div>
               <form onSubmit={handleAddSinglePerson} className="space-y-4">
-                <input type="text" placeholder="Ad Soyad" className="w-full bg-slate-950 border border-white/5 p-5 rounded-2xl outline-none" value={newPerson.ad_soyad} onChange={(e) => setNewPerson({...newPerson, ad_soyad: e.target.value})} />
-                <input type="text" placeholder="Telefon" className="w-full bg-slate-950 border border-white/5 p-5 rounded-2xl outline-none" value={newPerson.telefon} onChange={(e) => setNewPerson({...newPerson, telefon: e.target.value})} />
-                <button type="submit" className="w-full bg-emerald-600 p-5 rounded-2xl font-bold uppercase text-xs">Kaydet</button>
+                <input type="text" placeholder="Ad Soyad" className="w-full bg-slate-950 border border-white/5 p-5 rounded-2xl text-white outline-none" value={newPerson.ad_soyad} onChange={(e) => setNewPerson({...newPerson, ad_soyad: e.target.value})} />
+                <input type="text" placeholder="Telefon" className="w-full bg-slate-950 border border-white/5 p-5 rounded-2xl text-white outline-none" value={newPerson.telefon} onChange={(e) => setNewPerson({...newPerson, telefon: e.target.value})} />
+                <button disabled={addLoading} type="submit" className="w-full bg-emerald-600 p-5 rounded-2xl font-bold uppercase text-xs tracking-widest mt-4">Listeye Kaydet</button>
               </form>
             </div>
           </div>
@@ -470,28 +543,67 @@ export default function AdminPage() {
           <div className="space-y-4">
             <div className="bg-slate-900/40 p-4 rounded-[2.5rem] border border-white/5 space-y-4">
               <div className="flex gap-2">
-                <div className="relative flex-1"><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={16} /><input type="text" placeholder="Ara..." className="w-full bg-slate-950 border border-white/5 pl-11 pr-4 py-3 rounded-xl outline-none" onChange={(e) => setSearchTerm(e.target.value)} /></div>
-                <button onClick={fetchParticipants} className="bg-slate-800 p-3 rounded-xl"><RefreshCcw size={20} /></button>
+                <div className="relative flex-1">
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
+                  <input type="text" placeholder="Bu slotta ara..." className="w-full bg-slate-950 border border-white/5 pl-11 pr-4 py-3 rounded-xl outline-none text-sm text-white" onChange={(e) => setSearchTerm(e.target.value)} />
+                </div>
+                <button onClick={fetchParticipants} className="bg-slate-800 p-3 rounded-xl text-white"><RefreshCcw size={20} /></button>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => setFilterArrived(!filterArrived)} className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-[10px] font-bold border transition-all ${filterArrived ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-slate-950 border-white/5 text-slate-500'}`}><CheckCircle size={14} /> GELENLER</button>
+                <button onClick={() => setFilterTicketed(!filterTicketed)} className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-[10px] font-bold border transition-all ${filterTicketed ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-950 border-white/5 text-slate-500'}`}><TicketCheck size={14} /> BİLET ALANLAR</button>
               </div>
             </div>
-            <button onClick={deleteAllParticipants} className="w-full bg-rose-500/10 border border-rose-500/20 text-rose-500 p-4 rounded-2xl font-bold uppercase text-[10px] tracking-widest"><Trash2 className="inline mr-2" size={16} /> Slotu Boşalt</button>
+            <button onClick={deleteAllParticipants} className="w-full bg-rose-500/10 border border-rose-500/20 text-rose-500 p-4 rounded-2xl font-bold uppercase text-[10px] tracking-[0.2em] flex items-center justify-center gap-2"><Trash2 size={16} /> Slot {selectedSlotId} Listesini Sil</button>
             <div className="space-y-3 pb-10">
-              {loading ? (<div className="flex justify-center p-10"><Loader2 className="animate-spin text-blue-500" size={32} /></div>) : filteredList.map((person) => (
-                <div key={person.id} className="bg-slate-900/40 p-5 rounded-[2.5rem] border border-white/5">
+              {loading ? (
+                <div className="flex justify-center p-10"><Loader2 className="animate-spin text-blue-500" size={32} /></div>
+              ) : filteredList.map((person) => (
+                <div key={person.id} className="bg-slate-900/40 p-5 rounded-[2.5rem] border border-white/5 shadow-xl">
                   <div className="flex justify-between items-start">
-                    <div className="space-y-2"><p className="font-bold text-lg leading-tight">{person.ad_soyad}</p><div className="flex gap-2"><span className={`text-[9px] font-bold px-2 py-1 rounded-md border ${person.geldi_mi ? 'bg-emerald-500 text-white' : 'bg-slate-800 text-slate-500'}`}>{person.geldi_mi ? 'İÇERİDE' : 'GELMEDİ'}</span></div><p className="text-[10px] text-slate-500">TEL: {person.telefon}</p></div>
+                    <div className="space-y-2">
+                      <p className="font-bold text-lg leading-tight">{person.ad_soyad}</p>
+                      <div className="flex flex-wrap gap-2">
+                        <span className={`text-[9px] font-bold px-2 py-1 rounded-md border ${person.geldi_mi ? 'bg-emerald-500 text-white' : 'bg-slate-800 text-slate-500 border-white/5'}`}>{person.geldi_mi ? 'İÇERİDE' : 'GELMEDİ'}</span>
+                        <span className={`text-[9px] font-bold px-2 py-1 rounded-md border ${person.bilet_alindi_mi ? 'bg-blue-500 text-white border-blue-500' : 'bg-amber-500/10 text-amber-500 border-amber-500/20'}`}>{person.bilet_alindi_mi ? 'BİLET ALINDI' : 'BİLET ALINMADI'}</span>
+                        {person.koltuk_no && <span className="text-[9px] font-bold px-2 py-1 rounded-md border bg-slate-800 text-blue-300 border-white/10 flex items-center gap-1"><Armchair size={10} /> {person.koltuk_no}</span>}
+                      </div>
+                      <div className="flex flex-col gap-1 mt-2">
+                        <p className="text-[10px] text-slate-500">TEL: {person.telefon}</p>
+                        <p className="text-[8px] text-slate-600 font-mono">ID: {person.id} | Slot: {person.etkinlik_id}</p>
+                      </div>
+                    </div>
                     <div className="flex flex-col gap-2">
+                      {!person.geldi_mi && (
+                        <button onClick={async () => {
+                          if(confirm(`${person.ad_soyad} girsin mi?`)) {
+                            const { error } = await supabase.from('katilimcilar').update({ geldi_mi: true }).eq('id', person.id);
+                            if (!error) setParticipants(prev => prev.map(p => p.id === person.id ? { ...p, geldi_mi: true } : p));
+                          }
+                        }} className="p-3 bg-emerald-500/10 text-emerald-400 rounded-xl border border-emerald-500/20"><TicketCheck size={18} /></button>
+                      )}
+                      <button onClick={() => { setEditingPerson(person); setIsEditModalOpen(true); }} className="p-3 bg-blue-500/10 text-blue-400 rounded-xl border border-blue-500/20"><Edit3 size={18} /></button>
+                      <button onClick={() => resetSeat(person.id)} className="p-3 bg-amber-500/10 text-amber-500 rounded-xl border border-amber-500/20"><RefreshCcw size={18} /></button>
                       <button onClick={() => deleteUser(person.id)} className="p-3 bg-rose-500/10 text-rose-500 rounded-xl border border-rose-500/20"><Trash2 size={18} /></button>
                     </div>
                   </div>
                 </div>
               ))}
+              {!loading && filteredList.length === 0 && (
+                <div className="text-center p-10 bg-slate-900/20 rounded-[2.5rem] border border-dashed border-white/5">
+                  <Users className="mx-auto text-slate-700 mb-4" size={48} />
+                  <p className="text-slate-500 font-bold uppercase text-xs">Bu slotta henüz kimse yok.</p>
+                </div>
+              )}
             </div>
           </div>
         )}
       </div>
 
-      <style jsx global>{`#reader video { width: 100% !important; height: 100% !important; object-fit: cover !important; } #reader { border: none !important; }`}</style>
+      <style jsx global>{`
+        #reader video { width: 100% !important; height: 100% !important; object-fit: cover !important; }
+        #reader { border: none !important; }
+      `}</style>
     </main>
   );
 }
