@@ -26,6 +26,7 @@ export default function AdminPage() {
 
   const [filterArrived, setFilterArrived] = useState(false);
   const [filterTicketed, setFilterTicketed] = useState(false);
+  const [filterNotTicketed, setFilterNotTicketed] = useState(false);
   const [scanStatus, setScanStatus] = useState<{status: 'idle' | 'success' | 'error' | 'warning', message: string}>({ status: 'idle', message: '' });
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingPerson, setEditingPerson] = useState<any>(null);
@@ -372,10 +373,12 @@ export default function AdminPage() {
   }
 
   const filteredList = participants.filter(p => {
+    const currentSlotSettings = eventSlots.find(s => s.slot_id === selectedSlotId);
     const matchesSearch = p.ad_soyad.toLowerCase().includes(searchTerm.toLowerCase()) || (p.telefon && p.telefon.includes(searchTerm));
     const matchesArrived = filterArrived ? p.geldi_mi === true : true;
     const matchesTicketed = filterTicketed ? p.bilet_alindi_mi === true : true;
-    return matchesSearch && matchesArrived && matchesTicketed;
+    const matchesNotTicketed = filterNotTicketed ? p.bilet_alindi_mi === false : true;
+    return matchesSearch && matchesArrived && matchesTicketed && matchesNotTicketed;
   });
 
   // Seçili slotun koltuk ayarını bul
@@ -401,23 +404,19 @@ export default function AdminPage() {
                   
                   <div className="flex items-center justify-between mb-6">
                     <span className="text-[10px] font-black bg-blue-600/20 text-blue-500 px-3 py-1 rounded-lg">SLOT #{slot.slot_id}</span>
-                    <div className="flex gap-2">
-                       {/* YENİ: Koltuk Seçimi Butonu */}
-                       <button 
-                        onClick={() => updateLocalSlot(slot.id, 'has_seating', !slot.has_seating)}
-                        className={`flex items-center gap-2 px-3 py-2 rounded-xl text-[8px] font-black transition-all ${slot.has_seating ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-500'}`}
-                        title="Koltuk Seçimi"
-                      >
-                        <Armchair size={12} /> {slot.has_seating ? 'KOLTUK AÇIK' : 'KOLTUK KAPALI'}
-                      </button>
-
-                      <button 
-                        onClick={() => updateLocalSlot(slot.id, 'is_active', !slot.is_active)}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[9px] font-black transition-all ${slot.is_active ? 'bg-emerald-500 text-white' : 'bg-slate-800 text-slate-400'}`}
-                      >
-                        <Power size={14} /> {slot.is_active ? 'AKTİF' : 'PASİF'}
-                      </button>
-                    </div>
+                    {/* Koltuk Seçimi Açma/Kapatma Butonu */}
+<button 
+  onClick={() => updateLocalSlot(slot.id, 'has_seating', !slot.has_seating)}
+  className={`flex items-center gap-2 px-3 py-2 rounded-xl text-[8px] font-black transition-all ${slot.has_seating ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-500'}`}
+>
+  <Armchair size={12} /> {slot.has_seating ? 'KOLTUK AÇIK' : 'KOLTUK KAPALI'}
+</button>
+                    <button 
+                      onClick={() => updateLocalSlot(slot.id, 'is_active', !slot.is_active)}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[9px] font-black transition-all ${slot.is_active ? 'bg-emerald-500 text-white' : 'bg-slate-800 text-slate-400'}`}
+                    >
+                      <Power size={14} /> {slot.is_active ? 'AKTİF' : 'PASİF'}
+                    </button>
                   </div>
 
                   <div className={`space-y-4 ${!slot.is_active && 'pointer-events-none opacity-50'}`}>
@@ -591,6 +590,7 @@ export default function AdminPage() {
               <div className="flex gap-2">
                 <button onClick={() => setFilterArrived(!filterArrived)} className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-[10px] font-bold border transition-all ${filterArrived ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-slate-950 border-white/5 text-slate-500'}`}><CheckCircle size={14} /> GELENLER</button>
                 <button onClick={() => setFilterTicketed(!filterTicketed)} className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-[10px] font-bold border transition-all ${filterTicketed ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-950 border-white/5 text-slate-500'}`}><TicketCheck size={14} /> BİLET ALANLAR</button>
+                <button onClick={() => setFilterNotTicketed(!filterNotTicketed)} className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-[10px] font-bold border transition-all ${filterNotTicketed ? 'bg-amber-600 border-amber-500 text-white' : 'bg-slate-950 border-white/5 text-slate-500'}`}><XCircle size={14} /> BİLET ALMAYANLAR</button>
               </div>
             </div>
             <button onClick={deleteAllParticipants} className="w-full bg-rose-500/10 border border-rose-500/20 text-rose-500 p-4 rounded-2xl font-bold uppercase text-[10px] tracking-[0.2em] flex items-center justify-center gap-2"><Trash2 size={16} /> Slot {selectedSlotId} Listesini Sil</button>
@@ -632,7 +632,7 @@ export default function AdminPage() {
                         {!person.geldi_mi && (
                           <button onClick={async () => {
                             if(confirm(`${person.ad_soyad} girsin mi?`)) {
-                              const { error } = await supabase.from('katilimcilar').update({ geldimi: true }).eq('id', person.id);
+                              const { error } = await supabase.from('katilimcilar').update({ geldi_mi: true }).eq('id', person.id);
                               if (!error) setParticipants(prev => prev.map(p => p.id === person.id ? { ...p, geldi_mi: true } : p));
                             }
                           }} className="p-3 bg-emerald-500/10 text-emerald-400 rounded-xl border border-emerald-500/20"><TicketCheck size={18} /></button>
@@ -670,3 +670,4 @@ export default function AdminPage() {
     </main>
   );
 }
+
