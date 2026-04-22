@@ -1,6 +1,5 @@
 "use client";
-
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import * as XLSX from 'xlsx';
@@ -9,587 +8,729 @@ import {
   RefreshCcw, TicketCheck, Camera, ShieldCheck, AlertTriangle, 
   Settings2, Save, Trash2, Lock, UserPlus, Plus, FileUp, Edit3, Armchair,
   Power, Film, Theater, Trophy, MapPin, Calendar, LayoutGrid, ToggleLeft, ToggleRight,
-  Eye, ExternalLink, Mail, School, UserCheck, Clock, Check, Smartphone, User, FileText,
-  ChevronDown, Filter, Download, ArrowUpRight, ArrowDownRight, Hash, Copy, Bell, History
+  Eye, ExternalLink, Mail, School, UserCheck // YENİ EKLENEN İKONLAR
 } from 'lucide-react';
 
 export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [password, setPassword] = useState("");
-  const [view, setView] = useState<'scanner' | 'list' | 'add' | 'pending' | 'stats'>('scanner'); 
+  const [view, setView] = useState<'scanner' | 'list' | 'add'>('scanner'); 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<any>(null);
   const [participants, setParticipants] = useState<any[]>([]);
-  const [eventSlots, setEventSlots] = useState<any[]>([]);
-  const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [filterArrived, setFilterArrived] = useState<'all' | 'arrived' | 'not_arrived'>('all');
-  const [filterSlot, setFilterSlot] = useState<string>("all");
+
+  // --- SLOT YÖNETİMİ STATE'LERİ ---
+  const [eventSlots, setEventSlots] = useState<any[]>([]);
+  const [selectedSlotId, setSelectedSlotId] = useState<number>(1); 
   const [savingSlotId, setSavingSlotId] = useState<string | null>(null);
-  const [scanner, setScanner] = useState<Html5Qrcode | null>(null);
-  const [scanResult, setScanResult] = useState<{ success: boolean; message: string } | null>(null);
 
-  useEffect(() => {
-    const auth = localStorage.getItem('admin_auth');
-    if (auth === 'true') setIsAuthenticated(true);
-    refreshData();
-  }, []);
+  const [filterArrived, setFilterArrived] = useState(false);
+  const [filterTicketed, setFilterTicketed] = useState(false);
+  const [filterNotTicketed, setFilterNotTicketed] = useState(false);
+  const [filterPendingApproval, setFilterPendingApproval] = useState(false); // YENİ: Onay bekleyenler filtresi
+  
+  const [scanStatus, setScanStatus] = useState<{status: 'idle' | 'success' | 'error' | 'warning', message: string}>({ status: 'idle', message: '' });
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingPerson, setEditingPerson] = useState<any>(null);
 
-  const refreshData = async () => {
-    setLoading(true);
-    await Promise.all([
-      fetchParticipants(),
-      fetchEventSlots(),
-      fetchLogs()
-    ]);
-    setLoading(false);
-  };
+  // --- YENİ: DEKONT GÖRÜNTÜLEME MODALI STATE'İ ---
+  const [showDekontModal, setShowDekontModal] = useState<string | null>(null);
 
-  const fetchParticipants = async () => {
-    const { data, error } = await supabase
-      .from('katilimcilar')
-      .select('*')
-      .order('created_at', { ascending: false });
-    if (data) setParticipants(data);
-  };
+  // --- UI UYARI MODALI STATE'İ ---
+  const [uiWarnings, setUiWarnings] = useState<{
+    isOpen: boolean;
+    messages: string[];
+    onConfirm: () => void;
+    onCancel: () => void;
+  }>({ isOpen: false, messages: [], onConfirm: () => {}, onCancel: () => {} });
 
+  const ADMIN_PASSWORD = "flickbaba31";
+  const [newPerson, setNewPerson] = useState({ ad_soyad: "", telefon: "" });
+  const [addLoading, setAddLoading] = useState(false);
+  const scannerRef = useRef<Html5Qrcode | null>(null);
+
+  // --- SLOT VERİSİNİ ÇEKME ---
   const fetchEventSlots = async () => {
-    const { data, error } = await supabase
-      .from('event_slots')
+    const { data } = await supabase
+      .from('etkinlik_ayarlari')
       .select('*')
       .order('slot_id', { ascending: true });
     if (data) setEventSlots(data);
   };
 
-  const fetchLogs = async () => {
-    const { data } = await supabase
-      .from('system_logs')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(20);
-    if (data) setLogs(data);
+  const updateLocalSlot = (id: string, field: string, value: any) => {
+    setEventSlots(prev => prev.map(slot => {
+      if (slot.id === id) {
+        if (field === 'is_active' && value === false) {
+          return { 
+            ...slot, 
+            is_active: false,
+            event_name: "Çok Yakında",
+            event_date: "bilinmiyor",
+            event_location: "bilinmiyor"
+          };
+        }
+        return { ...slot, [field]: value };
+      }
+      return slot;
+    }));
   };
 
-  const addLog = async (action: string, detail: string) => {
-    await supabase.from('system_logs').insert([{ action, detail }]);
-    fetchLogs();
-  };
+  const handleUpdateSlot = async (slot: any) => {
+    setSavingSlotId(slot.id);
+    const { error } = await supabase
+      .from('etkinlik_ayarlari')
+      .update({
+        event_name: slot.event_name,
+        event_date: slot.event_date,
+        event_location: slot.event_location,
+        event_type: slot.event_type,
+        is_active: slot.is_active,
+        has_seating: slot.has_seating // YENİ: Koltuk seçimi ayarı
+      })
+      .eq('id', slot.id);
 
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (password === "admin123") {
-      setIsAuthenticated(true);
-      localStorage.setItem('admin_auth', 'true');
-      addLog("Giriş", "Yönetici sisteme giriş yaptı.");
-    } else {
-      alert("Hatalı şifre!");
-    }
-  };
-
-  const handleApproveUser = async (id: string, name: string) => {
-    if (!confirm(`${name} isimli kaydı onaylamak istiyor musunuz?`)) return;
-    const { error } = await supabase.from('katilimcilar').update({ bilet_alindi_mi: true }).eq('id', id);
-    if (!error) {
-      addLog("Onay", `${name} onaylandı.`);
-      fetchParticipants();
-    }
-  };
-
-  const updateSlotSetting = async (id: string, field: string, value: any) => {
-    setSavingSlotId(id);
-    const { error } = await supabase.from('event_slots').update({ [field]: value }).eq('id', id);
-    if (!error) {
-      setEventSlots(prev => prev.map(slot => slot.id === id ? { ...slot, [field]: value } : slot));
-    }
+    if (error) alert("Hata: " + error.message);
     setSavingSlotId(null);
   };
 
-  const handleScan = async (decodedText: string) => {
-    if (scanner) {
-      const { data, error } = await supabase.from('katilimcilar').select('*').eq('id', decodedText).single();
-      if (data) {
-        if (!data.bilet_alindi_mi) {
-          setScanResult({ success: false, message: "KAYIT ONAYSIZ!" });
-        } else if (data.geldi_mi) {
-          setScanResult({ success: false, message: `${data.ad_soyad} ZATEN İÇERİDE!` });
-        } else {
-          const { error: ue } = await supabase.from('katilimcilar').update({ geldi_mi: true }).eq('id', decodedText);
-          if (!ue) {
-            setScanResult({ success: true, message: `GİRİŞ BAŞARILI: ${data.ad_soyad}` });
-            addLog("Check-in", `${data.ad_soyad} giriş yaptı.`);
-            fetchParticipants();
+  const formatPhoneNumber = (phone: any) => {
+    let cleaned = String(phone).replace(/\D/g, ''); 
+    if (cleaned.startsWith('90')) cleaned = cleaned.substring(2);
+    if (cleaned.startsWith('0')) cleaned = cleaned.substring(1);
+    return cleaned.slice(-10);
+  };
+
+  // --- KATILIMCI ÇEKME ---
+  const fetchParticipants = async () => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from('katilimcilar')
+      .select('*')
+      .eq('etkinlik_id', selectedSlotId)
+      .order('created_at', { ascending: false }); // YENİ EKLENENLER ÜSTTE ÇIKSIN
+    if (!error && data) setParticipants(data);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    if (isAuthenticated) fetchParticipants();
+  }, [selectedSlotId, isAuthenticated]);
+
+  const validateParticipant = (name: string, rawPhone: string, formattedPhone: string, existingList: any[], seenPhones: Set<string>) => {
+    const warnings = [];
+    const cleanName = name.trim();
+    if (!cleanName.includes(" ")) warnings.push(`"${cleanName}": Soyadı eksik olabilir.`);
+    if (cleanName.length > 25) warnings.push(`"${cleanName}": İsim çok uzun.`);
+    
+    if (/[a-zA-ZğüşıöçĞÜŞİÖÇ]/.test(String(rawPhone))) {
+      warnings.push(`"${cleanName}": Telefon numarasında metin (harf) bulunuyor (${rawPhone}).`);
+    }
+
+    const isDuplicate = existingList.some(p => p.telefon === formattedPhone);
+    const isDuplicateInBatch = seenPhones.has(formattedPhone);
+    
+    if (isDuplicate || isDuplicateInBatch) {
+      warnings.push(`Uyarı: "${cleanName}" ile aynı telefon (${formattedPhone}) listeye eklenecek.`);
+    }
+    
+    return warnings;
+  };
+
+  // --- EXCEL YÜKLEME ---
+  const handleExcelUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setAddLoading(true);
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      try {
+        const bstr = evt.target?.result;
+        const wb = XLSX.read(bstr, { type: 'binary' });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        const data: any[] = XLSX.utils.sheet_to_json(ws);
+        
+        const allWarnings: string[] = [];
+        const seenPhones = new Set<string>();
+        const formattedData = data.map(row => {
+          const nameKeys = ["Adınız Soyisimiz", "Adınız Soyisim", "Ad Soyad", "ad_soyad", "Adınız", "İsim Soyisim"];
+          const phoneKeys = ["Telefon numarası", "Telefon", "telefon", "No", "Tel"];
+          const nameKey = Object.keys(row).find(k => nameKeys.includes(k.trim()));
+          const phoneKey = Object.keys(row).find(k => phoneKeys.includes(k.trim()));
+          if (nameKey && phoneKey && row[nameKey] && row[phoneKey]) {
+            const name = String(row[nameKey]).trim();
+            const rawPhone = String(row[phoneKey]);
+            const phone = formatPhoneNumber(rawPhone);
+            
+            const rowWarnings = validateParticipant(name, rawPhone, phone, participants, seenPhones);
+            if (rowWarnings.length > 0) allWarnings.push(...rowWarnings);
+
+            seenPhones.add(phone);
+
+            return {
+              ad_soyad: name,
+              telefon: phone,
+              qr_kodu: crypto.randomUUID(),
+              geldi_mi: false,
+              bilet_alindi_mi: false,
+              etkinlik_id: selectedSlotId
+            };
           }
+          return null;
+        }).filter(item => item !== null);
+
+        const proceedWithUpload = async () => {
+          setAddLoading(true);
+          if (formattedData.length > 0) {
+            const { error } = await supabase
+              .from('katilimcilar')
+              .insert(formattedData);
+
+            if (!error) {
+              alert(`${formattedData.length} kayıt işlendi.`);
+              fetchParticipants();
+            } else alert("Supabase Hatası: " + error.message);
+          } else alert("Excel'de uygun sütun bulunamadı!");
+          setAddLoading(false);
+          e.target.value = "";
+        };
+
+        if (allWarnings.length > 0) {
+          setAddLoading(false);
+          setUiWarnings({
+            isOpen: true,
+            messages: allWarnings,
+            onConfirm: () => {
+              setUiWarnings(prev => ({ ...prev, isOpen: false }));
+              proceedWithUpload();
+            },
+            onCancel: () => {
+              setUiWarnings(prev => ({ ...prev, isOpen: false }));
+              e.target.value = "";
+            }
+          });
+          return;
         }
-      } else {
-        setScanResult({ success: false, message: "GEÇERSİZ QR!" });
+
+        proceedWithUpload();
+
+      } catch (err) { 
+        alert("Dosya okunurken bir hata oluştu."); 
+        setAddLoading(false);
+        e.target.value = "";
       }
-      setTimeout(() => setScanResult(null), 3500);
+    };
+    reader.readAsBinaryString(file);
+  };
+
+  const handleUpdateParticipant = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const { error } = await supabase.from('katilimcilar').update({ ad_soyad: editingPerson.ad_soyad, telefon: formatPhoneNumber(editingPerson.telefon) }).eq('id', editingPerson.id);
+    if (!error) { setIsEditModalOpen(false); fetchParticipants(); } else { alert("Hata: " + error.message); }
+  };
+
+  // --- MANUEL EKLEME ---
+  const handleAddSinglePerson = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPerson.ad_soyad.trim() || !newPerson.telefon.trim()) return alert("Eksik bilgi!");
+    
+    const rawPhone = newPerson.telefon;
+    const phone = formatPhoneNumber(rawPhone);
+    const seenPhones = new Set<string>();
+    const warnings = validateParticipant(newPerson.ad_soyad, rawPhone, phone, participants, seenPhones);
+    
+    const proceedWithAdd = async () => {
+      setAddLoading(true);
+      const { error } = await supabase.from('katilimcilar').insert([{ 
+        ad_soyad: newPerson.ad_soyad.trim(), 
+        telefon: phone, 
+        qr_kodu: crypto.randomUUID(), 
+        geldi_mi: false, 
+        bilet_alindi_mi: false,
+        etkinlik_id: selectedSlotId 
+      }]);
+
+      if (!error) { 
+          setNewPerson({ ad_soyad: "", telefon: "" }); 
+          fetchParticipants(); 
+      } else {
+          alert("Hata: " + error.message);
+      }
+      setAddLoading(false);
+    };
+
+    if (warnings.length > 0) {
+      setUiWarnings({
+        isOpen: true,
+        messages: warnings,
+        onConfirm: () => {
+          setUiWarnings(prev => ({ ...prev, isOpen: false }));
+          proceedWithAdd();
+        },
+        onCancel: () => {
+          setUiWarnings(prev => ({ ...prev, isOpen: false }));
+        }
+      });
+      return;
     }
+
+    proceedWithAdd();
   };
 
-  const startScanner = () => {
-    const html5QrCode = new Html5Qrcode("reader", {
-      formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
-      verbose: false
-    });
-    setScanner(html5QrCode);
-    html5QrCode.start(
-      { facingMode: "environment" },
-      { fps: 20, qrbox: { width: 280, height: 280 } },
-      handleScan,
-      undefined
-    ).catch(e => console.error(e));
-  };
-
-  const stopScanner = () => {
-    if (scanner) {
-      scanner.stop().then(() => setScanner(null)).catch(e => console.error(e));
-    }
-  };
-
-  const deleteUser = async (id: string, name: string) => {
-    if (!confirm(`${name} silinecek. Emin misiniz?`)) return;
-    const { error } = await supabase.from('katilimcilar').delete().eq('id', id);
-    if (!error) {
-      addLog("Silme", `${name} silindi.`);
-      fetchParticipants();
-    }
-  };
-
-  const resetStatus = async (id: string) => {
-    if (!confirm("Giriş durumu sıfırlanacak?")) return;
-    const { error } = await supabase.from('katilimcilar').update({ geldi_mi: false, koltuk_no: null }).eq( 'id', id);
+  // --- YENİ: BİLET ONAYINI DEĞİŞTİRME FONKSİYONU ---
+  const toggleApproval = async (id: string, currentStatus: boolean) => {
+    const { error } = await supabase
+      .from('katilimcilar')
+      .update({ bilet_alindi_mi: !currentStatus })
+      .eq('id', id);
     if (!error) fetchParticipants();
   };
 
-  const stats = useMemo(() => {
-    const total = participants.length;
-    const approved = participants.filter(p => p.bilet_alindi_mi).length;
-    const pending = total - approved;
-    const arrived = participants.filter(p => p.geldi_mi).length;
-    const revenue = approved * 150; 
-    return { total, approved, pending, arrived, revenue };
-  }, [participants]);
+  useEffect(() => {
+    const authStatus = localStorage.getItem('flick_admin_auth');
+    if (authStatus === 'true') setIsAuthenticated(true);
+  }, []);
 
-  const filteredList = participants.filter(p => {
-    const s = searchTerm.toLowerCase();
-    const matchSearch = p.ad_soyad.toLowerCase().includes(s) || p.telefon.includes(s) || (p.okul && p.okul.toLowerCase().includes(s));
-    const matchArrived = filterArrived === 'all' ? true : (filterArrived === 'arrived' ? p.geldi_mi : !p.geldi_mi);
-    const matchSlot = filterSlot === 'all' ? true : p.slot_id === parseInt(filterSlot);
-    return matchSearch && matchArrived && matchSlot && p.bilet_alindi_mi;
-  });
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (password === ADMIN_PASSWORD) {
+      localStorage.setItem('flick_admin_auth', 'true');
+      setIsAuthenticated(true);
+    } else alert("Hatalı şifre!");
+  };
+
+  const handleLogout = () => { localStorage.removeItem('flick_admin_auth'); setIsAuthenticated(false); };
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    fetchEventSlots();
+  }, [isAuthenticated]);
+
+  const deleteUser = async (id: number) => {
+    if (confirm("Silinsin mi?")) {
+      const { error } = await supabase.from('katilimcilar').delete().eq('id', id);
+      if (!error) fetchParticipants();
+    }
+  };
+
+  const resetSeat = async (id: number) => {
+    if (confirm("Sıfırlansın mı?")) {
+      const { error } = await supabase.from('katilimcilar').update({ koltuk_no: null, bilet_alindi_mi: false, geldi_mi: false, qr_kodu: crypto.randomUUID() }).eq('id', id);
+      if (!error) fetchParticipants();
+    }
+  };
+
+  const deleteAllParticipants = async () => {
+    const confirmText = prompt(`Slot ${selectedSlotId} içindeki tüm kayıtları silmek için ONAYLIYORUM yazın.`);
+    if (confirmText === "ONAYLIYORUM") {
+      const { error } = await supabase.from('katilimcilar').delete().eq('etkinlik_id', selectedSlotId);
+      if (!error) fetchParticipants();
+    }
+  };
+
+  const safeStopScanner = async () => {
+    if (scannerRef.current && scannerRef.current.isScanning) {
+      try { await scannerRef.current.stop(); scannerRef.current = null; } catch (err) {}
+    }
+  };
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    if (view === 'scanner') {
+      const startCamera = async () => {
+        try {
+          await safeStopScanner();
+          const html5QrCode = new Html5Qrcode("reader", { formatsToSupport: [ Html5QrcodeSupportedFormats.QR_CODE ], verbose: false });
+          scannerRef.current = html5QrCode;
+          await html5QrCode.start(
+            { facingMode: "environment" }, { fps: 15, qrbox: { width: 250, height: 250 } },
+            async (decodedText) => {
+              const cleanCode = decodedText.trim();
+              if (scanStatus.status !== 'idle') return;
+              const { data: user } = await supabase.from('katilimcilar')
+                .select('*')
+                .eq('qr_kodu', cleanCode)
+                .eq('etkinlik_id', selectedSlotId)
+                .maybeSingle();
+              
+              if (!user) { setScanStatus({ status: 'error', message: 'Geçersiz veya Yanlış Etkinlik!' }); }
+              else if (user.geldi_mi) { setScanStatus({ status: 'warning', message: 'Zaten Girdi!' }); }
+              else {
+                await supabase.from('katilimcilar').update({ geldi_mi: true }).eq('id', user.id);
+                setParticipants(prev => prev.map(p => p.id === user.id ? { ...p, geldi_mi: true } : p));
+                setScanStatus({ status: 'success', message: `${user.ad_soyad} girdi!` });
+              }
+              setTimeout(() => setScanStatus({ status: 'idle', message: '' }), 2000);
+            }, () => {}
+          );
+        } catch (err) {}
+      };
+      startCamera();
+    } else safeStopScanner();
+    return () => { safeStopScanner(); };
+  }, [view, isAuthenticated, selectedSlotId]);
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-[#050505] flex items-center justify-center p-4">
-        <div className="w-full max-w-md bg-zinc-900 border border-white/5 rounded-[2.5rem] p-10 shadow-2xl relative overflow-hidden">
-          <div className="absolute -top-24 -left-24 w-48 h-48 bg-blue-600/20 blur-[100px]" />
-          <div className="relative z-10 text-center space-y-8">
-            <div className="w-20 h-20 bg-blue-600 rounded-3xl mx-auto flex items-center justify-center shadow-lg shadow-blue-900/40">
-              <ShieldCheck className="text-white" size={40} />
-            </div>
-            <div>
-              <h1 className="text-2xl font-black text-white uppercase italic tracking-tighter">Flick <span className="text-blue-500">Auth</span></h1>
-              <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest mt-2">Güvenli Yönetim Erişimi</p>
-            </div>
-            <form onSubmit={handleLogin} className="space-y-4">
-              <div className="relative">
-                <Lock className="absolute left-5 top-1/2 -translate-y-1/2 text-zinc-600" size={18} />
-                <input 
-                  type="password" 
-                  placeholder="Root Password"
-                  className="w-full bg-black/50 border border-white/5 rounded-2xl p-5 pl-14 text-white outline-none focus:border-blue-500/50 font-mono transition-all"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-              </div>
-              <button className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-5 rounded-2xl transition-all shadow-xl active:scale-[0.97] uppercase text-[10px] tracking-[0.2em]">
-                Sistemi Aç
-              </button>
-            </form>
-          </div>
+      <main className="min-h-screen bg-[#020617] flex items-center justify-center p-6 text-white">
+        <div className="w-full max-w-md bg-slate-900/40 border border-white/5 p-10 rounded-[2.5rem] text-center">
+          <div className="bg-blue-600 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6"><Lock size={32} /></div>
+          <h1 className="text-2xl font-black mb-8">Flick Admin</h1>
+          <form onSubmit={handleLogin} className="space-y-4">
+            <input type="password" placeholder="Şifre" className="w-full bg-slate-950 border border-white/10 p-5 rounded-2xl outline-none text-center" value={password} onChange={(e) => setPassword(e.target.value)} autoFocus />
+            <button type="submit" className="w-full bg-blue-600 p-5 rounded-2xl font-bold uppercase text-xs tracking-widest">Giriş</button>
+          </form>
         </div>
-      </div>
+      </main>
     );
   }
 
+  const filteredList = participants.filter(p => {
+    const currentSlotSettings = eventSlots.find(s => s.slot_id === selectedSlotId);
+    const matchesSearch = p.ad_soyad.toLowerCase().includes(searchTerm.toLowerCase()) || (p.telefon && p.telefon.includes(searchTerm));
+    const matchesArrived = filterArrived ? p.geldi_mi === true : true;
+    const matchesTicketed = filterTicketed ? p.bilet_alindi_mi === true : true;
+    const matchesNotTicketed = filterNotTicketed ? p.bilet_alindi_mi === false : true;
+    const matchesPending = filterPendingApproval ? (p.bilet_alindi_mi === false && p.dekont_url != null) : true; // YENİ ONAY BEKLEYEN FİLTRESİ
+    
+    return matchesSearch && matchesArrived && matchesTicketed && matchesNotTicketed && matchesPending;
+  });
+
+  // Seçili slotun koltuk ayarını bul
+  const currentSlotSettings = eventSlots.find(s => s.slot_id === selectedSlotId);
+
   return (
-    <div className="min-h-screen bg-[#050505] text-zinc-300 flex flex-col font-sans selection:bg-blue-500/30">
+    <main className="min-h-screen bg-[#020617] text-white p-4 font-sans flex flex-col items-center">
       
-      {/* HEADER NAVIGATION */}
-      <header className="sticky top-0 z-[100] bg-black/60 backdrop-blur-xl border-b border-white/5 px-6 py-4">
-        <div className="max-w-[1600px] mx-auto flex flex-col lg:flex-row items-center justify-between gap-6">
-          <div className="flex items-center gap-4">
-            <div className="bg-blue-600 p-2.5 rounded-xl">
-              <Trophy className="text-white" size={24} />
+      {/* YENİ: DEKONT GÖRÜNTÜLEME MODALI */}
+      {showDekontModal && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
+          <div className="relative max-w-2xl w-full bg-slate-900 rounded-[2.5rem] border border-white/10 overflow-hidden shadow-2xl">
+            <div className="p-6 border-b border-white/5 flex justify-between items-center bg-slate-900/50">
+              <h3 className="font-black uppercase tracking-widest text-sm text-white">Ödeme Dekontu</h3>
+              <button onClick={() => setShowDekontModal(null)} className="p-2 hover:bg-white/10 rounded-full transition-all text-white"><X size={24}/></button>
             </div>
-            <div>
-              <h2 className="text-lg font-black text-white uppercase italic tracking-tighter leading-none">FLICK <span className="text-blue-500 text-sm">ADMIN</span></h2>
-              <div className="flex items-center gap-2 mt-1">
-                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <p className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest">Sistem Aktif</p>
-              </div>
+            <div className="p-4 bg-black/40 flex justify-center">
+              <img src={showDekontModal} alt="Dekont" className="max-h-[60vh] object-contain rounded-xl shadow-lg" />
+            </div>
+            <div className="p-6 bg-slate-900/80 flex gap-4">
+               <a href={showDekontModal} target="_blank" rel="noreferrer" className="flex-1 bg-white/5 hover:bg-white/10 text-white p-4 rounded-2xl font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2 border border-white/10 transition-all">
+                 <ExternalLink size={18}/> Tam Boyut Gör
+               </a>
             </div>
           </div>
-
-          <nav className="flex items-center gap-1.5 bg-zinc-900/50 p-1.5 rounded-2xl border border-white/5 overflow-x-auto no-scrollbar max-w-full">
-            <button onClick={() => { stopScanner(); setView('scanner'); }} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black transition-all ${view === 'scanner' ? 'bg-blue-600 text-white' : 'text-zinc-500 hover:text-white hover:bg-white/5'}`}>
-              <Camera size={14} /> TARAYICI
-            </button>
-            <button onClick={() => { stopScanner(); setView('list'); }} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black transition-all ${view === 'list' ? 'bg-blue-600 text-white' : 'text-zinc-500 hover:text-white hover:bg-white/5'}`}>
-              <Users size={14} /> LİSTE
-            </button>
-            <button onClick={() => { stopScanner(); setView('pending'); }} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black transition-all ${view === 'pending' ? 'bg-emerald-600 text-white' : 'text-zinc-500 hover:text-white hover:bg-white/5'}`}>
-              <Clock size={14} /> ONAYLAR
-            </button>
-            <button onClick={() => { stopScanner(); setView('stats'); }} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-black transition-all ${view === 'stats' ? 'bg-indigo-600 text-white' : 'text-zinc-500 hover:text-white hover:bg-white/5'}`}>
-              <History size={14} /> ANALİZ
-            </button>
-            <div className="w-px h-6 bg-white/5 mx-2" />
-            <button onClick={() => setIsSettingsOpen(true)} className="p-2.5 text-zinc-500 hover:text-white transition-all"><Settings2 size={18} /></button>
-            <button onClick={() => { localStorage.removeItem('admin_auth'); window.location.reload(); }} className="p-2.5 text-rose-500 hover:bg-rose-500/10 rounded-xl transition-all"><Power size={18} /></button>
-          </nav>
         </div>
-      </header>
+      )}
 
-      <main className="flex-1 max-w-[1600px] w-full mx-auto p-6 lg:p-10">
-        
-        {/* STATS SECTION */}
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-10">
-          {[
-            { label: 'TOPLAM', val: stats.total, icon: Users, color: 'blue' },
-            { label: 'ONAYLI', val: stats.approved, icon: CheckCircle, color: 'emerald' },
-            { label: 'BEKLEYEN', val: stats.pending, icon: Clock, color: 'amber' },
-            { label: 'GİRİŞ', val: stats.arrived, icon: LogIn, color: 'indigo' },
-            { label: 'KAPASİTE', val: '%'+Math.round((stats.arrived/stats.total)*100 || 0), icon: LayoutGrid, color: 'rose' }
-          ].map((s, i) => (
-            <div key={i} className="bg-zinc-900/30 border border-white/5 p-6 rounded-3xl relative overflow-hidden group">
-              <s.icon className={`absolute -right-4 -bottom-4 w-24 h-24 opacity-[0.03] group-hover:opacity-[0.06] transition-opacity`} />
-              <p className="text-[9px] font-black text-zinc-600 uppercase tracking-widest">{s.label}</p>
-              <h3 className="text-2xl font-black text-white mt-2 italic">{s.val}</h3>
+      {isSettingsOpen && (
+        <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/90 backdrop-blur-xl overflow-y-auto">
+          <div className="w-full max-w-4xl bg-slate-950 border border-white/10 rounded-[3rem] p-6 my-8">
+            <div className="flex justify-between items-center mb-8 sticky top-0 bg-slate-950 py-2 z-10">
+              <div>
+                <h2 className="text-xl font-black uppercase tracking-tighter">Etkinlik Slotları</h2>
+                <p className="text-[10px] text-slate-500 font-bold tracking-widest">4 AKTİF SLOTU YÖNET</p>
+              </div>
+              <button onClick={() => setIsSettingsOpen(false)} className="bg-slate-900 p-3 rounded-2xl"><X size={24} /></button>
             </div>
-          ))}
-        </div>
 
-        {/* SCANNER VIEW */}
-        {view === 'scanner' && (
-          <div className="max-w-2xl mx-auto py-10">
-            <div className="bg-zinc-900 border border-white/5 rounded-[4rem] p-12 text-center relative overflow-hidden">
-              {!scanner ? (
-                <div className="space-y-8 py-10">
-                  <div className="w-32 h-32 bg-blue-600/10 rounded-[3rem] flex items-center justify-center mx-auto border border-blue-500/20 text-blue-500">
-                    <Camera size={48} />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {eventSlots.map((slot) => (
+                <div key={slot.id} className={`p-6 rounded-[2.5rem] border transition-all duration-500 ${slot.is_active ? 'bg-slate-900/40 border-blue-500/30' : 'bg-slate-900/10 border-white/5 opacity-60'}`}>
+                  
+                  <div className="flex items-center justify-between mb-6">
+                    <span className="text-[10px] font-black bg-blue-600/20 text-blue-500 px-3 py-1 rounded-lg">SLOT #{slot.slot_id}</span>
+                    {/* Koltuk Seçimi Açma/Kapatma Butonu */}
+<button 
+  onClick={() => updateLocalSlot(slot.id, 'has_seating', !slot.has_seating)}
+  className={`flex items-center gap-2 px-3 py-2 rounded-xl text-[8px] font-black transition-all ${slot.has_seating ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-500'}`}
+>
+  <Armchair size={12} /> {slot.has_seating ? 'KOLTUK AÇIK' : 'KOLTUK KAPALI'}
+</button>
+                    <button 
+                      onClick={() => updateLocalSlot(slot.id, 'is_active', !slot.is_active)}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[9px] font-black transition-all ${slot.is_active ? 'bg-emerald-500 text-white' : 'bg-slate-800 text-slate-400'}`}
+                    >
+                      <Power size={14} /> {slot.is_active ? 'AKTİF' : 'PASİF'}
+                    </button>
                   </div>
-                  <div>
-                    <h3 className="text-2xl font-black text-white uppercase italic tracking-tighter">Terminal Hazır</h3>
-                    <p className="text-zinc-500 text-xs mt-3 max-w-xs mx-auto font-medium">Bilet tarama işlemini başlatmak için kameraya erişim izni verin.</p>
+
+                  <div className={`space-y-4 ${!slot.is_active && 'pointer-events-none opacity-50'}`}>
+                    <div className="grid grid-cols-4 gap-2">
+                      {[
+                        { id: 'cinema', icon: <Film size={16}/> },
+                        { id: 'theater', icon: <Theater size={16}/> },
+                        { id: 'social', icon: <Users size={16}/> },
+                        { id: 'quiz', icon: <Trophy size={16}/> }
+                      ].map((t) => (
+                        <button
+                          key={t.id}
+                          onClick={() => updateLocalSlot(slot.id, 'event_type', t.id)}
+                          className={`p-3 rounded-xl flex flex-col items-center gap-1 border transition-all ${slot.event_type === t.id ? 'bg-blue-600 border-blue-400 text-white' : 'bg-slate-950 border-white/5 text-slate-500'}`}
+                        >
+                          {t.icon}
+                          <span className="text-[8px] font-bold uppercase">{t.id}</span>
+                        </button>
+                      ))}
+                    </div>
+
+                    <input placeholder="Etkinlik Adı" className="w-full bg-slate-950 border border-white/5 p-4 rounded-2xl text-xs font-bold outline-none focus:border-blue-500/50" value={slot.event_name || ''} onChange={(e) => updateLocalSlot(slot.id, 'event_name', e.target.value)} />
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="relative">
+                        <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600" size={14} />
+                        <input placeholder="Tarih" className="w-full bg-slate-950 border border-white/5 p-4 pl-10 rounded-2xl text-[10px] font-bold outline-none" value={slot.event_date || ''} onChange={(e) => updateLocalSlot(slot.id, 'event_date', e.target.value)} />
+                      </div>
+                      <div className="relative">
+                        <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600" size={14} />
+                        <input placeholder="Konum" className="w-full bg-slate-950 border border-white/5 p-4 pl-10 rounded-2xl text-[10px] font-bold outline-none" value={slot.event_location || ''} onChange={(e) => updateLocalSlot(slot.id, 'event_location', e.target.value)} />
+                      </div>
+                    </div>
                   </div>
-                  <button onClick={startScanner} className="bg-blue-600 hover:bg-blue-500 text-white font-black px-12 py-5 rounded-2xl transition-all shadow-xl uppercase text-[10px] tracking-widest">Kamerayı Aç</button>
+
+                  <button 
+                    disabled={savingSlotId === slot.id}
+                    onClick={() => handleUpdateSlot(slot)}
+                    className="w-full bg-white text-black p-4 rounded-2xl font-black text-[10px] tracking-widest mt-6 hover:bg-blue-600 hover:text-white transition-all flex items-center justify-center gap-2"
+                  >
+                    {savingSlotId === slot.id ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
+                    GÜNCELLE
+                  </button>
                 </div>
-              ) : (
-                <div className="space-y-8">
-                  <div id="reader" className="w-full aspect-square rounded-[3rem] overflow-hidden border-4 border-white/5 bg-black" />
-                  <button onClick={stopScanner} className="w-full bg-zinc-800 text-zinc-400 font-black py-5 rounded-2xl hover:bg-rose-900/20 hover:text-rose-500 transition-all uppercase text-[10px] tracking-widest">Kapat</button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isEditModalOpen && editingPerson && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
+          <div className="w-full max-w-md bg-slate-900 border border-white/10 rounded-[2.5rem] p-8 shadow-2xl">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-lg font-bold uppercase">Bilgileri Düzenle</h2>
+              <button onClick={() => setIsEditModalOpen(false)} className="p-2"><X size={24} /></button>
+            </div>
+            <form onSubmit={handleUpdateParticipant} className="space-y-4">
+              <input type="text" className="w-full bg-slate-950 border border-white/5 p-4 rounded-2xl outline-none text-white" value={editingPerson.ad_soyad} onChange={(e) => setEditingPerson({...editingPerson, ad_soyad: e.target.value})} />
+              <input type="text" className="w-full bg-slate-950 border border-white/5 p-4 rounded-2xl outline-none text-white" value={editingPerson.telefon} onChange={(e) => setEditingPerson({...editingPerson, telefon: e.target.value})} />
+              <button type="submit" className="w-full bg-blue-600 p-5 rounded-2xl font-bold uppercase text-xs tracking-widest flex items-center justify-center gap-2"><Save size={18}/> Güncelle</button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {uiWarnings.isOpen && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
+          <div className="w-full max-w-lg bg-slate-900 border border-amber-500/30 rounded-[2.5rem] p-8 shadow-2xl">
+            <div className="flex items-center gap-3 mb-6 text-amber-500">
+              <AlertTriangle size={32} />
+              <h2 className="text-xl font-black uppercase">Uyarılar Var</h2>
+            </div>
+            <div className="max-h-60 overflow-y-auto mb-6 space-y-2 pr-2 custom-scrollbar">
+              {uiWarnings.messages.map((msg, idx) => (
+                <div key={idx} className="bg-amber-500/10 text-amber-400 p-3 rounded-xl text-xs font-bold border border-amber-500/20">
+                  {msg}
+                </div>
+              ))}
+            </div>
+            <p className="text-sm text-slate-400 mb-6 font-bold">Yine de işleme devam etmek istiyor musunuz?</p>
+            <div className="flex gap-3">
+              <button onClick={uiWarnings.onCancel} className="flex-1 bg-slate-800 text-white p-4 rounded-2xl font-bold uppercase text-xs tracking-widest hover:bg-slate-700 transition-colors">Vazgeç</button>
+              <button onClick={uiWarnings.onConfirm} className="flex-1 bg-amber-600 text-white p-4 rounded-2xl font-bold uppercase text-xs tracking-widest hover:bg-amber-500 transition-colors">Yine de Kaydet</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="w-full max-w-lg flex justify-between items-center bg-slate-900/40 p-5 rounded-[2rem] border border-white/5 mb-4 backdrop-blur-xl">
+        <div className="flex items-center gap-3">
+          <div className="bg-blue-600 p-2 rounded-xl"><ShieldCheck size={24} /></div>
+          <div><h1 className="text-lg font-bold uppercase">Flick Admin</h1><button onClick={handleLogout} className="text-[10px] text-rose-500 font-bold uppercase">Çıkış</button></div>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={() => setIsSettingsOpen(true)} className="bg-slate-800 p-3 rounded-2xl text-blue-400"><Settings2 size={22} /></button>
+          <button onClick={() => setView('add')} className={`${view === 'add' ? 'bg-emerald-600' : 'bg-slate-800'} p-3 rounded-2xl`}><Plus size={22} /></button>
+          <button onClick={() => setView('list')} className={`${view === 'list' ? 'bg-blue-600' : 'bg-slate-800'} p-3 rounded-2xl relative`}><Users size={22} /></button>
+          <button onClick={() => setView('scanner')} className={`${view === 'scanner' ? 'bg-blue-600' : 'bg-slate-800'} p-3 rounded-2xl`}><Camera size={22} /></button>
+        </div>
+      </div>
+
+      <div className="w-full max-w-lg grid grid-cols-4 gap-2 mb-6">
+        {[1, 2, 3, 4].map((num) => (
+          <button 
+            key={num}
+            onClick={() => setSelectedSlotId(num)}
+            className={`py-3 rounded-2xl border transition-all flex flex-col items-center justify-center gap-1 ${
+              selectedSlotId === num 
+              ? 'bg-blue-600 border-blue-400 shadow-[0_0_15px_rgba(37,99,235,0.3)] scale-105 z-10' 
+              : 'bg-slate-900/40 border-white/5 text-slate-500 hover:bg-slate-800'
+            }`}
+          >
+            <LayoutGrid size={14} className={selectedSlotId === num ? 'text-white' : 'text-slate-600'} />
+            <span className="text-[9px] font-black uppercase">Slot {num}</span>
+          </button>
+        ))}
+      </div>
+
+      <div className="w-full max-w-lg flex flex-col gap-6">
+        {view === 'scanner' && (
+          <div className="space-y-6">
+            <div className={`relative border-[4px] rounded-[2.5rem] overflow-hidden min-h-[300px] ${scanStatus.status === 'success' ? 'border-emerald-500' : scanStatus.status === 'error' ? 'border-rose-500' : scanStatus.status === 'warning' ? 'border-amber-500' : 'border-white/10'}`}>
+              <div id="reader" className="w-full aspect-square bg-black"></div>
+              {scanStatus.message && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm z-50">
+                   <div className="text-center animate-in zoom-in duration-300">
+                      <p className={`text-xl font-black uppercase ${scanStatus.status === 'success' ? 'text-emerald-400' : 'text-rose-400'}`}>{scanStatus.message}</p>
+                   </div>
                 </div>
               )}
             </div>
-            {scanResult && (
-              <div className={`mt-8 p-10 rounded-[3rem] border-2 animate-in zoom-in text-center ${scanResult.success ? 'bg-emerald-600/10 border-emerald-500/20 text-emerald-500' : 'bg-rose-600/10 border-rose-500/20 text-rose-500'}`}>
-                <p className="text-xl font-black uppercase italic tracking-tight">{scanResult.message}</p>
-              </div>
-            )}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-emerald-500/5 border border-emerald-500/10 p-6 rounded-[2rem] text-center"><p className="text-[10px] text-emerald-500 font-bold uppercase mb-1">İçeride</p><p className="text-4xl font-black text-emerald-400">{participants.filter(p => p.geldi_mi).length}</p></div>
+              <div className="bg-blue-500/5 border border-blue-500/10 p-6 rounded-[2rem] text-center"><p className="text-[10px] text-blue-500 font-bold uppercase mb-1">Beklenen</p><p className="text-4xl font-black text-blue-400">{participants.filter(p => !p.geldi_mi).length}</p></div>
+            </div>
           </div>
         )}
 
-        {/* LIST VIEW */}
+        {view === 'add' && (
+          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
+            <div className="bg-slate-900/60 border border-dashed border-white/20 rounded-[2.5rem] p-8 text-center cursor-pointer">
+              <label className="cursor-pointer"><input type="file" accept=".xlsx, .xls, .csv" className="hidden" onChange={handleExcelUpload} disabled={addLoading} />
+                <div className="flex flex-col items-center gap-4">
+                  <div className="bg-emerald-500/10 p-5 rounded-2xl">{addLoading ? <Loader2 className="animate-spin text-emerald-400" size={40} /> : <FileUp size={40} className="text-emerald-400" />}</div>
+                  <h3 className="text-lg font-bold uppercase tracking-tight">Slot {selectedSlotId}'e Excel Yükle</h3>
+                </div>
+              </label>
+            </div>
+
+            <div className="bg-slate-900/60 border border-white/10 rounded-[2.5rem] p-8">
+              <div className="flex items-center gap-3 mb-6"><UserPlus size={24} className="text-emerald-400" /><h2 className="text-lg font-bold uppercase">Manuel Ekle (Slot {selectedSlotId})</h2></div>
+              <form onSubmit={handleAddSinglePerson} className="space-y-4">
+                <input type="text" placeholder="Ad Soyad" className="w-full bg-slate-950 border border-white/5 p-5 rounded-2xl text-white outline-none" value={newPerson.ad_soyad} onChange={(e) => setNewPerson({...newPerson, ad_soyad: e.target.value})} />
+                <input type="text" placeholder="Telefon" className="w-full bg-slate-950 border border-white/5 p-5 rounded-2xl text-white outline-none" value={newPerson.telefon} onChange={(e) => setNewPerson({...newPerson, telefon: e.target.value})} />
+                <button disabled={addLoading} type="submit" className="w-full bg-emerald-600 p-5 rounded-2xl font-bold uppercase text-xs tracking-widest mt-4">Listeye Kaydet</button>
+              </form>
+            </div>
+          </div>
+        )}
+
         {view === 'list' && (
-          <div className="space-y-8 animate-in fade-in duration-500">
-            <div className="flex flex-col lg:flex-row gap-4 items-center justify-between">
-              <div className="flex flex-wrap gap-2 w-full lg:w-auto">
-                <div className="relative flex-1 lg:w-80">
-                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-600" size={16} />
-                  <input 
-                    type="text" 
-                    placeholder="İsim, Tel, Okul..."
-                    className="w-full bg-zinc-900/50 border border-white/5 rounded-xl p-4 pl-12 text-xs outline-none focus:border-blue-500/50 font-bold"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                  />
+          <div className="space-y-4">
+            <div className="bg-slate-900/40 p-4 rounded-[2.5rem] border border-white/5 space-y-4">
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
+                  <input type="text" placeholder="Bu slotta ara..." className="w-full bg-slate-950 border border-white/5 pl-11 pr-4 py-3 rounded-xl outline-none text-sm text-white" onChange={(e) => setSearchTerm(e.target.value)} />
                 </div>
-                <select value={filterArrived} onChange={(e) => setFilterArrived(e.target.value as any)} className="bg-zinc-900/50 border border-white/5 rounded-xl px-4 py-3 text-[10px] font-black uppercase outline-none appearance-none cursor-pointer">
-                  <option value="all">TÜMÜ</option>
-                  <option value="arrived">GELEN</option>
-                  <option value="not_arrived">GELMEYEN</option>
-                </select>
-                <select value={filterSlot} onChange={(e) => setFilterSlot(e.target.value)} className="bg-zinc-900/50 border border-white/5 rounded-xl px-4 py-3 text-[10px] font-black uppercase outline-none appearance-none cursor-pointer">
-                  <option value="all">SLOT SEÇ</option>
-                  {eventSlots.map(s => <option key={s.id} value={s.slot_id}>{s.event_name}</option>)}
-                </select>
+                <button onClick={fetchParticipants} className="bg-slate-800 p-3 rounded-xl text-white"><RefreshCcw size={20} /></button>
               </div>
-              <button onClick={() => {
-                const ws = XLSX.utils.json_to_sheet(filteredList);
-                const wb = XLSX.utils.book_new();
-                XLSX.utils.book_append_sheet(wb, ws, "Participants");
-                XLSX.writeFile(wb, "Flick_List.xlsx");
-              }} className="bg-emerald-600 hover:bg-emerald-500 text-white font-black px-6 py-4 rounded-xl text-[10px] uppercase tracking-widest flex items-center gap-2">
-                <Download size={16} /> EXCEL AL
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-6">
-              {filteredList.map((user) => (
-                <div key={user.id} className={`bg-zinc-900/20 border border-white/5 p-8 rounded-[2.5rem] relative group hover:bg-zinc-900/40 transition-all ${user.geldi_mi ? 'border-emerald-500/20' : ''}`}>
-                  <div className="flex justify-between items-start mb-6">
-                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${user.geldi_mi ? 'bg-emerald-500/10 text-emerald-500' : 'bg-blue-500/10 text-blue-500'}`}>
-                      {user.geldi_mi ? <UserCheck size={24} /> : <User size={24} />}
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <button onClick={() => { setSelectedUser(user); setIsEditModalOpen(true); }} className="p-2 text-zinc-600 hover:text-white transition-all"><Edit3 size={16} /></button>
-                      <button onClick={() => deleteUser(user.id, user.ad_soyad)} className="p-2 text-zinc-600 hover:text-rose-500 transition-all"><Trash2 size={16} /></button>
-                    </div>
-                  </div>
-                  <h4 className="text-lg font-black text-white uppercase italic truncate">{user.ad_soyad}</h4>
-                  <div className="mt-4 space-y-2">
-                    <div className="flex items-center gap-2 text-[10px] font-bold text-zinc-500">
-                      <Smartphone size={12} /> {user.telefon}
-                    </div>
-                    <div className="flex items-center gap-2 text-[10px] font-bold text-zinc-500">
-                      <School size={12} /> {user.okul || '-'}
-                    </div>
-                    <div className="flex items-center gap-2 text-[10px] font-bold text-blue-500">
-                      <MapPin size={12} /> Slot {user.slot_id} | {user.koltuk_no || 'Lobi'}
-                    </div>
-                  </div>
-                  <div className="mt-6 pt-6 border-t border-white/5 flex gap-2">
-                    <button onClick={() => resetStatus(user.id)} className="flex-1 py-3 bg-zinc-800 rounded-xl text-[9px] font-black uppercase hover:bg-zinc-700 transition-all">Sıfırla</button>
-                    {user.geldi_mi && <div className="px-3 py-3 bg-emerald-500/10 text-emerald-500 rounded-xl text-[9px] font-black uppercase">İçeride</div>}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* PENDING VIEW */}
-        {view === 'pending' && (
-          <div className="space-y-8 animate-in slide-in-from-bottom-5">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-2xl font-black text-white uppercase italic">Onay Bekleyenler</h3>
-                <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] mt-1">Dekont Kontrolü Gereken {participants.filter(p => !p.bilet_alindi_mi).length} Kayıt</p>
+              
+              {/* FİLTRELER KISMI GÜNCELLENDİ (flex-wrap eklendi) */}
+              <div className="flex flex-wrap gap-2">
+                <button onClick={() => setFilterPendingApproval(!filterPendingApproval)} className={`flex-1 min-w-[120px] flex items-center justify-center gap-2 py-2 rounded-xl text-[10px] font-bold border transition-all ${filterPendingApproval ? 'bg-amber-600 border-amber-500 text-white' : 'bg-slate-950 border-white/5 text-slate-500'}`}><UserCheck size={14} /> ONAY BEKLEYENLER</button>
+                <button onClick={() => setFilterArrived(!filterArrived)} className={`flex-1 min-w-[120px] flex items-center justify-center gap-2 py-2 rounded-xl text-[10px] font-bold border transition-all ${filterArrived ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-slate-950 border-white/5 text-slate-500'}`}><CheckCircle size={14} /> GELENLER</button>
+                <button onClick={() => setFilterTicketed(!filterTicketed)} className={`flex-1 min-w-[120px] flex items-center justify-center gap-2 py-2 rounded-xl text-[10px] font-bold border transition-all ${filterTicketed ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-950 border-white/5 text-slate-500'}`}><TicketCheck size={14} /> BİLET ALANLAR</button>
+                <button onClick={() => setFilterNotTicketed(!filterNotTicketed)} className={`flex-1 min-w-[120px] flex items-center justify-center gap-2 py-2 rounded-xl text-[10px] font-bold border transition-all ${filterNotTicketed ? 'bg-rose-600 border-rose-500 text-white' : 'bg-slate-950 border-white/5 text-slate-500'}`}><XCircle size={14} /> BİLET ALMAYANLAR</button>
               </div>
-              <button onClick={fetchParticipants} className="p-4 bg-zinc-900 border border-white/5 rounded-2xl text-zinc-500 hover:text-white transition-all"><RefreshCcw size={20} /></button>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {participants.filter(p => !p.bilet_alindi_mi).map(p => (
-                <div key={p.id} className="bg-zinc-900/40 border border-white/5 p-10 rounded-[3rem] relative overflow-hidden group">
-                  <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity"><Clock size={120} /></div>
-                  <div className="relative z-10 space-y-6">
+            <button onClick={deleteAllParticipants} className="w-full bg-rose-500/10 border border-rose-500/20 text-rose-500 p-4 rounded-2xl font-bold uppercase text-[10px] tracking-[0.2em] flex items-center justify-center gap-2"><Trash2 size={16} /> Slot {selectedSlotId} Listesini Sil</button>
+            <div className="space-y-3 pb-10">
+              {loading ? (
+                <div className="flex justify-center p-10"><Loader2 className="animate-spin text-blue-500" size={32} /></div>
+              ) : filteredList.map((person) => {
+                const isDuplicate = participants.filter(p => p.telefon === person.telefon).length > 1;
+
+                return (
+                  <div key={person.id} className="bg-slate-900/40 p-5 rounded-[2.5rem] border border-white/5 shadow-xl">
                     <div className="flex justify-between items-start">
-                      <div className="px-4 py-1.5 bg-zinc-800 rounded-full text-[9px] font-black text-zinc-400 uppercase tracking-widest">{new Date(p.created_at).toLocaleDateString()}</div>
-                      <button onClick={() => deleteUser(p.id, p.ad_soyad)} className="text-zinc-700 hover:text-rose-500"><X size={20} /></button>
-                    </div>
-                    <div>
-                      <h4 className="text-xl font-black text-white uppercase italic">{p.ad_soyad}</h4>
-                      <p className="text-xs font-mono text-zinc-500 mt-1">{p.telefon}</p>
-                    </div>
-                    <div className="flex flex-col gap-3">
-                      <button onClick={() => window.open(p.dekont_url, '_blank')} className="w-full flex items-center justify-center gap-2 py-4 bg-zinc-800 text-zinc-300 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-zinc-700 transition-all">
-                        <Eye size={14} /> Dekontu Aç
-                      </button>
-                      <button onClick={() => handleApproveUser(p.id, p.ad_soyad)} className="w-full flex items-center justify-center gap-2 py-4 bg-emerald-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-900/20 hover:bg-emerald-500 transition-all">
-                        <Check size={14} /> Kaydı Onayla
-                      </button>
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <p className="font-bold text-lg leading-tight">{person.ad_soyad}</p>
+                          {isDuplicate && (
+                            <div className="flex items-center gap-1 bg-amber-500/20 px-2 py-1 rounded-md border border-amber-500/30">
+                              <AlertTriangle size={12} className="text-amber-500" />
+                              <span className="text-[8px] font-bold text-amber-500 uppercase">ORTAK TEL NO</span>
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <span className={`text-[9px] font-bold px-2 py-1 rounded-md border ${person.geldi_mi ? 'bg-emerald-500 text-white' : 'bg-slate-800 text-slate-500 border-white/5'}`}>{person.geldi_mi ? 'İÇERİDE' : 'GELMEDİ'}</span>
+                          <span className={`text-[9px] font-bold px-2 py-1 rounded-md border ${person.bilet_alindi_mi ? 'bg-blue-500 text-white border-blue-500' : 'bg-amber-500/10 text-amber-500 border-amber-500/20'}`}>{person.bilet_alindi_mi ? 'BİLET ALINDI' : 'BİLET ALINMADI'}</span>
+                          {/* YENİ: Koltuk No Sadece Slot Ayarı Açıksa Gözükür */}
+                          {currentSlotSettings?.has_seating && person.koltuk_no && (
+                            <span className="text-[9px] font-bold px-2 py-1 rounded-md border bg-slate-800 text-blue-300 border-white/10 flex items-center gap-1">
+                              <Armchair size={10} /> {person.koltuk_no}
+                            </span>
+                          )}
+                        </div>
+                        
+                        {/* YENİ: KAYIT BİLGİLERİ ALANI */}
+                        <div className="flex flex-col gap-1 mt-2">
+                          <p className={`text-[10px] flex items-center gap-1 ${isDuplicate ? 'text-amber-400 font-bold' : 'text-slate-500'}`}>
+                            TEL: {person.telefon}
+                          </p>
+                          {person.email && <p className="text-[10px] text-slate-400 flex items-center gap-1"><Mail size={10} /> EMAİL: {person.email}</p>}
+                          {person.okul && <p className="text-[10px] text-slate-400 flex items-center gap-1"><School size={10} /> OKUL: {person.okul}</p>}
+                          {person.referans && <p className="text-[10px] text-slate-400 flex items-center gap-1"><Users size={10} /> REF: {person.referans}</p>}
+                          <p className="text-[8px] text-slate-600 font-mono mt-1">ID: {person.id} | Slot: {person.etkinlik_id}</p>
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        
+                        {/* YENİ: DEKONT VE ONAY BUTONLARI */}
+                        {person.dekont_url && (
+                          <button onClick={() => setShowDekontModal(person.dekont_url)} className="p-3 bg-indigo-500/10 text-indigo-400 rounded-xl border border-indigo-500/20 hover:bg-indigo-500/20 transition-all" title="Dekontu Gör">
+                            <Eye size={18} />
+                          </button>
+                        )}
+                        <button 
+                          onClick={() => toggleApproval(person.id, person.bilet_alindi_mi)} 
+                          className={`p-3 rounded-xl border transition-all ${person.bilet_alindi_mi ? 'bg-rose-500/10 text-rose-500 border-rose-500/20 hover:bg-rose-500/20' : 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20 hover:bg-emerald-500/20'}`}
+                          title={person.bilet_alindi_mi ? "Onayı İptal Et" : "Bileti Onayla"}
+                        >
+                          {person.bilet_alindi_mi ? <XCircle size={18}/> : <UserCheck size={18}/>}
+                        </button>
+
+                        {/* ESKİ BUTONLAR AYNEN KORUNDU */}
+                        {!person.geldi_mi && (
+                          <button onClick={async () => {
+                            if(confirm(`${person.ad_soyad} girsin mi?`)) {
+                              const { error } = await supabase.from('katilimcilar').update({ geldi_mi: true }).eq('id', person.id);
+                              if (!error) setParticipants(prev => prev.map(p => p.id === person.id ? { ...p, geldi_mi: true } : p));
+                            }
+                          }} className="p-3 bg-emerald-500/10 text-emerald-400 rounded-xl border border-emerald-500/20" title="İçeri Al"><TicketCheck size={18} /></button>
+                        )}
+                        <button onClick={() => { setEditingPerson(person); setIsEditModalOpen(true); }} className="p-3 bg-blue-500/10 text-blue-400 rounded-xl border border-blue-500/20" title="Düzenle"><Edit3 size={18} /></button>
+                        
+                        {/* Sıfırlama butonu: Slot koltukluysa koltuğu da siler, değilse sadece durumu siler */}
+                        <button onClick={() => resetSeat(person.id)} className="p-3 bg-amber-500/10 text-amber-500 rounded-xl border border-amber-500/20" title="Koltuk/Durum Sıfırla"><RefreshCcw size={18} /></button>
+                        
+                        <button onClick={() => deleteUser(person.id)} className="p-3 bg-rose-500/10 text-rose-500 rounded-xl border border-rose-500/20" title="Sil"><Trash2 size={18} /></button>
+                      </div>
                     </div>
                   </div>
+                );
+              })}
+              {!loading && filteredList.length === 0 && (
+                <div className="text-center p-10 bg-slate-900/20 rounded-[2.5rem] border border-dashed border-white/5">
+                  <Users className="mx-auto text-slate-700 mb-4" size={48} />
+                  <p className="text-slate-500 font-bold uppercase text-xs">Bu filtreye uygun kimse yok.</p>
                 </div>
-              ))}
+              )}
             </div>
           </div>
         )}
-
-        {/* ANALYTICS VIEW */}
-        {view === 'stats' && (
-          <div className="space-y-10 animate-in fade-in">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              <div className="lg:col-span-2 bg-zinc-900/30 border border-white/5 p-10 rounded-[3rem]">
-                <h4 className="text-lg font-black text-white uppercase italic mb-8">Son Sistem Logları</h4>
-                <div className="space-y-4">
-                  {logs.map((log, i) => (
-                    <div key={i} className="flex items-center justify-between p-4 bg-zinc-900/50 border border-white/5 rounded-2xl">
-                      <div className="flex items-center gap-4">
-                        <div className="w-2 h-2 rounded-full bg-blue-500" />
-                        <div>
-                          <p className="text-[10px] font-black text-white uppercase">{log.action}</p>
-                          <p className="text-[11px] text-zinc-500 font-medium">{log.detail}</p>
-                        </div>
-                      </div>
-                      <span className="text-[9px] font-mono text-zinc-600">{new Date(log.created_at).toLocaleTimeString()}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="bg-zinc-900/30 border border-white/5 p-10 rounded-[3rem] flex flex-col justify-between">
-                <div>
-                  <h4 className="text-lg font-black text-white uppercase italic mb-8">Tahmini Ciro</h4>
-                  <div className="text-5xl font-black text-emerald-500 italic">₺{stats.revenue}</div>
-                  <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mt-4">150₺ Sabit Bilet Fiyatı üzerinden</p>
-                </div>
-                <div className="pt-10 space-y-4">
-                   <div className="flex justify-between items-end">
-                      <span className="text-[10px] font-black text-zinc-500 uppercase">Onay Oranı</span>
-                      <span className="text-sm font-black text-white">%{(stats.approved/stats.total*100).toFixed(1)}</span>
-                   </div>
-                   <div className="w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-                      <div className="h-full bg-blue-600" style={{ width: `${(stats.approved/stats.total*100)}%` }} />
-                   </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-      </main>
-
-      {/* SETTINGS MODAL */}
-      {isSettingsOpen && (
-        <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/90 backdrop-blur-md" onClick={() => setIsSettingsOpen(false)} />
-          <div className="relative w-full max-w-4xl bg-zinc-900 border border-white/10 rounded-[3rem] p-10 max-h-[90vh] overflow-y-auto custom-scrollbar shadow-2xl">
-            <div className="flex items-center justify-between mb-10">
-              <div className="flex items-center gap-4">
-                <div className="p-3 bg-blue-600 rounded-2xl"><Settings2 size={24} className="text-white" /></div>
-                <h3 className="text-2xl font-black text-white uppercase italic">Sistem Yapılandırması</h3>
-              </div>
-              <button onClick={() => setIsSettingsOpen(false)} className="p-4 bg-zinc-800 text-zinc-500 hover:text-white rounded-2xl transition-all"><X size={20} /></button>
-            </div>
-            <div className="grid grid-cols-1 gap-6">
-              {eventSlots.map(slot => (
-                <div key={slot.id} className="bg-black/40 border border-white/5 p-8 rounded-[2.5rem] relative group">
-                  <div className="flex flex-col lg:flex-row gap-8">
-                    <div className="flex-1 space-y-6">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <label className="text-[9px] font-black text-zinc-600 uppercase tracking-widest ml-2">Etkinlik Adı</label>
-                          <input type="text" value={slot.event_name} onChange={e => updateSlotSetting(slot.id, 'event_name', e.target.value)} className="w-full bg-zinc-900 border border-white/5 rounded-xl p-4 text-xs font-bold text-white outline-none focus:border-blue-500/50" />
-                        </div>
-                        <div className="space-y-2">
-                          <label className="text-[9px] font-black text-zinc-600 uppercase tracking-widest ml-2">Tarih</label>
-                          <input type="text" value={slot.event_date} onChange={e => updateSlotSetting(slot.id, 'event_date', e.target.value)} className="w-full bg-zinc-900 border border-white/5 rounded-xl p-4 text-xs font-bold text-white outline-none focus:border-blue-500/50" />
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <label className="text-[9px] font-black text-zinc-600 uppercase tracking-widest ml-2">Lokasyon</label>
-                          <input type="text" value={slot.event_location} onChange={e => updateSlotSetting(slot.id, 'event_location', e.target.value)} className="w-full bg-zinc-900 border border-white/5 rounded-xl p-4 text-xs font-bold text-white outline-none focus:border-blue-500/50" />
-                        </div>
-                        <div className="space-y-2">
-                          <label className="text-[9px] font-black text-zinc-600 uppercase tracking-widest ml-2">Slot ID (Sayısal)</label>
-                          <input type="number" value={slot.slot_id} onChange={e => updateSlotSetting(slot.id, 'slot_id', parseInt(e.target.value))} className="w-full bg-zinc-900 border border-white/5 rounded-xl p-4 text-xs font-bold text-white outline-none focus:border-blue-500/50" />
-                        </div>
-                      </div>
-                    </div>
-                    <div className="w-full lg:w-64 flex flex-col gap-3">
-                      <button onClick={() => updateSlotSetting(slot.id, 'is_active', !slot.is_active)} className={`w-full flex items-center justify-between p-4 rounded-xl border transition-all ${slot.is_active ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500' : 'bg-zinc-800 border-white/5 text-zinc-600'}`}>
-                        <span className="text-[10px] font-black uppercase">Aktif</span>
-                        {slot.is_active ? <ToggleRight size={24} /> : <ToggleLeft size={24} />}
-                      </button>
-                      <button onClick={() => updateSlotSetting(slot.id, 'has_seating', !slot.has_seating)} className={`w-full flex items-center justify-between p-4 rounded-xl border transition-all ${slot.has_seating ? 'bg-blue-500/10 border-blue-500/20 text-blue-500' : 'bg-zinc-800 border-white/5 text-zinc-600'}`}>
-                        <span className="text-[10px] font-black uppercase">Koltuk</span>
-                        {slot.has_seating ? <Armchair size={20} /> : <LayoutGrid size={20} />}
-                      </button>
-                    </div>
-                  </div>
-                  {savingSlotId === slot.id && <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px] rounded-[2.5rem] flex items-center justify-center"><Loader2 className="animate-spin text-blue-500" /></div>}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* EDIT USER MODAL */}
-      {isEditModalOpen && selectedUser && (
-        <div className="fixed inset-0 z-[400] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/95 backdrop-blur-md" onClick={() => setIsEditModalOpen(false)} />
-          <div className="relative w-full max-w-lg bg-zinc-900 border border-white/10 rounded-[3rem] p-10 shadow-2xl">
-             <div className="flex items-center justify-between mb-8">
-                <h3 className="text-xl font-black text-white uppercase italic">Kaydı Düzenle</h3>
-                <button onClick={() => setIsEditModalOpen(false)} className="text-zinc-600 hover:text-white"><X size={24} /></button>
-             </div>
-             <form className="space-y-6" onSubmit={async (e) => {
-               e.preventDefault();
-               const fd = new FormData(e.currentTarget);
-               const up = {
-                 ad_soyad: fd.get('name'),
-                 telefon: fd.get('phone'),
-                 okul: fd.get('school'),
-                 koltuk_no: fd.get('seat')
-               };
-               const { error } = await supabase.from('katilimcilar').update(up).eq('id', selectedUser.id);
-               if (!error) { fetchParticipants(); setIsEditModalOpen(false); }
-             }}>
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <label className="text-[9px] font-black text-zinc-600 uppercase tracking-widest ml-2">Ad Soyad</label>
-                    <input name="name" defaultValue={selectedUser.ad_soyad} className="w-full bg-black/50 border border-white/5 rounded-xl p-4 text-xs font-bold text-white outline-none focus:border-blue-500/50" />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-[9px] font-black text-zinc-600 uppercase tracking-widest ml-2">Telefon</label>
-                    <input name="phone" defaultValue={selectedUser.telefon} className="w-full bg-black/50 border border-white/5 rounded-xl p-4 text-xs font-bold text-white outline-none focus:border-blue-500/50" />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <label className="text-[9px] font-black text-zinc-600 uppercase tracking-widest ml-2">Okul</label>
-                      <input name="school" defaultValue={selectedUser.okul} className="w-full bg-black/50 border border-white/5 rounded-xl p-4 text-xs font-bold text-white outline-none focus:border-blue-500/50" />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-[9px] font-black text-zinc-600 uppercase tracking-widest ml-2">Koltuk</label>
-                      <input name="seat" defaultValue={selectedUser.koltuk_no} className="w-full bg-black/50 border border-white/5 rounded-xl p-4 text-xs font-bold text-white outline-none focus:border-blue-500/50" />
-                    </div>
-                  </div>
-                </div>
-                <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-5 rounded-2xl uppercase text-[10px] tracking-widest transition-all">Güncelle</button>
-             </form>
-          </div>
-        </div>
-      )}
-
-      {/* FOOTER STATS OVERLAY */}
-      <footer className="fixed bottom-0 left-0 right-0 z-50 p-6 pointer-events-none">
-        <div className="max-w-[1600px] mx-auto flex justify-end">
-           <div className="bg-black/80 backdrop-blur-xl border border-white/10 px-6 py-3 rounded-full flex items-center gap-6 pointer-events-auto shadow-2xl">
-              <div className="flex items-center gap-2">
-                <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-                <span className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">{participants.length} Kayıt</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                <span className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">{stats.arrived} Giriş</span>
-              </div>
-              <button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="w-8 h-8 bg-zinc-800 rounded-full flex items-center justify-center text-white hover:bg-blue-600 transition-all"><ArrowUpRight size={14} /></button>
-           </div>
-        </div>
-      </footer>
+      </div>
 
       <style jsx global>{`
-        #reader video { width: 100% !important; height: 100% !important; object-fit: cover !important; border-radius: 2.5rem; }
+        #reader video { width: 100% !important; height: 100% !important; object-fit: cover !important; }
         #reader { border: none !important; }
-        #reader__dashboard_section_csr button { display: none !important; }
-        #reader__status_span { display: none !important; }
-        .no-scrollbar::-webkit-scrollbar { display: none; }
-        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         .custom-scrollbar::-webkit-scrollbar { width: 6px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(0,0,0,0.3); }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.05); border-radius: 10px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.1); }
-        .animate-in { animation: fadeIn 0.4s ease-out forwards; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-        select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23666'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E"); background-position: right 1rem center; background-repeat: no-repeat; background-size: 1em; padding-right: 2.5rem; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(245, 158, 11, 0.2); border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(245, 158, 11, 0.4); }
       `}</style>
-    </div>
+    </main>
   );
 }
