@@ -27,710 +27,604 @@ export default function AdminPage() {
 
   const [filterArrived, setFilterArrived] = useState(false);
   const [filterTicketed, setFilterTicketed] = useState(false);
-  const [filterNotTicketed, setFilterNotTicketed] = useState(true);
-  const [filterPendingApproval, setFilterPendingApproval] = useState(false); // YENİ: Onay bekleyenler filtresi
-  
-  const [scanStatus, setScanStatus] = useState<{status: 'idle' | 'success' | 'error' | 'warning', message: string}>({ status: 'idle', message: '' });
+  const [filterNotTicketed, setFilterNotTicketed] = useState(false);
+  const [filterPendingApproval, setFilterPendingApproval] = useState(false); // Yeni eklenen filtre state'i
+
+  const [scanStatus, setScanStatus] = useState<{
+    status: 'idle' | 'success' | 'error' | 'warning',
+    message: string,
+    details?: any
+  }>({ status: 'idle', message: '' });
+
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingPerson, setEditingPerson] = useState<any>(null);
-
-  // --- YENİ: DEKONT GÖRÜNTÜLEME MODALI STATE'İ ---
-  const [showDekontModal, setShowDekontModal] = useState<string | null>(null);
-
-  // --- UI UYARI MODALI STATE'İ ---
-  const [uiWarnings, setUiWarnings] = useState<{
-    isOpen: boolean;
-    messages: string[];
-    onConfirm: () => void;
-    onCancel: () => void;
-  }>({ isOpen: false, messages: [], onConfirm: () => {}, onCancel: () => {} });
+  const [showDekontModal, setShowDekontModal] = useState<string | null>(null); // Dekont görseli için modal state
 
   const ADMIN_PASSWORD = "flickbaba31";
-  const [newPerson, setNewPerson] = useState({ ad_soyad: "", telefon: "" });
-  const [addLoading, setAddLoading] = useState(false);
   const scannerRef = useRef<Html5Qrcode | null>(null);
 
-  // --- SLOT VERİSİNİ ÇEKME ---
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchParticipants();
+      fetchEventSlots();
+    }
+  }, [selectedSlotId, isAuthenticated]);
+
+  const fetchParticipants = async () => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from('katilimcilar')
+      .select('*')
+      .eq('etkinlik_id', selectedSlotId)
+      .order('created_at', { ascending: false });
+    
+    if (!error && data) {
+      setParticipants(data);
+    }
+    setLoading(false);
+  };
+
   const fetchEventSlots = async () => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('etkinlik_ayarlari')
       .select('*')
       .order('slot_id', { ascending: true });
-    if (data) setEventSlots(data);
+    
+    if (!error && data) {
+      setEventSlots(data);
+    }
   };
 
-  const updateLocalSlot = (id: string, field: string, value: any) => {
-    setEventSlots(prev => prev.map(slot => {
-      if (slot.id === id) {
-        if (field === 'is_active' && value === false) {
-          return { 
-            ...slot, 
-            is_active: false,
-            event_name: "Çok Yakında",
-            event_date: "bilinmiyor",
-            event_location: "bilinmiyor"
-          };
-        }
-        return { ...slot, [field]: value };
-      }
-      return slot;
-    }));
-  };
+  // --- FİLTRELEME MANTIĞI (DÜZELTİLDİ VE GÜNCELLENDİ) ---
+  const filteredList = participants.filter(p => {
+    const matchesSearch = p.ad_soyad.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                         (p.telefon && p.telefon.includes(searchTerm)) ||
+                         (p.email && p.email.toLowerCase().includes(searchTerm.toLowerCase()));
+    
+    // Eğer hiçbir filtre butonu aktif değilse sadece arama sonucuna bak
+    if (!filterArrived && !filterTicketed && !filterNotTicketed && !filterPendingApproval) {
+      return matchesSearch;
+    }
 
-  const handleUpdateSlot = async (slot: any) => {
-    setSavingSlotId(slot.id);
+    // Filtre butonlarından biri aktifse VEYA mantığıyla eşleştir
+    let matchesFilter = false;
+    if (filterArrived && p.geldi_mi === true) matchesFilter = true;
+    if (filterTicketed && p.bilet_alindi_mi === true) matchesFilter = true;
+    if (filterNotTicketed && p.bilet_alindi_mi === false) matchesFilter = true;
+    // Onay bekleyenler: Bilet almamış VE dekont yüklemiş olanlar
+    if (filterPendingApproval && (p.bilet_alindi_mi === false && p.dekont_url)) matchesFilter = true;
+
+    return matchesSearch && matchesFilter;
+  });
+
+  const toggleArrival = async (id: string, currentStatus: boolean) => {
     const { error } = await supabase
-      .from('etkinlik_ayarlari')
-      .update({
-        event_name: slot.event_name,
-        event_date: slot.event_date,
-        event_location: slot.event_location,
-        event_type: slot.event_type,
-        is_active: slot.is_active,
-        has_seating: slot.has_seating // YENİ: Koltuk seçimi ayarı
-      })
-      .eq('id', slot.id);
-
-    if (error) alert("Hata: " + error.message);
-    setSavingSlotId(null);
-  };
-
-  const formatPhoneNumber = (phone: any) => {
-    let cleaned = String(phone).replace(/\D/g, ''); 
-    if (cleaned.startsWith('90')) cleaned = cleaned.substring(2);
-    if (cleaned.startsWith('0')) cleaned = cleaned.substring(1);
-    return cleaned.slice(-10);
-  };
-
-  // --- KATILIMCI ÇEKME ---
-  const fetchParticipants = async () => {
-  setLoading(true);
-  const { data, error } = await supabase
-    .from('katilimcilar')
-    .select('*')
-    .eq('etkinlik_id', Number(selectedSlotId)) // Sayı olduğundan emin oluyoruz
-    .order('created_at', { ascending: false });
-  
-  if (!error && data) {
-    setParticipants(data);
-  } else {
-    console.error("Veri çekme hatası:", error);
-  }
-  setLoading(false);
-};
-
-  useEffect(() => {
-    if (isAuthenticated) fetchParticipants();
-  }, [selectedSlotId, isAuthenticated]);
-
-  const validateParticipant = (name: string, rawPhone: string, formattedPhone: string, existingList: any[], seenPhones: Set<string>) => {
-    const warnings = [];
-    const cleanName = name.trim();
-    if (!cleanName.includes(" ")) warnings.push(`"${cleanName}": Soyadı eksik olabilir.`);
-    if (cleanName.length > 25) warnings.push(`"${cleanName}": İsim çok uzun.`);
+      .from('katilimcilar')
+      .update({ geldi_mi: !currentStatus })
+      .eq('id', id);
     
-    if (/[a-zA-ZğüşıöçĞÜŞİÖÇ]/.test(String(rawPhone))) {
-      warnings.push(`"${cleanName}": Telefon numarasında metin (harf) bulunuyor (${rawPhone}).`);
+    if (!error) {
+      setParticipants(participants.map(p => 
+        p.id === id ? { ...p, geldi_mi: !currentStatus } : p
+      ));
     }
-
-    const isDuplicate = existingList.some(p => p.telefon === formattedPhone);
-    const isDuplicateInBatch = seenPhones.has(formattedPhone);
-    
-    if (isDuplicate || isDuplicateInBatch) {
-      warnings.push(`Uyarı: "${cleanName}" ile aynı telefon (${formattedPhone}) listeye eklenecek.`);
-    }
-    
-    return warnings;
   };
 
-  // --- EXCEL YÜKLEME ---
-  const handleExcelUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setAddLoading(true);
-    const reader = new FileReader();
-    reader.onload = async (evt) => {
-      try {
-        const bstr = evt.target?.result;
-        const wb = XLSX.read(bstr, { type: 'binary' });
-        const wsname = wb.SheetNames[0];
-        const ws = wb.Sheets[wsname];
-        const data: any[] = XLSX.utils.sheet_to_json(ws);
-        
-        const allWarnings: string[] = [];
-        const seenPhones = new Set<string>();
-        const formattedData = data.map(row => {
-          const nameKeys = ["Adınız Soyisimiz", "Adınız Soyisim", "Ad Soyad", "ad_soyad", "Adınız", "İsim Soyisim"];
-          const phoneKeys = ["Telefon numarası", "Telefon", "telefon", "No", "Tel"];
-          const nameKey = Object.keys(row).find(k => nameKeys.includes(k.trim()));
-          const phoneKey = Object.keys(row).find(k => phoneKeys.includes(k.trim()));
-          if (nameKey && phoneKey && row[nameKey] && row[phoneKey]) {
-            const name = String(row[nameKey]).trim();
-            const rawPhone = String(row[phoneKey]);
-            const phone = formatPhoneNumber(rawPhone);
-            
-            const rowWarnings = validateParticipant(name, rawPhone, phone, participants, seenPhones);
-            if (rowWarnings.length > 0) allWarnings.push(...rowWarnings);
-
-            seenPhones.add(phone);
-
-            return {
-              ad_soyad: name,
-              telefon: phone,
-              qr_kodu: crypto.randomUUID(),
-              geldi_mi: false,
-              bilet_alindi_mi: false,
-              etkinlik_id: selectedSlotId
-            };
-          }
-          return null;
-        }).filter(item => item !== null);
-
-        const proceedWithUpload = async () => {
-          setAddLoading(true);
-          if (formattedData.length > 0) {
-            const { error } = await supabase
-              .from('katilimcilar')
-              .insert(formattedData);
-
-            if (!error) {
-              alert(`${formattedData.length} kayıt işlendi.`);
-              fetchParticipants();
-            } else alert("Supabase Hatası: " + error.message);
-          } else alert("Excel'de uygun sütun bulunamadı!");
-          setAddLoading(false);
-          e.target.value = "";
-        };
-
-        if (allWarnings.length > 0) {
-          setAddLoading(false);
-          setUiWarnings({
-            isOpen: true,
-            messages: allWarnings,
-            onConfirm: () => {
-              setUiWarnings(prev => ({ ...prev, isOpen: false }));
-              proceedWithUpload();
-            },
-            onCancel: () => {
-              setUiWarnings(prev => ({ ...prev, isOpen: false }));
-              e.target.value = "";
-            }
-          });
-          return;
-        }
-
-        proceedWithUpload();
-
-      } catch (err) { 
-        alert("Dosya okunurken bir hata oluştu."); 
-        setAddLoading(false);
-        e.target.value = "";
-      }
-    };
-    reader.readAsBinaryString(file);
-  };
-
-  const handleUpdateParticipant = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const { error } = await supabase.from('katilimcilar').update({ ad_soyad: editingPerson.ad_soyad, telefon: formatPhoneNumber(editingPerson.telefon) }).eq('id', editingPerson.id);
-    if (!error) { setIsEditModalOpen(false); fetchParticipants(); } else { alert("Hata: " + error.message); }
-  };
-
-  // --- MANUEL EKLEME ---
-  const handleAddSinglePerson = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newPerson.ad_soyad.trim() || !newPerson.telefon.trim()) return alert("Eksik bilgi!");
-    
-    const rawPhone = newPerson.telefon;
-    const phone = formatPhoneNumber(rawPhone);
-    const seenPhones = new Set<string>();
-    const warnings = validateParticipant(newPerson.ad_soyad, rawPhone, phone, participants, seenPhones);
-    
-    const proceedWithAdd = async () => {
-      setAddLoading(true);
-      const { error } = await supabase.from('katilimcilar').insert([{ 
-        ad_soyad: newPerson.ad_soyad.trim(), 
-        telefon: phone, 
-        qr_kodu: crypto.randomUUID(), 
-        geldi_mi: false, 
-        bilet_alindi_mi: false,
-        etkinlik_id: selectedSlotId 
-      }]);
-
-      if (!error) { 
-          setNewPerson({ ad_soyad: "", telefon: "" }); 
-          fetchParticipants(); 
-      } else {
-          alert("Hata: " + error.message);
-      }
-      setAddLoading(false);
-    };
-
-    if (warnings.length > 0) {
-      setUiWarnings({
-        isOpen: true,
-        messages: warnings,
-        onConfirm: () => {
-          setUiWarnings(prev => ({ ...prev, isOpen: false }));
-          proceedWithAdd();
-        },
-        onCancel: () => {
-          setUiWarnings(prev => ({ ...prev, isOpen: false }));
-        }
-      });
-      return;
-    }
-
-    proceedWithAdd();
-  };
-
-  // --- YENİ: BİLET ONAYINI DEĞİŞTİRME FONKSİYONU ---
-  const toggleApproval = async (id: string, currentStatus: boolean) => {
+  const toggleTicket = async (id: string, currentStatus: boolean) => {
     const { error } = await supabase
       .from('katilimcilar')
       .update({ bilet_alindi_mi: !currentStatus })
       .eq('id', id);
-    if (!error) fetchParticipants();
-  };
-
-  useEffect(() => {
-    const authStatus = localStorage.getItem('flick_admin_auth');
-    if (authStatus === 'true') setIsAuthenticated(true);
-  }, []);
-
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (password === ADMIN_PASSWORD) {
-      localStorage.setItem('flick_admin_auth', 'true');
-      setIsAuthenticated(true);
-    } else alert("Hatalı şifre!");
-  };
-
-  const handleLogout = () => { localStorage.removeItem('flick_admin_auth'); setIsAuthenticated(false); };
-
-  useEffect(() => {
-    if (!isAuthenticated) return;
-    fetchEventSlots();
-  }, [isAuthenticated]);
-
-  const deleteUser = async (id: number) => {
-    if (confirm("Silinsin mi?")) {
-      const { error } = await supabase.from('katilimcilar').delete().eq('id', id);
-      if (!error) fetchParticipants();
+    
+    if (!error) {
+      setParticipants(participants.map(p => 
+        p.id === id ? { ...p, bilet_alindi_mi: !currentStatus } : p
+      ));
     }
   };
 
-  const resetSeat = async (id: number) => {
-    if (confirm("Sıfırlansın mı?")) {
-      const { error } = await supabase.from('katilimcilar').update({ koltuk_no: null, bilet_alindi_mi: false, geldi_mi: false, qr_kodu: crypto.randomUUID() }).eq('id', id);
-      if (!error) fetchParticipants();
+  const resetSeat = async (id: string) => {
+    const { error } = await supabase
+      .from('katilimcilar')
+      .update({ 
+        koltuk_numarasi: null,
+        geldi_mi: false,
+        bilet_alindi_mi: false
+      })
+      .eq('id', id);
+    
+    if (!error) {
+      fetchParticipants();
     }
   };
 
-  const deleteAllParticipants = async () => {
-    const confirmText = prompt(`Slot ${selectedSlotId} içindeki tüm kayıtları silmek için ONAYLIYORUM yazın.`);
-    if (confirmText === "ONAYLIYORUM") {
-      const { error } = await supabase.from('katilimcilar').delete().eq('etkinlik_id', selectedSlotId);
-      if (!error) fetchParticipants();
+  const deleteUser = async (id: string) => {
+    if (!confirm("Bu katılımcıyı tamamen silmek istediğinize emin misiniz?")) return;
+    
+    const { error } = await supabase
+      .from('katilimcilar')
+      .delete()
+      .eq('id', id);
+    
+    if (!error) {
+      setParticipants(participants.filter(p => p.id !== id));
     }
   };
 
-  const safeStopScanner = async () => {
-    if (scannerRef.current && scannerRef.current.isScanning) {
-      try { await scannerRef.current.stop(); scannerRef.current = null; } catch (err) {}
+  const exportToExcel = () => {
+    const dataToExport = filteredList.map(p => ({
+      'Ad Soyad': p.ad_soyad,
+      'Telefon': p.telefon,
+      'E-posta': p.email || '-',
+      'Okul': p.okul || '-',
+      'Referans': p.referans || '-',
+      'Bilet': p.bilet_alindi_mi ? 'ALINDI' : 'YOK',
+      'Katılım': p.geldi_mi ? 'GELDİ' : 'GELMEDİ',
+      'Koltuk': p.koltuk_numarasi || '-',
+      'Kayıt Tarihi': new Date(p.created_at).toLocaleString('tr-TR')
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(dataToExport);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Katılımcılar");
+    XLSX.writeFile(wb, `Katilimci_Listesi_Slot_${selectedSlotId}.xlsx`);
+  };
+
+  const startScanner = async () => {
+    setScanStatus({ status: 'idle', message: 'QR kod okutulması bekleniyor...' });
+    
+    if (scannerRef.current) {
+      await scannerRef.current.stop();
+    }
+
+    const html5QrCode = new Html5Qrcode("reader");
+    scannerRef.current = html5QrCode;
+
+    const config = { 
+      fps: 10, 
+      qrbox: { width: 250, height: 250 },
+      aspectRatio: 1.0
+    };
+
+    try {
+      await html5QrCode.start(
+        { facingMode: "environment" }, 
+        config, 
+        async (decodedText) => {
+          setScanStatus({ status: 'idle', message: 'Kontrol ediliyor...' });
+          
+          const { data, error } = await supabase
+            .from('katilimcilar')
+            .select('*')
+            .eq('qr_kodu', decodedText)
+            .single();
+
+          if (error || !data) {
+            setScanStatus({ status: 'error', message: 'Geçersiz veya kayıtlı olmayan bilet!' });
+            return;
+          }
+
+          if (data.etkinlik_id !== selectedSlotId) {
+            setScanStatus({ 
+              status: 'warning', 
+              message: `Yanlış Slot! Bu bilet Slot ${data.etkinlik_id} için tanımlı.`,
+              details: data 
+            });
+            return;
+          }
+
+          if (data.geldi_mi) {
+            setScanStatus({ 
+              status: 'warning', 
+              message: 'Bu bilet zaten kullanılmış!', 
+              details: data 
+            });
+            return;
+          }
+
+          if (!data.bilet_alindi_mi) {
+            setScanStatus({ 
+              status: 'error', 
+              message: 'Ödeme onayı verilmemiş bilet!', 
+              details: data 
+            });
+            return;
+          }
+
+          const { error: updateError } = await supabase
+            .from('katilimcilar')
+            .update({ geldi_mi: true })
+            .eq('id', data.id);
+
+          if (!updateError) {
+            setScanStatus({ 
+              status: 'success', 
+              message: `Giriş Başarılı: ${data.ad_soyad}`, 
+              details: data 
+            });
+            fetchParticipants();
+          }
+        },
+        undefined
+      );
+    } catch (err) {
+      console.error(err);
+      setScanStatus({ status: 'error', message: 'Kamera başlatılamadı!' });
     }
   };
 
-  useEffect(() => {
-    if (!isAuthenticated) return;
-    if (view === 'scanner') {
-      const startCamera = async () => {
-        try {
-          await safeStopScanner();
-          const html5QrCode = new Html5Qrcode("reader", { formatsToSupport: [ Html5QrcodeSupportedFormats.QR_CODE ], verbose: false });
-          scannerRef.current = html5QrCode;
-          await html5QrCode.start(
-            { facingMode: "environment" }, { fps: 15, qrbox: { width: 250, height: 250 } },
-            async (decodedText) => {
-              const cleanCode = decodedText.trim();
-              if (scanStatus.status !== 'idle') return;
-              const { data: user } = await supabase.from('katilimcilar')
-                .select('*')
-                .eq('qr_kodu', cleanCode)
-                .eq('etkinlik_id', selectedSlotId)
-                .maybeSingle();
-              
-              if (!user) { setScanStatus({ status: 'error', message: 'Geçersiz veya Yanlış Etkinlik!' }); }
-              else if (user.geldi_mi) { setScanStatus({ status: 'warning', message: 'Zaten Girdi!' }); }
-              else {
-                await supabase.from('katilimcilar').update({ geldi_mi: true }).eq('id', user.id);
-                setParticipants(prev => prev.map(p => p.id === user.id ? { ...p, geldi_mi: true } : p));
-                setScanStatus({ status: 'success', message: `${user.ad_soyad} girdi!` });
-              }
-              setTimeout(() => setScanStatus({ status: 'idle', message: '' }), 2000);
-            }, () => {}
-          );
-        } catch (err) {}
-      };
-      startCamera();
-    } else safeStopScanner();
-    return () => { safeStopScanner(); };
-  }, [view, isAuthenticated, selectedSlotId]);
+  const stopScanner = async () => {
+    if (scannerRef.current) {
+      await scannerRef.current.stop();
+      scannerRef.current = null;
+    }
+  };
 
   if (!isAuthenticated) {
     return (
-      <main className="min-h-screen bg-[#020617] flex items-center justify-center p-6 text-white">
-        <div className="w-full max-w-md bg-slate-900/40 border border-white/5 p-10 rounded-[2.5rem] text-center">
-          <div className="bg-blue-600 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6"><Lock size={32} /></div>
-          <h1 className="text-2xl font-black mb-8">Flick Admin</h1>
-          <form onSubmit={handleLogin} className="space-y-4">
-            <input type="password" placeholder="Şifre" className="w-full bg-slate-950 border border-white/10 p-5 rounded-2xl outline-none text-center" value={password} onChange={(e) => setPassword(e.target.value)} autoFocus />
-            <button type="submit" className="w-full bg-blue-600 p-5 rounded-2xl font-bold uppercase text-xs tracking-widest">Giriş</button>
-          </form>
+      <div className="min-h-screen bg-[#020617] flex items-center justify-center p-6 text-white font-sans">
+        <div className="w-full max-w-md bg-slate-900/40 border border-white/5 p-10 rounded-[2.5rem] text-center backdrop-blur-xl">
+          <div className="w-20 h-20 bg-blue-600 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-2xl shadow-blue-600/20 rotate-3">
+            <Lock size={40} className="text-white -rotate-3" />
+          </div>
+          <h1 className="text-2xl font-black mb-2 tracking-tight">Admin Paneli</h1>
+          <p className="text-slate-500 text-sm mb-8">Devam etmek için şifreyi giriniz</p>
+          
+          <div className="space-y-4">
+            <input 
+              type="password" 
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && password === ADMIN_PASSWORD && setIsAuthenticated(true)}
+              className="w-full bg-slate-950 border border-white/10 p-5 rounded-2xl outline-none focus:border-blue-500 transition-all text-center tracking-[0.5em] font-bold"
+              placeholder="••••••"
+            />
+            <button 
+              onClick={() => password === ADMIN_PASSWORD ? setIsAuthenticated(true) : alert("Hatalı Şifre!")}
+              className="w-full bg-blue-600 hover:bg-blue-500 p-5 rounded-2xl font-bold transition-all active:scale-95 shadow-lg shadow-blue-600/20"
+            >
+              Giriş Yap
+            </button>
+          </div>
         </div>
-      </main>
+      </div>
     );
   }
 
-  const filteredList = participants.filter(p => {
-  // Arama filtresi (Her zaman aktif)
-  const matchesSearch = p.ad_soyad.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                       (p.telefon && p.telefon.includes(searchTerm));
-  
-  // Eğer hiçbir filtre butonu seçili değilse, sadece arama sonucunu döndür
-  if (!filterArrived && !filterTicketed && !filterNotTicketed && !filterPendingApproval) {
-    return matchesSearch;
-  }
-
-  // Filtrelerden herhangi biri seçiliyse "VEYA" mantığıyla çalıştır
-  let matchesFilter = false;
-  
-  if (filterPendingApproval && (p.bilet_alindi_mi === false && p.dekont_url != null)) matchesFilter = true;
-  if (filterArrived && p.geldi_mi === true) matchesFilter = true;
-  if (filterTicketed && p.bilet_alindi_mi === true) matchesFilter = true;
-  if (filterNotTicketed && p.bilet_alindi_mi === false) matchesFilter = true;
-
-  return matchesSearch && matchesFilter;
-});
-
-  // Seçili slotun koltuk ayarını bul
-  const currentSlotSettings = eventSlots.find(s => s.slot_id === selectedSlotId);
-
   return (
-    <main className="min-h-screen bg-[#020617] text-white p-4 font-sans flex flex-col items-center">
-      
-      {/* YENİ: DEKONT GÖRÜNTÜLEME MODALI */}
+    <main className="min-h-screen bg-[#020617] text-white p-4 md:p-8 font-sans">
+      {/* DEKONT MODAL */}
       {showDekontModal && (
-        <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
-          <div className="relative max-w-2xl w-full bg-slate-900 rounded-[2.5rem] border border-white/10 overflow-hidden shadow-2xl">
-            <div className="p-6 border-b border-white/5 flex justify-between items-center bg-slate-900/50">
-              <h3 className="font-black uppercase tracking-widest text-sm text-white">Ödeme Dekontu</h3>
-              <button onClick={() => setShowDekontModal(null)} className="p-2 hover:bg-white/10 rounded-full transition-all text-white"><X size={24}/></button>
-            </div>
-            <div className="p-4 bg-black/40 flex justify-center">
-              <img src={showDekontModal} alt="Dekont" className="max-h-[60vh] object-contain rounded-xl shadow-lg" />
-            </div>
-            <div className="p-6 bg-slate-900/80 flex gap-4">
-               <a href={showDekontModal} target="_blank" rel="noreferrer" className="flex-1 bg-white/5 hover:bg-white/10 text-white p-4 rounded-2xl font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2 border border-white/10 transition-all">
-                 <ExternalLink size={18}/> Tam Boyut Gör
-               </a>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {isSettingsOpen && (
-        <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/90 backdrop-blur-xl overflow-y-auto">
-          <div className="w-full max-w-4xl bg-slate-950 border border-white/10 rounded-[3rem] p-6 my-8">
-            <div className="flex justify-between items-center mb-8 sticky top-0 bg-slate-950 py-2 z-10">
-              <div>
-                <h2 className="text-xl font-black uppercase tracking-tighter">Etkinlik Slotları</h2>
-                <p className="text-[10px] text-slate-500 font-bold tracking-widest">4 AKTİF SLOTU YÖNET</p>
+        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/90 p-4 backdrop-blur-md transition-all">
+          <div className="max-w-xl w-full bg-slate-900 rounded-[2rem] overflow-hidden border border-white/10 shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="p-4 border-b border-white/5 flex justify-between items-center bg-slate-800/50">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-amber-500/20 text-amber-500 rounded-lg">
+                  <Eye size={18} />
+                </div>
+                <span className="font-bold text-sm uppercase tracking-wider">Ödeme Dekontu</span>
               </div>
-              <button onClick={() => setIsSettingsOpen(false)} className="bg-slate-900 p-3 rounded-2xl"><X size={24} /></button>
+              <button 
+                onClick={() => setShowDekontModal(null)}
+                className="p-2 hover:bg-white/5 rounded-xl transition-all"
+              >
+                <X size={20} />
+              </button>
             </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {eventSlots.map((slot) => (
-                <div key={slot.id} className={`p-6 rounded-[2.5rem] border transition-all duration-500 ${slot.is_active ? 'bg-slate-900/40 border-blue-500/30' : 'bg-slate-900/10 border-white/5 opacity-60'}`}>
-                  
-                  <div className="flex items-center justify-between mb-6">
-                    <span className="text-[10px] font-black bg-blue-600/20 text-blue-500 px-3 py-1 rounded-lg">SLOT #{slot.slot_id}</span>
-                    {/* Koltuk Seçimi Açma/Kapatma Butonu */}
-<button 
-  onClick={() => updateLocalSlot(slot.id, 'has_seating', !slot.has_seating)}
-  className={`flex items-center gap-2 px-3 py-2 rounded-xl text-[8px] font-black transition-all ${slot.has_seating ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-500'}`}
->
-  <Armchair size={12} /> {slot.has_seating ? 'KOLTUK AÇIK' : 'KOLTUK KAPALI'}
-</button>
-                    <button 
-                      onClick={() => updateLocalSlot(slot.id, 'is_active', !slot.is_active)}
-                      className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[9px] font-black transition-all ${slot.is_active ? 'bg-emerald-500 text-white' : 'bg-slate-800 text-slate-400'}`}
-                    >
-                      <Power size={14} /> {slot.is_active ? 'AKTİF' : 'PASİF'}
-                    </button>
-                  </div>
-
-                  <div className={`space-y-4 ${!slot.is_active && 'pointer-events-none opacity-50'}`}>
-                    <div className="grid grid-cols-4 gap-2">
-                      {[
-                        { id: 'cinema', icon: <Film size={16}/> },
-                        { id: 'theater', icon: <Theater size={16}/> },
-                        { id: 'social', icon: <Users size={16}/> },
-                        { id: 'quiz', icon: <Trophy size={16}/> }
-                      ].map((t) => (
-                        <button
-                          key={t.id}
-                          onClick={() => updateLocalSlot(slot.id, 'event_type', t.id)}
-                          className={`p-3 rounded-xl flex flex-col items-center gap-1 border transition-all ${slot.event_type === t.id ? 'bg-blue-600 border-blue-400 text-white' : 'bg-slate-950 border-white/5 text-slate-500'}`}
-                        >
-                          {t.icon}
-                          <span className="text-[8px] font-bold uppercase">{t.id}</span>
-                        </button>
-                      ))}
-                    </div>
-
-                    <input placeholder="Etkinlik Adı" className="w-full bg-slate-950 border border-white/5 p-4 rounded-2xl text-xs font-bold outline-none focus:border-blue-500/50" value={slot.event_name || ''} onChange={(e) => updateLocalSlot(slot.id, 'event_name', e.target.value)} />
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="relative">
-                        <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600" size={14} />
-                        <input placeholder="Tarih" className="w-full bg-slate-950 border border-white/5 p-4 pl-10 rounded-2xl text-[10px] font-bold outline-none" value={slot.event_date || ''} onChange={(e) => updateLocalSlot(slot.id, 'event_date', e.target.value)} />
-                      </div>
-                      <div className="relative">
-                        <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600" size={14} />
-                        <input placeholder="Konum" className="w-full bg-slate-950 border border-white/5 p-4 pl-10 rounded-2xl text-[10px] font-bold outline-none" value={slot.event_location || ''} onChange={(e) => updateLocalSlot(slot.id, 'event_location', e.target.value)} />
-                      </div>
-                    </div>
-                  </div>
-
-                  <button 
-                    disabled={savingSlotId === slot.id}
-                    onClick={() => handleUpdateSlot(slot)}
-                    className="w-full bg-white text-black p-4 rounded-2xl font-black text-[10px] tracking-widest mt-6 hover:bg-blue-600 hover:text-white transition-all flex items-center justify-center gap-2"
-                  >
-                    {savingSlotId === slot.id ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
-                    GÜNCELLE
-                  </button>
-                </div>
-              ))}
+            <div className="p-2 bg-black/20 overflow-auto max-h-[70vh]">
+              <img 
+                src={showDekontModal} 
+                alt="Dekont" 
+                className="w-full h-auto rounded-xl shadow-lg"
+              />
+            </div>
+            <div className="p-4 bg-slate-800/50 flex justify-end">
+              <a 
+                href={showDekontModal} 
+                download 
+                target="_blank"
+                className="flex items-center gap-2 bg-white/5 hover:bg-white/10 p-3 px-6 rounded-xl font-bold text-xs transition-all"
+              >
+                <ExternalLink size={14} /> TAM BOYUTTA GÖR / İNDİR
+              </a>
             </div>
           </div>
         </div>
       )}
 
-      {isEditModalOpen && editingPerson && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
-          <div className="w-full max-w-md bg-slate-900 border border-white/10 rounded-[2.5rem] p-8 shadow-2xl">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-lg font-bold uppercase">Bilgileri Düzenle</h2>
-              <button onClick={() => setIsEditModalOpen(false)} className="p-2"><X size={24} /></button>
+      {/* HEADER */}
+      <div className="max-w-5xl mx-auto mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+        <div>
+          <h1 className="text-3xl font-black tracking-tight mb-2 flex items-center gap-3">
+            <div className="p-2 bg-blue-600 rounded-xl">
+              <ShieldCheck size={24} />
             </div>
-            <form onSubmit={handleUpdateParticipant} className="space-y-4">
-              <input type="text" className="w-full bg-slate-950 border border-white/5 p-4 rounded-2xl outline-none text-white" value={editingPerson.ad_soyad} onChange={(e) => setEditingPerson({...editingPerson, ad_soyad: e.target.value})} />
-              <input type="text" className="w-full bg-slate-950 border border-white/5 p-4 rounded-2xl outline-none text-white" value={editingPerson.telefon} onChange={(e) => setEditingPerson({...editingPerson, telefon: e.target.value})} />
-              <button type="submit" className="w-full bg-blue-600 p-5 rounded-2xl font-bold uppercase text-xs tracking-widest flex items-center justify-center gap-2"><Save size={18}/> Güncelle</button>
-            </form>
-          </div>
+            FLICK <span className="text-blue-500 font-medium">ADMIN</span>
+          </h1>
+          <p className="text-slate-500 text-sm font-medium">Etkinlik Katılım ve Bilet Yönetim Sistemi</p>
         </div>
-      )}
-
-      {uiWarnings.isOpen && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
-          <div className="w-full max-w-lg bg-slate-900 border border-amber-500/30 rounded-[2.5rem] p-8 shadow-2xl">
-            <div className="flex items-center gap-3 mb-6 text-amber-500">
-              <AlertTriangle size={32} />
-              <h2 className="text-xl font-black uppercase">Uyarılar Var</h2>
-            </div>
-            <div className="max-h-60 overflow-y-auto mb-6 space-y-2 pr-2 custom-scrollbar">
-              {uiWarnings.messages.map((msg, idx) => (
-                <div key={idx} className="bg-amber-500/10 text-amber-400 p-3 rounded-xl text-xs font-bold border border-amber-500/20">
-                  {msg}
-                </div>
-              ))}
-            </div>
-            <p className="text-sm text-slate-400 mb-6 font-bold">Yine de işleme devam etmek istiyor musunuz?</p>
-            <div className="flex gap-3">
-              <button onClick={uiWarnings.onCancel} className="flex-1 bg-slate-800 text-white p-4 rounded-2xl font-bold uppercase text-xs tracking-widest hover:bg-slate-700 transition-colors">Vazgeç</button>
-              <button onClick={uiWarnings.onConfirm} className="flex-1 bg-amber-600 text-white p-4 rounded-2xl font-bold uppercase text-xs tracking-widest hover:bg-amber-500 transition-colors">Yine de Kaydet</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div className="w-full max-w-lg flex justify-between items-center bg-slate-900/40 p-5 rounded-[2rem] border border-white/5 mb-4 backdrop-blur-xl">
-        <div className="flex items-center gap-3">
-          <div className="bg-blue-600 p-2 rounded-xl"><ShieldCheck size={24} /></div>
-          <div><h1 className="text-lg font-bold uppercase">Flick Admin</h1><button onClick={handleLogout} className="text-[10px] text-rose-500 font-bold uppercase">Çıkış</button></div>
-        </div>
-        <div className="flex gap-2">
-          <button onClick={() => setIsSettingsOpen(true)} className="bg-slate-800 p-3 rounded-2xl text-blue-400"><Settings2 size={22} /></button>
-          <button onClick={() => setView('add')} className={`${view === 'add' ? 'bg-emerald-600' : 'bg-slate-800'} p-3 rounded-2xl`}><Plus size={22} /></button>
-          <button onClick={() => setView('list')} className={`${view === 'list' ? 'bg-blue-600' : 'bg-slate-800'} p-3 rounded-2xl relative`}><Users size={22} /></button>
-          <button onClick={() => setView('scanner')} className={`${view === 'scanner' ? 'bg-blue-600' : 'bg-slate-800'} p-3 rounded-2xl`}><Camera size={22} /></button>
-        </div>
-      </div>
-
-      <div className="w-full max-w-lg grid grid-cols-4 gap-2 mb-6">
-        {[1, 2, 3, 4].map((num) => (
+        
+        <div className="flex bg-slate-900/40 p-1.5 rounded-2xl border border-white/5 backdrop-blur-xl">
           <button 
-            key={num}
-            onClick={() => setSelectedSlotId(num)}
-            className={`py-3 rounded-2xl border transition-all flex flex-col items-center justify-center gap-1 ${
-              selectedSlotId === num 
-              ? 'bg-blue-600 border-blue-400 shadow-[0_0_15px_rgba(37,99,235,0.3)] scale-105 z-10' 
-              : 'bg-slate-900/40 border-white/5 text-slate-500 hover:bg-slate-800'
-            }`}
+            onClick={() => setView('scanner')}
+            className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold text-sm transition-all ${view === 'scanner' ? 'bg-blue-600 shadow-lg shadow-blue-600/20 text-white' : 'text-slate-400 hover:text-white'}`}
           >
-            <LayoutGrid size={14} className={selectedSlotId === num ? 'text-white' : 'text-slate-600'} />
-            <span className="text-[9px] font-black uppercase">Slot {num}</span>
+            <Camera size={18} /> <span className="hidden md:block">QR Tarayıcı</span>
           </button>
-        ))}
+          <button 
+            onClick={() => setView('list')}
+            className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold text-sm transition-all ${view === 'list' ? 'bg-blue-600 shadow-lg shadow-blue-600/20 text-white' : 'text-slate-400 hover:text-white'}`}
+          >
+            <Users size={18} /> <span className="hidden md:block">Katılımcı Listesi</span>
+          </button>
+        </div>
       </div>
 
-      <div className="w-full max-w-lg flex flex-col gap-6">
-        {view === 'scanner' && (
-          <div className="space-y-6">
-            <div className={`relative border-[4px] rounded-[2.5rem] overflow-hidden min-h-[300px] ${scanStatus.status === 'success' ? 'border-emerald-500' : scanStatus.status === 'error' ? 'border-rose-500' : scanStatus.status === 'warning' ? 'border-amber-500' : 'border-white/10'}`}>
-              <div id="reader" className="w-full aspect-square bg-black"></div>
-              {scanStatus.message && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm z-50">
-                   <div className="text-center animate-in zoom-in duration-300">
-                      <p className={`text-xl font-black uppercase ${scanStatus.status === 'success' ? 'text-emerald-400' : 'text-rose-400'}`}>{scanStatus.message}</p>
-                   </div>
+      {/* SLOT SEÇİMİ */}
+      <div className="max-w-5xl mx-auto mb-8">
+        <div className="flex flex-wrap gap-2">
+          {eventSlots.length > 0 ? eventSlots.map(slot => (
+            <button 
+              key={slot.id}
+              onClick={() => setSelectedSlotId(slot.slot_id)}
+              className={`flex-1 min-w-[140px] p-4 rounded-[1.5rem] border transition-all text-left group ${selectedSlotId === slot.slot_id ? 'bg-blue-600 border-blue-500 shadow-lg shadow-blue-600/10' : 'bg-slate-900/40 border-white/5 hover:border-white/10'}`}
+            >
+              <div className="flex justify-between items-start mb-2">
+                <div className={`p-2 rounded-lg ${selectedSlotId === slot.slot_id ? 'bg-white/20' : 'bg-blue-600/20 text-blue-500'}`}>
+                   {slot.slot_id === 1 ? <Film size={16}/> : slot.slot_id === 2 ? <Theater size={16}/> : slot.slot_id === 3 ? <Trophy size={16}/> : <Users size={16}/>}
                 </div>
-              )}
+                {selectedSlotId === slot.slot_id && <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>}
+              </div>
+              <p className={`text-[10px] font-bold uppercase tracking-widest mb-1 ${selectedSlotId === slot.slot_id ? 'text-blue-100' : 'text-slate-500'}`}>Slot {slot.slot_id}</p>
+              <h3 className="font-bold text-sm truncate">{slot.etkinlik_adi || "İsimsiz Etkinlik"}</h3>
+            </button>
+          )) : (
+            <div className="w-full p-4 bg-slate-900/20 rounded-2xl border border-dashed border-white/5 text-center text-slate-500 text-xs font-bold uppercase tracking-widest">
+              Slot verileri yükleniyor...
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-emerald-500/5 border border-emerald-500/10 p-6 rounded-[2rem] text-center"><p className="text-[10px] text-emerald-500 font-bold uppercase mb-1">İçeride</p><p className="text-4xl font-black text-emerald-400">{participants.filter(p => p.geldi_mi).length}</p></div>
-              <div className="bg-blue-500/5 border border-blue-500/10 p-6 rounded-[2rem] text-center"><p className="text-[10px] text-blue-500 font-bold uppercase mb-1">Beklenen</p><p className="text-4xl font-black text-blue-400">{participants.filter(p => !p.geldi_mi).length}</p></div>
-            </div>
-          </div>
-        )}
+          )}
+        </div>
+      </div>
 
-        {view === 'add' && (
-          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
-            <div className="bg-slate-900/60 border border-dashed border-white/20 rounded-[2.5rem] p-8 text-center cursor-pointer">
-              <label className="cursor-pointer"><input type="file" accept=".xlsx, .xls, .csv" className="hidden" onChange={handleExcelUpload} disabled={addLoading} />
-                <div className="flex flex-col items-center gap-4">
-                  <div className="bg-emerald-500/10 p-5 rounded-2xl">{addLoading ? <Loader2 className="animate-spin text-emerald-400" size={40} /> : <FileUp size={40} className="text-emerald-400" />}</div>
-                  <h3 className="text-lg font-bold uppercase tracking-tight">Slot {selectedSlotId}'e Excel Yükle</h3>
+      <div className="max-w-5xl mx-auto">
+        {view === 'scanner' ? (
+          <div className="grid md:grid-cols-2 gap-8 items-start">
+            <div className="bg-slate-900/40 border border-white/5 rounded-[2.5rem] overflow-hidden backdrop-blur-xl">
+              <div className="p-6 border-b border-white/5 flex justify-between items-center bg-white/[0.02]">
+                <h3 className="font-bold flex items-center gap-2 text-sm uppercase tracking-wider">
+                  <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
+                  Kamera Aktif
+                </h3>
+                <div className="flex gap-2">
+                   <button onClick={startScanner} className="p-2 bg-emerald-600/20 text-emerald-500 rounded-xl hover:bg-emerald-600/30 transition-all"><RefreshCcw size={18}/></button>
+                   <button onClick={stopScanner} className="p-2 bg-rose-600/20 text-rose-500 rounded-xl hover:bg-rose-600/30 transition-all"><Power size={18}/></button>
                 </div>
-              </label>
+              </div>
+              <div className="aspect-square relative bg-black">
+                <div id="reader" className="w-full h-full"></div>
+                {scanStatus.status === 'idle' && (
+                  <div className="absolute inset-0 border-[40px] border-black/40 pointer-events-none">
+                    <div className="w-full h-full border-2 border-white/20 rounded-3xl border-dashed"></div>
+                  </div>
+                )}
+              </div>
             </div>
 
-            <div className="bg-slate-900/60 border border-white/10 rounded-[2.5rem] p-8">
-              <div className="flex items-center gap-3 mb-6"><UserPlus size={24} className="text-emerald-400" /><h2 className="text-lg font-bold uppercase">Manuel Ekle (Slot {selectedSlotId})</h2></div>
-              <form onSubmit={handleAddSinglePerson} className="space-y-4">
-                <input type="text" placeholder="Ad Soyad" className="w-full bg-slate-950 border border-white/5 p-5 rounded-2xl text-white outline-none" value={newPerson.ad_soyad} onChange={(e) => setNewPerson({...newPerson, ad_soyad: e.target.value})} />
-                <input type="text" placeholder="Telefon" className="w-full bg-slate-950 border border-white/5 p-5 rounded-2xl text-white outline-none" value={newPerson.telefon} onChange={(e) => setNewPerson({...newPerson, telefon: e.target.value})} />
-                <button disabled={addLoading} type="submit" className="w-full bg-emerald-600 p-5 rounded-2xl font-bold uppercase text-xs tracking-widest mt-4">Listeye Kaydet</button>
-              </form>
-            </div>
-          </div>
-        )}
-
-        {view === 'list' && (
-          <div className="space-y-4">
-            <div className="bg-slate-900/40 p-4 rounded-[2.5rem] border border-white/5 space-y-4">
-              <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
-                  <input type="text" placeholder="Bu slotta ara..." className="w-full bg-slate-950 border border-white/5 pl-11 pr-4 py-3 rounded-xl outline-none text-sm text-white" onChange={(e) => setSearchTerm(e.target.value)} />
+            <div className="space-y-6">
+              <div className={`p-8 rounded-[2.5rem] border transition-all ${
+                scanStatus.status === 'success' ? 'bg-emerald-600/10 border-emerald-500/20 shadow-2xl shadow-emerald-600/10' :
+                scanStatus.status === 'error' ? 'bg-rose-600/10 border-rose-500/20' :
+                scanStatus.status === 'warning' ? 'bg-amber-600/10 border-amber-500/20' :
+                'bg-slate-900/40 border-white/5'
+              }`}>
+                <div className="flex items-center gap-4 mb-6">
+                  <div className={`p-4 rounded-2xl ${
+                    scanStatus.status === 'success' ? 'bg-emerald-600 text-white' :
+                    scanStatus.status === 'error' ? 'bg-rose-600 text-white' :
+                    scanStatus.status === 'warning' ? 'bg-amber-600 text-white' :
+                    'bg-slate-800 text-slate-500'
+                  }`}>
+                    {scanStatus.status === 'success' ? <CheckCircle size={32} /> :
+                     scanStatus.status === 'error' ? <XCircle size={32} /> :
+                     scanStatus.status === 'warning' ? <AlertTriangle size={32} /> :
+                     <TicketCheck size={32} />}
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-black tracking-tight">{scanStatus.message || "Hazır"}</h2>
+                    <p className="text-slate-500 text-sm">Sistem durumu ve geri bildirim</p>
+                  </div>
                 </div>
-                <button onClick={fetchParticipants} className="bg-slate-800 p-3 rounded-xl text-white"><RefreshCcw size={20} /></button>
+
+                {scanStatus.details && (
+                  <div className="bg-black/20 rounded-3xl p-6 border border-white/5 space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Katılımcı</p>
+                        <h4 className="text-lg font-bold">{scanStatus.details.ad_soyad}</h4>
+                      </div>
+                      <div className="bg-blue-600 px-3 py-1 rounded-full text-[10px] font-black italic">SLOT {scanStatus.details.etkinlik_id}</div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="bg-white/5 p-3 rounded-2xl">
+                        <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">Koltuk</p>
+                        <p className="font-mono font-bold text-blue-400">{scanStatus.details.koltuk_numarasi || "SEÇİLMEMİŞ"}</p>
+                      </div>
+                      <div className="bg-white/5 p-3 rounded-2xl">
+                        <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">Bilet No</p>
+                        <p className="font-mono font-bold text-slate-300">#{scanStatus.details.id.slice(0, 8)}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
               
-              {/* FİLTRELER KISMI GÜNCELLENDİ (flex-wrap eklendi) */}
-              <div className="flex flex-wrap gap-2">
-                <button onClick={() => setFilterPendingApproval(!filterPendingApproval)} className={`flex-1 min-w-[120px] flex items-center justify-center gap-2 py-2 rounded-xl text-[10px] font-bold border transition-all ${filterPendingApproval ? 'bg-amber-600 border-amber-500 text-white' : 'bg-slate-950 border-white/5 text-slate-500'}`}><UserCheck size={14} /> ONAY BEKLEYENLER</button>
-                <button onClick={() => setFilterArrived(!filterArrived)} className={`flex-1 min-w-[120px] flex items-center justify-center gap-2 py-2 rounded-xl text-[10px] font-bold border transition-all ${filterArrived ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-slate-950 border-white/5 text-slate-500'}`}><CheckCircle size={14} /> GELENLER</button>
-                <button onClick={() => setFilterTicketed(!filterTicketed)} className={`flex-1 min-w-[120px] flex items-center justify-center gap-2 py-2 rounded-xl text-[10px] font-bold border transition-all ${filterTicketed ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-950 border-white/5 text-slate-500'}`}><TicketCheck size={14} /> BİLET ALANLAR</button>
-                <button onClick={() => setFilterNotTicketed(!filterNotTicketed)} className={`flex-1 min-w-[120px] flex items-center justify-center gap-2 py-2 rounded-xl text-[10px] font-bold border transition-all ${filterNotTicketed ? 'bg-rose-600 border-rose-500 text-white' : 'bg-slate-950 border-white/5 text-slate-500'}`}><XCircle size={14} /> BİLET ALMAYANLAR</button>
+              <div className="bg-blue-600/10 border border-blue-500/20 p-6 rounded-[2.5rem]">
+                 <div className="flex gap-4 items-start">
+                    <div className="p-3 bg-blue-600 rounded-2xl"><ShieldCheck size={24}/></div>
+                    <div>
+                      <h4 className="font-bold mb-1 tracking-tight text-blue-100">Güvenli Giriş Sistemi</h4>
+                      <p className="text-sm text-blue-400/80 leading-relaxed">Sistem sadece onaylı biletlerin girişine izin verir. Tekrar kullanılan veya onaylanmamış biletler anında raporlanır.</p>
+                    </div>
+                 </div>
               </div>
             </div>
-            
-            <button onClick={deleteAllParticipants} className="w-full bg-rose-500/10 border border-rose-500/20 text-rose-500 p-4 rounded-2xl font-bold uppercase text-[10px] tracking-[0.2em] flex items-center justify-center gap-2"><Trash2 size={16} /> Slot {selectedSlotId} Listesini Sil</button>
-            <div className="space-y-3 pb-10">
-              {loading ? (
-                <div className="flex justify-center p-10"><Loader2 className="animate-spin text-blue-500" size={32} /></div>
-              ) : filteredList.map((person) => {
-                const isDuplicate = participants.filter(p => p.telefon === person.telefon).length > 1;
+          </div>
+        ) : (
+          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            {/* LİSTE FİLTRELERİ */}
+            <div className="bg-slate-900/40 p-6 rounded-[2.5rem] border border-white/5 backdrop-blur-xl space-y-6">
+              <div className="flex flex-col md:flex-row gap-4">
+                <div className="flex-1 relative group">
+                  <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-blue-500 transition-all" size={20} />
+                  <input 
+                    type="text" 
+                    placeholder="İsim, telefon veya e-posta ile ara..." 
+                    className="w-full bg-slate-950 border border-white/10 p-5 pl-14 rounded-2xl outline-none focus:border-blue-500 transition-all text-sm font-medium"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                </div>
+                <button 
+                  onClick={exportToExcel}
+                  className="bg-emerald-600 hover:bg-emerald-500 p-5 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all active:scale-95 shadow-lg shadow-emerald-600/10"
+                >
+                  <FileUp size={20} /> EXCEL İNDİR
+                </button>
+              </div>
+              
+              <div className="flex flex-wrap gap-2">
+                <button 
+                  onClick={() => setFilterPendingApproval(!filterPendingApproval)}
+                  className={`flex-1 min-w-[150px] p-3 rounded-xl text-[10px] font-black tracking-widest border transition-all flex items-center justify-center gap-2 ${filterPendingApproval ? 'bg-amber-600 border-amber-500 shadow-lg shadow-amber-600/20' : 'bg-slate-950 border-white/5 text-slate-500'}`}
+                >
+                  <AlertTriangle size={14}/> ONAY BEKLEYENLER
+                </button>
+                <button 
+                  onClick={() => setFilterArrived(!filterArrived)}
+                  className={`flex-1 min-w-[150px] p-3 rounded-xl text-[10px] font-black tracking-widest border transition-all flex items-center justify-center gap-2 ${filterArrived ? 'bg-emerald-600 border-emerald-500 shadow-lg shadow-emerald-600/20' : 'bg-slate-950 border-white/5 text-slate-500'}`}
+                >
+                  <CheckCircle size={14}/> GIRIŞ YAPANLAR
+                </button>
+                <button 
+                  onClick={() => setFilterTicketed(!filterTicketed)}
+                  className={`flex-1 min-w-[150px] p-3 rounded-xl text-[10px] font-black tracking-widest border transition-all flex items-center justify-center gap-2 ${filterTicketed ? 'bg-blue-600 border-blue-500 shadow-lg shadow-blue-600/20' : 'bg-slate-950 border-white/5 text-slate-500'}`}
+                >
+                  <TicketCheck size={14}/> BILETI OLANLAR
+                </button>
+                <button 
+                  onClick={() => setFilterNotTicketed(!filterNotTicketed)}
+                  className={`flex-1 min-w-[150px] p-3 rounded-xl text-[10px] font-black tracking-widest border transition-all flex items-center justify-center gap-2 ${filterNotTicketed ? 'bg-rose-600 border-rose-500 shadow-lg shadow-rose-600/20' : 'bg-slate-950 border-white/5 text-slate-500'}`}
+                >
+                  <XCircle size={14}/> BILETI OLMAYANLAR
+                </button>
+              </div>
+            </div>
 
+            {/* KATILIMCI KARTLARI */}
+            <div className="grid gap-3">
+              {loading ? (
+                <div className="bg-slate-900/20 rounded-[2.5rem] p-20 text-center border border-dashed border-white/5">
+                  <Loader2 className="animate-spin mx-auto mb-4 text-blue-500" size={40} />
+                  <p className="text-slate-500 font-bold uppercase tracking-widest text-xs">Veriler senkronize ediliyor...</p>
+                </div>
+              ) : filteredList.map(person => {
+                const biletOnayli = person.bilet_alindi_mi;
+                const dekontVar = !!person.dekont_url;
+                
                 return (
-                  <div key={person.id} className="bg-slate-900/40 p-5 rounded-[2.5rem] border border-white/5 shadow-xl">
-                    <div className="flex justify-between items-start">
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <p className="font-bold text-lg leading-tight">{person.ad_soyad}</p>
-                          {isDuplicate && (
-                            <div className="flex items-center gap-1 bg-amber-500/20 px-2 py-1 rounded-md border border-amber-500/30">
-                              <AlertTriangle size={12} className="text-amber-500" />
-                              <span className="text-[8px] font-bold text-amber-500 uppercase">ORTAK TEL NO</span>
+                  <div key={person.id} className="group relative bg-slate-900/40 hover:bg-slate-900/60 p-5 rounded-[2.5rem] border border-white/5 transition-all hover:border-blue-500/30 hover:translate-x-1">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                      <div className="flex gap-5 items-center">
+                        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-inner ${person.geldi_mi ? 'bg-emerald-600/20 text-emerald-500' : 'bg-slate-800 text-slate-600'}`}>
+                          <UserCheck size={28} />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2 mb-1">
+                            <h3 className="font-bold text-lg tracking-tight">{person.ad_soyad}</h3>
+                            {person.geldi_mi && <div className="p-1 bg-emerald-500 rounded-full"><CheckCircle size={10} className="text-white"/></div>}
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                             <span className="flex items-center gap-1 text-[10px] bg-slate-950 border border-white/5 p-1 px-2 rounded-lg text-slate-400 font-bold uppercase tracking-wider">
+                               <Smartphone size={10}/> {person.telefon}
+                             </span>
+                             {person.email && (
+                               <span className="flex items-center gap-1 text-[10px] bg-slate-950 border border-white/5 p-1 px-2 rounded-lg text-slate-400 font-bold lowercase tracking-wider">
+                                 <Mail size={10}/> {person.email}
+                               </span>
+                             )}
+                             {person.okul && (
+                               <span className="flex items-center gap-1 text-[10px] bg-blue-600/10 border border-blue-500/20 p-1 px-2 rounded-lg text-blue-400 font-bold uppercase tracking-wider">
+                                 <School size={10}/> {person.okul}
+                               </span>
+                             )}
+                          </div>
+                          
+                          <div className="mt-3 flex gap-2">
+                            <div className={`text-[9px] font-black px-2 py-1 rounded-md uppercase tracking-tighter ${biletOnayli ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'}`}>
+                              {biletOnayli ? 'Bilet Onaylı' : 'Ödeme Bekliyor'}
                             </div>
-                          )}
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          <span className={`text-[9px] font-bold px-2 py-1 rounded-md border ${person.geldi_mi ? 'bg-emerald-500 text-white' : 'bg-slate-800 text-slate-500 border-white/5'}`}>{person.geldi_mi ? 'İÇERİDE' : 'GELMEDİ'}</span>
-                          <span className={`text-[9px] font-bold px-2 py-1 rounded-md border ${person.bilet_alindi_mi ? 'bg-blue-500 text-white border-blue-500' : 'bg-amber-500/10 text-amber-500 border-amber-500/20'}`}>{person.bilet_alindi_mi ? 'BİLET ALINDI' : 'BİLET ALINMADI'}</span>
-                          {/* YENİ: Koltuk No Sadece Slot Ayarı Açıksa Gözükür */}
-                          {currentSlotSettings?.has_seating && person.koltuk_no && (
-                            <span className="text-[9px] font-bold px-2 py-1 rounded-md border bg-slate-800 text-blue-300 border-white/10 flex items-center gap-1">
-                              <Armchair size={10} /> {person.koltuk_no}
-                            </span>
-                          )}
-                        </div>
-                        
-                        {/* YENİ: KAYIT BİLGİLERİ ALANI */}
-                        <div className="flex flex-col gap-1 mt-2">
-                          <p className={`text-[10px] flex items-center gap-1 ${isDuplicate ? 'text-amber-400 font-bold' : 'text-slate-500'}`}>
-                            TEL: {person.telefon}
-                          </p>
-                          {person.email && <p className="text-[10px] text-slate-400 flex items-center gap-1"><Mail size={10} /> EMAİL: {person.email}</p>}
-                          {person.okul && <p className="text-[10px] text-slate-400 flex items-center gap-1"><School size={10} /> OKUL: {person.okul}</p>}
-                          {person.referans && <p className="text-[10px] text-slate-400 flex items-center gap-1"><Users size={10} /> REF: {person.referans}</p>}
-                          <p className="text-[8px] text-slate-600 font-mono mt-1">ID: {person.id} | Slot: {person.etkinlik_id}</p>
+                            {person.koltuk_numarasi && (
+                              <div className="text-[9px] font-black px-2 py-1 rounded-md bg-blue-500 text-white uppercase tracking-tighter flex items-center gap-1">
+                                <Armchair size={8}/> {person.koltuk_numarasi}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
-                      <div className="flex flex-col gap-2">
-                        
-                        {/* YENİ: DEKONT VE ONAY BUTONLARI */}
-                        {person.dekont_url && (
-                          <button onClick={() => setShowDekontModal(person.dekont_url)} className="p-3 bg-indigo-500/10 text-indigo-400 rounded-xl border border-indigo-500/20 hover:bg-indigo-500/20 transition-all" title="Dekontu Gör">
-                            <Eye size={18} />
+
+                      <div className="flex flex-wrap gap-2 w-full md:w-auto">
+                        {dekontVar && (
+                          <button 
+                            onClick={() => setShowDekontModal(person.dekont_url)}
+                            className="flex-1 md:flex-none p-3 bg-indigo-500/10 text-indigo-400 rounded-xl border border-indigo-500/20 hover:bg-indigo-500/20 transition-all flex items-center justify-center gap-2"
+                            title="Dekontu Görüntüle"
+                          >
+                            <Eye size={18} /> <span className="md:hidden text-[10px] font-bold">DEKONT</span>
                           </button>
                         )}
+                        
                         <button 
-                          onClick={() => toggleApproval(person.id, person.bilet_alindi_mi)} 
-                          className={`p-3 rounded-xl border transition-all ${person.bilet_alindi_mi ? 'bg-rose-500/10 text-rose-500 border-rose-500/20 hover:bg-rose-500/20' : 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20 hover:bg-emerald-500/20'}`}
-                          title={person.bilet_alindi_mi ? "Onayı İptal Et" : "Bileti Onayla"}
+                          onClick={() => toggleTicket(person.id, biletOnayli)}
+                          className={`flex-1 md:flex-none p-3 rounded-xl border transition-all flex items-center justify-center gap-2 ${biletOnayli ? 'bg-rose-500/10 text-rose-500 border-rose-500/20 hover:bg-rose-500/20' : 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20 hover:bg-emerald-500/20'}`}
+                          title={biletOnayli ? "Bileti İptal Et" : "Bileti Onayla"}
                         >
-                          {person.bilet_alindi_mi ? <XCircle size={18}/> : <UserCheck size={18}/>}
+                          {biletOnayli ? <XCircle size={18} /> : <TicketCheck size={18} />}
+                          <span className="md:hidden text-[10px] font-bold uppercase">{biletOnayli ? 'İPTAL' : 'ONAYLA'}</span>
                         </button>
 
-                        {/* ESKİ BUTONLAR AYNEN KORUNDU */}
-                        {!person.geldi_mi && (
-                          <button onClick={async () => {
-                            if(confirm(`${person.ad_soyad} girsin mi?`)) {
-                              const { error } = await supabase.from('katilimcilar').update({ geldi_mi: true }).eq('id', person.id);
-                              if (!error) setParticipants(prev => prev.map(p => p.id === person.id ? { ...p, geldi_mi: true } : p));
-                            }
-                          }} className="p-3 bg-emerald-500/10 text-emerald-400 rounded-xl border border-emerald-500/20" title="İçeri Al"><TicketCheck size={18} /></button>
-                        )}
-                        <button onClick={() => { setEditingPerson(person); setIsEditModalOpen(true); }} className="p-3 bg-blue-500/10 text-blue-400 rounded-xl border border-blue-500/20" title="Düzenle"><Edit3 size={18} /></button>
+                        <button 
+                          onClick={() => toggleArrival(person.id, person.geldi_mi)}
+                          className={`flex-1 md:flex-none p-3 rounded-xl border transition-all flex items-center justify-center gap-2 ${person.geldi_mi ? 'bg-slate-800 text-slate-400 border-white/5' : 'bg-blue-600/10 text-blue-500 border-blue-500/20 hover:bg-blue-600/20'}`}
+                          title={person.geldi_mi ? "Girişi İptal Et" : "Giriş Yapıldı İşaretle"}
+                        >
+                          <Users size={18} />
+                          <span className="md:hidden text-[10px] font-bold uppercase">{person.geldi_mi ? 'GERİ AL' : 'GELDİ'}</span>
+                        </button>
+
+                        <button 
+                          onClick={() => resetSeat(person.id)}
+                          className="flex-1 md:flex-none p-3 bg-amber-500/10 text-amber-500 rounded-xl border border-amber-500/20 hover:bg-amber-500/20 transition-all flex items-center justify-center"
+                          title="Koltuk/Durum Sıfırla"
+                        >
+                          <RefreshCcw size={18} />
+                        </button>
                         
-                        {/* Sıfırlama butonu: Slot koltukluysa koltuğu da siler, değilse sadece durumu siler */}
-                        <button onClick={() => resetSeat(person.id)} className="p-3 bg-amber-500/10 text-amber-500 rounded-xl border border-amber-500/20" title="Koltuk/Durum Sıfırla"><RefreshCcw size={18} /></button>
-                        
-                        <button onClick={() => deleteUser(person.id)} className="p-3 bg-rose-500/10 text-rose-500 rounded-xl border border-rose-500/20" title="Sil"><Trash2 size={18} /></button>
+                        <button 
+                          onClick={() => deleteUser(person.id)}
+                          className="flex-1 md:flex-none p-3 bg-rose-500/10 text-rose-500 rounded-xl border border-rose-500/20 hover:bg-rose-500/20 transition-all flex items-center justify-center"
+                          title="Sil"
+                        >
+                          <Trash2 size={18} />
+                        </button>
                       </div>
                     </div>
                   </div>
                 );
               })}
               {!loading && filteredList.length === 0 && (
-                <div className="text-center p-10 bg-slate-900/20 rounded-[2.5rem] border border-dashed border-white/5">
+                <div className="text-center p-20 bg-slate-900/20 rounded-[2.5rem] border border-dashed border-white/5">
                   <Users className="mx-auto text-slate-700 mb-4" size={48} />
-                  <p className="text-slate-500 font-bold uppercase text-xs">Bu filtreye uygun kimse yok.</p>
+                  <p className="text-slate-500 font-bold uppercase text-xs tracking-widest">Bu filtreye uygun kimse bulunamadı.</p>
                 </div>
               )}
             </div>
@@ -743,8 +637,8 @@ export default function AdminPage() {
         #reader { border: none !important; }
         .custom-scrollbar::-webkit-scrollbar { width: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); border-radius: 10px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(245, 158, 11, 0.2); border-radius: 10px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(245, 158, 11, 0.4); }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
       `}</style>
     </main>
   );
