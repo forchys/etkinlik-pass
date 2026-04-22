@@ -330,7 +330,7 @@ export default function AdminPage() {
   const deleteAllParticipants = async () => {
     const confirmText = prompt(`Slot ${selectedSlotId} içindeki tüm kayıtları silmek için ONAYLIYORUM yazın.`);
     if (confirmText === "ONAYLIYORUM") {
-      const { error } = await supabase.from('katilimcilar').delete().eq('etkinlik_id', selectedSlotId);
+      const { error } = await supabase.from('katilimcilar').delete().eq('etkinlik_id', Number(selectedSlotId));
       if (!error) fetchParticipants();
     }
   };
