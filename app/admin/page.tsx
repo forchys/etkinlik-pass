@@ -388,15 +388,16 @@ export default function AdminPage() {
   }
 
   const filteredList = participants.filter(p => {
-    const currentSlotSettings = eventSlots.find(s => s.slot_id === selectedSlotId);
     const matchesSearch = p.ad_soyad.toLowerCase().includes(searchTerm.toLowerCase()) || (p.telefon && p.telefon.includes(searchTerm));
-    const matchesArrived = filterArrived ? p.geldi_mi === true : true;
-    const matchesTicketed = filterTicketed ? p.bilet_alindi_mi === true : true;
-    const matchesNotTicketed = filterNotTicketed ? p.bilet_alindi_mi === false : true;
-    const matchesPending = filterPendingApproval ? (p.bilet_alindi_mi === false && p.dekont_url != null) : true; // YENİ ONAY BEKLEYEN FİLTRESİ
     
-    return matchesSearch && matchesArrived && matchesTicketed && matchesNotTicketed && matchesPending;
-  });
+    // Eğer hiçbir filtre seçili değilse herkesi göster, seçiliyse sadece o şartı göster
+    if (filterPendingApproval && !(p.bilet_alindi_mi === false && p.dekont_url != null)) return false;
+    if (filterArrived && !p.geldi_mi) return false;
+    if (filterTicketed && !p.bilet_alindi_mi) return false;
+    if (filterNotTicketed && p.bilet_alindi_mi) return false;
+
+    return matchesSearch;
+});
 
   // Seçili slotun koltuk ayarını bul
   const currentSlotSettings = eventSlots.find(s => s.slot_id === selectedSlotId);
