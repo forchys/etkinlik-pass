@@ -7,7 +7,8 @@ import {
   Users, CheckCircle, XCircle, Loader2, Search, X, 
   RefreshCcw, TicketCheck, Camera, ShieldCheck, AlertTriangle, 
   Settings2, Save, Trash2, Lock, UserPlus, Plus, FileUp, Edit3, Armchair,
-  Power, Film, Theater, Trophy, MapPin, Calendar, LayoutGrid, ToggleLeft, ToggleRight
+  Power, Film, Theater, Trophy, MapPin, Calendar, LayoutGrid, ToggleLeft, ToggleRight,
+  Eye, ExternalLink, Mail, School, UserCheck // YENİ EKLENEN İKONLAR
 } from 'lucide-react';
 
 export default function AdminPage() {
@@ -27,9 +28,14 @@ export default function AdminPage() {
   const [filterArrived, setFilterArrived] = useState(false);
   const [filterTicketed, setFilterTicketed] = useState(false);
   const [filterNotTicketed, setFilterNotTicketed] = useState(false);
+  const [filterPendingApproval, setFilterPendingApproval] = useState(false); // YENİ: Onay bekleyenler filtresi
+  
   const [scanStatus, setScanStatus] = useState<{status: 'idle' | 'success' | 'error' | 'warning', message: string}>({ status: 'idle', message: '' });
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingPerson, setEditingPerson] = useState<any>(null);
+
+  // --- YENİ: DEKONT GÖRÜNTÜLEME MODALI STATE'İ ---
+  const [showDekontModal, setShowDekontModal] = useState<string | null>(null);
 
   // --- UI UYARI MODALI STATE'İ ---
   const [uiWarnings, setUiWarnings] = useState<{
@@ -103,7 +109,7 @@ export default function AdminPage() {
       .from('katilimcilar')
       .select('*')
       .eq('etkinlik_id', selectedSlotId)
-      .order('ad_soyad', { ascending: true });
+      .order('created_at', { ascending: false }); // YENİ EKLENENLER ÜSTTE ÇIKSIN
     if (!error && data) setParticipants(data);
     setLoading(false);
   };
@@ -273,6 +279,15 @@ export default function AdminPage() {
     proceedWithAdd();
   };
 
+  // --- YENİ: BİLET ONAYINI DEĞİŞTİRME FONKSİYONU ---
+  const toggleApproval = async (id: string, currentStatus: boolean) => {
+    const { error } = await supabase
+      .from('katilimcilar')
+      .update({ bilet_alindi_mi: !currentStatus })
+      .eq('id', id);
+    if (!error) fetchParticipants();
+  };
+
   useEffect(() => {
     const authStatus = localStorage.getItem('flick_admin_auth');
     if (authStatus === 'true') setIsAuthenticated(true);
@@ -378,7 +393,9 @@ export default function AdminPage() {
     const matchesArrived = filterArrived ? p.geldi_mi === true : true;
     const matchesTicketed = filterTicketed ? p.bilet_alindi_mi === true : true;
     const matchesNotTicketed = filterNotTicketed ? p.bilet_alindi_mi === false : true;
-    return matchesSearch && matchesArrived && matchesTicketed && matchesNotTicketed;
+    const matchesPending = filterPendingApproval ? (p.bilet_alindi_mi === false && p.dekont_url != null) : true; // YENİ ONAY BEKLEYEN FİLTRESİ
+    
+    return matchesSearch && matchesArrived && matchesTicketed && matchesNotTicketed && matchesPending;
   });
 
   // Seçili slotun koltuk ayarını bul
@@ -387,6 +404,26 @@ export default function AdminPage() {
   return (
     <main className="min-h-screen bg-[#020617] text-white p-4 font-sans flex flex-col items-center">
       
+      {/* YENİ: DEKONT GÖRÜNTÜLEME MODALI */}
+      {showDekontModal && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
+          <div className="relative max-w-2xl w-full bg-slate-900 rounded-[2.5rem] border border-white/10 overflow-hidden shadow-2xl">
+            <div className="p-6 border-b border-white/5 flex justify-between items-center bg-slate-900/50">
+              <h3 className="font-black uppercase tracking-widest text-sm text-white">Ödeme Dekontu</h3>
+              <button onClick={() => setShowDekontModal(null)} className="p-2 hover:bg-white/10 rounded-full transition-all text-white"><X size={24}/></button>
+            </div>
+            <div className="p-4 bg-black/40 flex justify-center">
+              <img src={showDekontModal} alt="Dekont" className="max-h-[60vh] object-contain rounded-xl shadow-lg" />
+            </div>
+            <div className="p-6 bg-slate-900/80 flex gap-4">
+               <a href={showDekontModal} target="_blank" rel="noreferrer" className="flex-1 bg-white/5 hover:bg-white/10 text-white p-4 rounded-2xl font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2 border border-white/10 transition-all">
+                 <ExternalLink size={18}/> Tam Boyut Gör
+               </a>
+            </div>
+          </div>
+        </div>
+      )}
+
       {isSettingsOpen && (
         <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/90 backdrop-blur-xl overflow-y-auto">
           <div className="w-full max-w-4xl bg-slate-950 border border-white/10 rounded-[3rem] p-6 my-8">
@@ -587,12 +624,16 @@ export default function AdminPage() {
                 </div>
                 <button onClick={fetchParticipants} className="bg-slate-800 p-3 rounded-xl text-white"><RefreshCcw size={20} /></button>
               </div>
-              <div className="flex gap-2">
-                <button onClick={() => setFilterArrived(!filterArrived)} className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-[10px] font-bold border transition-all ${filterArrived ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-slate-950 border-white/5 text-slate-500'}`}><CheckCircle size={14} /> GELENLER</button>
-                <button onClick={() => setFilterTicketed(!filterTicketed)} className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-[10px] font-bold border transition-all ${filterTicketed ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-950 border-white/5 text-slate-500'}`}><TicketCheck size={14} /> BİLET ALANLAR</button>
-                <button onClick={() => setFilterNotTicketed(!filterNotTicketed)} className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-[10px] font-bold border transition-all ${filterNotTicketed ? 'bg-amber-600 border-amber-500 text-white' : 'bg-slate-950 border-white/5 text-slate-500'}`}><XCircle size={14} /> BİLET ALMAYANLAR</button>
+              
+              {/* FİLTRELER KISMI GÜNCELLENDİ (flex-wrap eklendi) */}
+              <div className="flex flex-wrap gap-2">
+                <button onClick={() => setFilterPendingApproval(!filterPendingApproval)} className={`flex-1 min-w-[120px] flex items-center justify-center gap-2 py-2 rounded-xl text-[10px] font-bold border transition-all ${filterPendingApproval ? 'bg-amber-600 border-amber-500 text-white' : 'bg-slate-950 border-white/5 text-slate-500'}`}><UserCheck size={14} /> ONAY BEKLEYENLER</button>
+                <button onClick={() => setFilterArrived(!filterArrived)} className={`flex-1 min-w-[120px] flex items-center justify-center gap-2 py-2 rounded-xl text-[10px] font-bold border transition-all ${filterArrived ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-slate-950 border-white/5 text-slate-500'}`}><CheckCircle size={14} /> GELENLER</button>
+                <button onClick={() => setFilterTicketed(!filterTicketed)} className={`flex-1 min-w-[120px] flex items-center justify-center gap-2 py-2 rounded-xl text-[10px] font-bold border transition-all ${filterTicketed ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-950 border-white/5 text-slate-500'}`}><TicketCheck size={14} /> BİLET ALANLAR</button>
+                <button onClick={() => setFilterNotTicketed(!filterNotTicketed)} className={`flex-1 min-w-[120px] flex items-center justify-center gap-2 py-2 rounded-xl text-[10px] font-bold border transition-all ${filterNotTicketed ? 'bg-rose-600 border-rose-500 text-white' : 'bg-slate-950 border-white/5 text-slate-500'}`}><XCircle size={14} /> BİLET ALMAYANLAR</button>
               </div>
             </div>
+            
             <button onClick={deleteAllParticipants} className="w-full bg-rose-500/10 border border-rose-500/20 text-rose-500 p-4 rounded-2xl font-bold uppercase text-[10px] tracking-[0.2em] flex items-center justify-center gap-2"><Trash2 size={16} /> Slot {selectedSlotId} Listesini Sil</button>
             <div className="space-y-3 pb-10">
               {loading ? (
@@ -623,26 +664,49 @@ export default function AdminPage() {
                             </span>
                           )}
                         </div>
+                        
+                        {/* YENİ: KAYIT BİLGİLERİ ALANI */}
                         <div className="flex flex-col gap-1 mt-2">
-                          <p className={`text-[10px] ${isDuplicate ? 'text-amber-400 font-bold' : 'text-slate-500'}`}>TEL: {person.telefon}</p>
-                          <p className="text-[8px] text-slate-600 font-mono">ID: {person.id} | Slot: {person.etkinlik_id}</p>
+                          <p className={`text-[10px] flex items-center gap-1 ${isDuplicate ? 'text-amber-400 font-bold' : 'text-slate-500'}`}>
+                            TEL: {person.telefon}
+                          </p>
+                          {person.email && <p className="text-[10px] text-slate-400 flex items-center gap-1"><Mail size={10} /> EMAİL: {person.email}</p>}
+                          {person.okul && <p className="text-[10px] text-slate-400 flex items-center gap-1"><School size={10} /> OKUL: {person.okul}</p>}
+                          {person.referans && <p className="text-[10px] text-slate-400 flex items-center gap-1"><Users size={10} /> REF: {person.referans}</p>}
+                          <p className="text-[8px] text-slate-600 font-mono mt-1">ID: {person.id} | Slot: {person.etkinlik_id}</p>
                         </div>
                       </div>
                       <div className="flex flex-col gap-2">
+                        
+                        {/* YENİ: DEKONT VE ONAY BUTONLARI */}
+                        {person.dekont_url && (
+                          <button onClick={() => setShowDekontModal(person.dekont_url)} className="p-3 bg-indigo-500/10 text-indigo-400 rounded-xl border border-indigo-500/20 hover:bg-indigo-500/20 transition-all" title="Dekontu Gör">
+                            <Eye size={18} />
+                          </button>
+                        )}
+                        <button 
+                          onClick={() => toggleApproval(person.id, person.bilet_alindi_mi)} 
+                          className={`p-3 rounded-xl border transition-all ${person.bilet_alindi_mi ? 'bg-rose-500/10 text-rose-500 border-rose-500/20 hover:bg-rose-500/20' : 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20 hover:bg-emerald-500/20'}`}
+                          title={person.bilet_alindi_mi ? "Onayı İptal Et" : "Bileti Onayla"}
+                        >
+                          {person.bilet_alindi_mi ? <XCircle size={18}/> : <UserCheck size={18}/>}
+                        </button>
+
+                        {/* ESKİ BUTONLAR AYNEN KORUNDU */}
                         {!person.geldi_mi && (
                           <button onClick={async () => {
                             if(confirm(`${person.ad_soyad} girsin mi?`)) {
                               const { error } = await supabase.from('katilimcilar').update({ geldi_mi: true }).eq('id', person.id);
                               if (!error) setParticipants(prev => prev.map(p => p.id === person.id ? { ...p, geldi_mi: true } : p));
                             }
-                          }} className="p-3 bg-emerald-500/10 text-emerald-400 rounded-xl border border-emerald-500/20"><TicketCheck size={18} /></button>
+                          }} className="p-3 bg-emerald-500/10 text-emerald-400 rounded-xl border border-emerald-500/20" title="İçeri Al"><TicketCheck size={18} /></button>
                         )}
-                        <button onClick={() => { setEditingPerson(person); setIsEditModalOpen(true); }} className="p-3 bg-blue-500/10 text-blue-400 rounded-xl border border-blue-500/20"><Edit3 size={18} /></button>
+                        <button onClick={() => { setEditingPerson(person); setIsEditModalOpen(true); }} className="p-3 bg-blue-500/10 text-blue-400 rounded-xl border border-blue-500/20" title="Düzenle"><Edit3 size={18} /></button>
                         
                         {/* Sıfırlama butonu: Slot koltukluysa koltuğu da siler, değilse sadece durumu siler */}
-                        <button onClick={() => resetSeat(person.id)} className="p-3 bg-amber-500/10 text-amber-500 rounded-xl border border-amber-500/20"><RefreshCcw size={18} /></button>
+                        <button onClick={() => resetSeat(person.id)} className="p-3 bg-amber-500/10 text-amber-500 rounded-xl border border-amber-500/20" title="Koltuk/Durum Sıfırla"><RefreshCcw size={18} /></button>
                         
-                        <button onClick={() => deleteUser(person.id)} className="p-3 bg-rose-500/10 text-rose-500 rounded-xl border border-rose-500/20"><Trash2 size={18} /></button>
+                        <button onClick={() => deleteUser(person.id)} className="p-3 bg-rose-500/10 text-rose-500 rounded-xl border border-rose-500/20" title="Sil"><Trash2 size={18} /></button>
                       </div>
                     </div>
                   </div>
@@ -651,7 +715,7 @@ export default function AdminPage() {
               {!loading && filteredList.length === 0 && (
                 <div className="text-center p-10 bg-slate-900/20 rounded-[2.5rem] border border-dashed border-white/5">
                   <Users className="mx-auto text-slate-700 mb-4" size={48} />
-                  <p className="text-slate-500 font-bold uppercase text-xs">Bu slotta henüz kimse yok.</p>
+                  <p className="text-slate-500 font-bold uppercase text-xs">Bu filtreye uygun kimse yok.</p>
                 </div>
               )}
             </div>
@@ -670,4 +734,3 @@ export default function AdminPage() {
     </main>
   );
 }
-
