@@ -27,7 +27,7 @@ export default function AdminPage() {
 
   const [filterArrived, setFilterArrived] = useState(false);
   const [filterTicketed, setFilterTicketed] = useState(false);
-  const [filterNotTicketed, setFilterNotTicketed] = useState(false);
+  const [filterNotTicketed, setFilterNotTicketed] = useState(true);
   const [filterPendingApproval, setFilterPendingApproval] = useState(false); // YENİ: Onay bekleyenler filtresi
   
   const [scanStatus, setScanStatus] = useState<{status: 'idle' | 'success' | 'error' | 'warning', message: string}>({ status: 'idle', message: '' });
