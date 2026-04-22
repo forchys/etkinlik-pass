@@ -7,7 +7,7 @@ import {
   Ticket, Download, Search, Smartphone, User, CheckCircle2, 
   Loader2, AlertCircle, MapPin, CalendarDays, Presentation, 
   Clock, HelpCircle, Film, Theater, ChevronRight, Sparkles, ArrowLeft,
-  Users, Trophy, Armchair
+  Users, Trophy, Armchair, Upload, MessageCircle, ArrowRight, UserPlus
 } from 'lucide-react';
 
 const ChairSVG = ({ className }: { className?: string }) => (
@@ -44,7 +44,24 @@ export default function Home() {
   const confirmButtonRef = useRef<HTMLButtonElement>(null);
   const [timeLeft, setTimeLeft] = useState(60);
 
+  // --- YENİ KAYIT SİSTEMİ STATE'LERİ ---
+  const [regEmail, setRegEmail] = useState("");
+  const [regOkul, setRegOkul] = useState("");
+  const [regReferans, setRegReferans] = useState("");
+  const [dekontFile, setDekontFile] = useState<File | null>(null);
+  const [wpClicked, setWpClicked] = useState(false);
+  const [countdown, setCountdown] = useState(0);
+  const [registerSuccess, setRegisterSuccess] = useState(false);
+
   const rows = ['N', 'M', 'L', 'K', 'J', 'I', 'H', 'G', 'F', 'E', 'D', 'C', 'B', 'A'];
+
+  // --- YENİ KAYIT SİSTEMİ EFEKTİ (SAYAÇ) ---
+  useEffect(() => {
+    if (countdown > 0) {
+      const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [countdown]);
 
   useEffect(() => {
     window.history.pushState({ step }, `Step ${step}`);
@@ -260,6 +277,58 @@ export default function Home() {
     doc.save(`${userDisplayName}_Flick_Bilet.pdf`);
   };
 
+  // --- YENİ KAYIT SİSTEMİ FONKSİYONLARI ---
+  const handleWpClick = () => {
+    window.open("https://chat.whatsapp.com/DAVET_LINKINIZ", "_blank"); // Kendi wp linkinizi buraya ekleyin
+    setWpClicked(true);
+    setCountdown(3);
+  };
+
+  const handleRegisterSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!dekontFile) return setError("Lütfen ödeme dekontunu yükleyin!");
+    setLoading(true);
+    setError("");
+
+    try {
+      const fileExt = dekontFile.name.split('.').pop();
+      const fileName = `${Math.random()}-${Date.now()}.${fileExt}`;
+      const filePath = `dekontlar/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('dekontlar')
+        .upload(filePath, dekontFile);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('dekontlar')
+        .getPublicUrl(filePath);
+
+      const { error: insertError } = await supabase
+        .from('katilimcilar')
+        .insert([{
+          ad_soyad: adSoyad.trim(), 
+          telefon: telefon.trim(),
+          email: regEmail.trim(),
+          okul: regOkul.trim(),
+          referans: regReferans.trim(),
+          etkinlik_id: selectedEvent.id,
+          dekont_url: publicUrl,
+          qr_kodu: crypto.randomUUID(),
+          geldi_mi: false,
+          bilet_alindi_mi: false
+        }]);
+
+      if (insertError) throw insertError;
+      setRegisterSuccess(true);
+    } catch (err: any) {
+      setError("Kayıt işlemi başarısız: " + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <main className="min-h-screen bg-[#020617] text-slate-200 p-6 flex flex-col items-center justify-start font-sans overflow-x-hidden relative">
       
@@ -386,7 +455,7 @@ export default function Home() {
                 <form onSubmit={handleSubmit} className="space-y-6">
                   <div className="relative group">
                     <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-blue-500 transition-colors" size={20} />
-                    <input required type="text" placeholder="Ad ve Soyad" className="w-full bg-slate-950/50 border border-slate-800 p-4 pl-12 rounded-2xl text-white outline-none focus:border-blue-500/50 focus:ring-4 focus:ring-blue-500/5 transition-all" onChange={(e) => setAdSoyad(e.target.value)} />
+                    <input required type="text" placeholder="Ad ve Soyad" className="w-full bg-slate-950/50 border border-slate-800 p-4 pl-12 rounded-2xl text-white outline-none focus:border-blue-500/50 focus:ring-4 focus:ring-blue-500/5 transition-all" value={adSoyad} onChange={(e) => setAdSoyad(e.target.value)} />
                   </div>
                   <div className="relative group">
                     <Smartphone className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-blue-500 transition-colors" size={20} />
@@ -426,6 +495,19 @@ export default function Home() {
                       <p className="text-xs font-bold">{error}</p>
                     </div>
                   )}
+
+                  {/* YENİ KAYIT BUTONU ALANI */}
+                  <div className="mt-8 text-center border-t border-white/10 pt-8 pb-2">
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-3">Henüz Kaydolmadınız Mı?</p>
+                    <button 
+                      type="button" 
+                      onClick={() => { setStep(4); setRegisterSuccess(false); setError(""); }}
+                      className="w-full text-xs font-black tracking-widest text-emerald-400 uppercase bg-emerald-500/10 p-4 rounded-2xl border border-emerald-500/20 hover:bg-emerald-500/20 transition-all"
+                    >
+                      YENİ KAYIT OLUŞTUR
+                    </button>
+                  </div>
+
                 </form>
               </div>
             )}
@@ -500,6 +582,94 @@ export default function Home() {
                 </button>
               </div>
             )}
+
+            {/* YENİ KAYIT EKRANI (STEP 4) */}
+            {step === 4 && !registerSuccess && (
+              <div className="view-transition max-w-md mx-auto pb-4">
+                <button onClick={() => { setStep(1); setError(""); }} className="flex items-center gap-2 text-slate-500 font-bold text-[10px] uppercase tracking-widest mb-6 hover:text-white transition-colors">
+                  <ArrowLeft size={14} /> BİLET EKRANINA DÖN
+                </button>
+                
+                <div className="flex flex-col items-center mb-8 text-center">
+                  <div className="w-16 h-16 bg-gradient-to-br from-emerald-500/20 to-teal-600/20 rounded-2xl flex items-center justify-center mb-6 border border-white/10 shadow-xl">
+                    <UserPlus size={32} className="text-emerald-500" />
+                  </div>
+                  <h1 className="text-3xl font-black tracking-tighter bg-gradient-to-b from-white to-slate-500 bg-clip-text text-transparent uppercase">YENİ KAYIT</h1>
+                </div>
+
+                <form onSubmit={handleRegisterSubmit} className="space-y-4">
+                  <input required type="text" placeholder="Ad ve Soyad" className="w-full bg-slate-950/50 border border-slate-800 p-4 rounded-2xl text-white outline-none focus:border-emerald-500/50 transition-all" value={adSoyad} onChange={(e) => setAdSoyad(e.target.value)} />
+                  
+                  <div className="grid grid-cols-2 gap-3">
+                    <input required type="tel" maxLength={10} placeholder="Telefon (5xx)" className="w-full bg-slate-950/50 border border-slate-800 p-4 rounded-2xl text-white outline-none focus:border-emerald-500/50 transition-all" value={telefon} onChange={(e) => setTelefon(e.target.value.replace(/\D/g, ""))} />
+                    <input required type="text" placeholder="Okul / Bölüm" className="w-full bg-slate-950/50 border border-slate-800 p-4 rounded-2xl text-white outline-none focus:border-emerald-500/50 transition-all" value={regOkul} onChange={(e) => setRegOkul(e.target.value)} />
+                  </div>
+
+                  <input required type="email" placeholder="E-posta Adresi" className="w-full bg-slate-950/50 border border-slate-800 p-4 rounded-2xl text-white outline-none focus:border-emerald-500/50 transition-all" value={regEmail} onChange={(e) => setRegEmail(e.target.value)} />
+                  
+                  <input type="text" placeholder="Referans (Opsiyonel)" className="w-full bg-slate-950/50 border border-slate-800 p-4 rounded-2xl text-white outline-none focus:border-emerald-500/50 transition-all" value={regReferans} onChange={(e) => setRegReferans(e.target.value)} />
+
+                  <div className="space-y-2 pt-2">
+                    <div className="flex items-center justify-between ml-2">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Ödeme Dekontu</label>
+                    </div>
+                    <div className="relative border-2 border-dashed border-slate-800 rounded-2xl p-6 text-center hover:bg-white/5 transition-all">
+                      <input required type="file" accept="image/*" capture="environment" className="absolute inset-0 opacity-0 cursor-pointer z-10" onChange={e => setDekontFile(e.target.files?.[0] || null)} />
+                      <div className="flex flex-col items-center gap-2">
+                        <Upload size={24} className={dekontFile ? "text-emerald-500" : "text-slate-500"} />
+                        <span className="text-xs font-bold text-slate-400">{dekontFile ? dekontFile.name : "GÖRSEL SEÇ VEYA ÇEK"}</span>
+                      </div>
+                    </div>
+                    <p className="text-[9px] text-slate-500 text-center font-bold">Sadece seçtiğiniz görsele erişilir, galerinize girilmez.</p>
+                  </div>
+
+                  {error && (
+                    <div className="flex items-center gap-2 text-rose-400 bg-rose-400/10 p-3 rounded-xl border border-rose-400/20">
+                      <AlertCircle size={16} />
+                      <p className="text-xs font-bold">{error}</p>
+                    </div>
+                  )}
+
+                  <div className="pt-4 space-y-3">
+                    <button 
+                      type="button" 
+                      onClick={handleWpClick}
+                      className={`w-full flex items-center justify-center gap-3 p-4 rounded-2xl font-bold transition-all ${wpClicked ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-emerald-600 text-white'}`}
+                    >
+                      <MessageCircle size={20} /> {wpClicked ? 'GRUP BAĞLANTISI AÇILDI' : 'WHATSAPP GRUBUNA KATIL'}
+                    </button>
+
+                    <button 
+                      disabled={loading || !wpClicked || countdown > 0} 
+                      type="submit" 
+                      className={`w-full p-5 rounded-2xl font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${(!wpClicked || countdown > 0) ? 'bg-slate-800 text-slate-600' : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-xl shadow-emerald-900/40'}`}
+                    >
+                      {loading ? <Loader2 className="animate-spin" /> : (countdown > 0 ? `BEKLEYİN (${countdown})` : "KAYDI TAMAMLA")}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+
+            {/* YENİ KAYIT BAŞARILI EKRANI */}
+            {step === 4 && registerSuccess && (
+              <div className="view-transition flex flex-col items-center text-center py-10">
+                <div className="bg-emerald-500/20 p-6 rounded-full mb-6">
+                  <CheckCircle2 size={80} className="text-emerald-500 animate-bounce" />
+                </div>
+                <h1 className="text-3xl font-black mb-4 uppercase text-white tracking-tighter">KAYDINIZ ALINDI!</h1>
+                <p className="text-slate-400 mb-8 max-w-xs text-sm font-medium">
+                  Ödemeniz yönetim ekibimiz tarafından onaylandıktan sonra biletinizi alabilirsiniz.
+                </p>
+                <button 
+                  onClick={() => { setStep(1); setRegisterSuccess(false); setError(""); }} 
+                  className="flex items-center gap-2 bg-blue-600 px-8 py-5 rounded-2xl font-bold uppercase tracking-widest hover:bg-blue-500 transition-all text-white shadow-xl shadow-blue-900/40"
+                >
+                  Bilet Ekranına Dön <ArrowRight size={18} />
+                </button>
+              </div>
+            )}
+            
           </div>
         </div>
       </div>
