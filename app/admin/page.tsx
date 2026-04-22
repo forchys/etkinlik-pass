@@ -104,6 +104,7 @@ export default function AdminPage() {
 
   // --- KATILIMCI ÇEKME ---
   const fetchParticipants = async () => {
+  console.log("Şu anki slot için veri çekiliyor:", selectedSlotId);
   setLoading(true);
   const { data, error } = await supabase
     .from('katilimcilar')
