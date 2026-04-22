@@ -104,15 +104,20 @@ export default function AdminPage() {
 
   // --- KATILIMCI ÇEKME ---
   const fetchParticipants = async () => {
-    setLoading(true);
-    const { data, error } = await supabase
-      .from('katilimcilar')
-      .select('*')
-      .eq('etkinlik_id', selectedSlotId)
-      .order('created_at', { ascending: false }); // YENİ EKLENENLER ÜSTTE ÇIKSIN
-    if (!error && data) setParticipants(data);
-    setLoading(false);
-  };
+  setLoading(true);
+  const { data, error } = await supabase
+    .from('katilimcilar')
+    .select('*')
+    .eq('etkinlik_id', Number(selectedSlotId)) // Sayı olduğundan emin oluyoruz
+    .order('created_at', { ascending: false });
+  
+  if (!error && data) {
+    setParticipants(data);
+  } else {
+    console.error("Veri çekme hatası:", error);
+  }
+  setLoading(false);
+};
 
   useEffect(() => {
     if (isAuthenticated) fetchParticipants();
@@ -388,15 +393,24 @@ export default function AdminPage() {
   }
 
   const filteredList = participants.filter(p => {
-    const matchesSearch = p.ad_soyad.toLowerCase().includes(searchTerm.toLowerCase()) || (p.telefon && p.telefon.includes(searchTerm));
-    
-    // Eğer hiçbir filtre seçili değilse herkesi göster, seçiliyse sadece o şartı göster
-    if (filterPendingApproval && !(p.bilet_alindi_mi === false && p.dekont_url != null)) return false;
-    if (filterArrived && !p.geldi_mi) return false;
-    if (filterTicketed && !p.bilet_alindi_mi) return false;
-    if (filterNotTicketed && p.bilet_alindi_mi) return false;
-
+  // Arama filtresi (Her zaman aktif)
+  const matchesSearch = p.ad_soyad.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                       (p.telefon && p.telefon.includes(searchTerm));
+  
+  // Eğer hiçbir filtre butonu seçili değilse, sadece arama sonucunu döndür
+  if (!filterArrived && !filterTicketed && !filterNotTicketed && !filterPendingApproval) {
     return matchesSearch;
+  }
+
+  // Filtrelerden herhangi biri seçiliyse "VEYA" mantığıyla çalıştır
+  let matchesFilter = false;
+  
+  if (filterPendingApproval && (p.bilet_alindi_mi === false && p.dekont_url != null)) matchesFilter = true;
+  if (filterArrived && p.geldi_mi === true) matchesFilter = true;
+  if (filterTicketed && p.bilet_alindi_mi === true) matchesFilter = true;
+  if (filterNotTicketed && p.bilet_alindi_mi === false) matchesFilter = true;
+
+  return matchesSearch && matchesFilter;
 });
 
   // Seçili slotun koltuk ayarını bul
