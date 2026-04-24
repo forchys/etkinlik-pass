@@ -55,6 +55,7 @@ export default function Home() {
 
   const rows = ['N', 'M', 'L', 'K', 'J', 'I', 'H', 'G', 'F', 'E', 'D', 'C', 'B', 'A'];
 
+  // --- YENİ KAYIT SİSTEMİ EFEKTİ (SAYAÇ) ---
   useEffect(() => {
     if (countdown > 0) {
       const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
@@ -197,6 +198,7 @@ export default function Home() {
       setCurrentUserData(data);
       setUserDisplayName(data.ad_soyad);
       
+      // KOLTUK KONTROLÜ VE ATLATMA MANTIĞI
       if (data.koltuk_no || selectedEvent.has_seating === false) { 
         await handleBiletVerisiniGuncelle(data); 
       } else {
@@ -277,15 +279,7 @@ export default function Home() {
 
   // --- YENİ KAYIT SİSTEMİ FONKSİYONLARI ---
   const handleWpClick = () => {
-    // YENİ EKLENEN KISIM: Veritabanındaki whatsapp linkini alıyor
-    if (!selectedEvent?.whatsapp_link) {
-      alert("Bu etkinlik için henüz bir WhatsApp davet linki atanmamış.");
-      setWpClicked(true);
-      setCountdown(3);
-      return;
-    }
-    
-    window.open(selectedEvent.whatsapp_link, "_blank"); 
+    window.open("https://chat.whatsapp.com/DAVET_LINKINIZ", "_blank"); // Kendi wp linkinizi buraya ekleyin
     setWpClicked(true);
     setCountdown(3);
   };
@@ -502,6 +496,7 @@ export default function Home() {
                     </div>
                   )}
 
+                  {/* YENİ KAYIT BUTONU ALANI */}
                   <div className="mt-8 text-center border-t border-white/10 pt-8 pb-2">
                     <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-3">Henüz Kaydolmadınız Mı?</p>
                     <button 
@@ -512,6 +507,7 @@ export default function Home() {
                       YENİ KAYIT OLUŞTUR
                     </button>
                   </div>
+
                 </form>
               </div>
             )}
@@ -587,6 +583,7 @@ export default function Home() {
               </div>
             )}
 
+            {/* YENİ KAYIT EKRANI (STEP 4) */}
             {step === 4 && !registerSuccess && (
               <div className="view-transition max-w-md mx-auto pb-4">
                 <button onClick={() => { setStep(1); setError(""); }} className="flex items-center gap-2 text-slate-500 font-bold text-[10px] uppercase tracking-widest mb-6 hover:text-white transition-colors">
@@ -654,6 +651,7 @@ export default function Home() {
               </div>
             )}
 
+            {/* YENİ KAYIT BAŞARILI EKRANI */}
             {step === 4 && registerSuccess && (
               <div className="view-transition flex flex-col items-center text-center py-10">
                 <div className="bg-emerald-500/20 p-6 rounded-full mb-6">
@@ -717,3 +715,4 @@ export default function Home() {
     </main>
   );
 }
+
