@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 
 export default function ListPage() {
-  const { participants, setParticipants, fetchParticipants, loading, selectedSlotId, eventSlots } = useAdmin();
+  const { participants, setParticipants, fetchParticipants, loading, setLoading, selectedSlotId, eventSlots } = useAdmin();
   const [searchTerm, setSearchTerm] = useState("");
   const [filterNotArrived, setFilterNotArrived] = useState(false); // filterArrived -> filterNotArrived
   const [filterTicketed, setFilterTicketed] = useState(false);
