@@ -6,7 +6,14 @@ import {
   Upload, MessageCircle, CheckCircle2, Loader2, Image as ImageIcon 
 } from 'lucide-react';
 
-export default function NewRegistration({ onSuccess }: { onSuccess: (data: any) => void }) {
+// selectedEventId prop'u eklendi
+export default function NewRegistration({ 
+  onSuccess, 
+  selectedEventId 
+}: { 
+  onSuccess: (data: any) => void,
+  selectedEventId: string 
+}) {
   const [loading, setLoading] = useState(false);
   const [waJoined, setWaJoined] = useState(false);
   const [file, setFile] = useState<File | null>(null);
@@ -43,13 +50,15 @@ export default function NewRegistration({ onSuccess }: { onSuccess: (data: any) 
 
     setLoading(true);
     try {
-      // 1. Katılımcıyı ekle (onayli_mi: false olarak)
+      // 1. Katılımcıyı ekle (etkinlik_id eklendi)
       const { data: user, error: userError } = await supabase
         .from('katilimcilar')
         .insert([{
           ...formData,
+          etkinlik_id: selectedEventId, // Seçili etkinliğe bağlar
           onayli_mi: false,
-          geldi_mi: false
+          geldi_mi: false,
+          bilet_alindi_mi: false
         }])
         .select()
         .single();
@@ -102,7 +111,7 @@ export default function NewRegistration({ onSuccess }: { onSuccess: (data: any) 
 
         {/* WhatsApp Butonu */}
         <a 
-          href="https://chat.whatsapp.com/DAVET_LINKINIZ" // BURAYA KENDİ LİNKİNİ YAPIŞTIR
+          href="https://chat.whatsapp.com/DAVET_LINKINIZ" 
           target="_blank"
           onClick={() => setWaJoined(true)}
           className={`w-full flex items-center justify-center gap-2 py-4 rounded-2xl font-bold transition-all ${waJoined ? 'bg-emerald-500/20 text-emerald-500 border border-emerald-500/50' : 'bg-[#25D366] text-white'}`}
