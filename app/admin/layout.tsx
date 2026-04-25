@@ -219,6 +219,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <Link href="/admin/add" className={`${pathname === '/admin/add' ? 'bg-emerald-600' : 'bg-slate-800'} p-3 rounded-2xl`}><Plus size={22} /></Link>
             <Link href="/admin/list" className={`${pathname === '/admin/list' ? 'bg-blue-600' : 'bg-slate-800'} p-3 rounded-2xl relative`}><Users size={22} /></Link>
             <Link href="/admin/scanner" className={`${pathname === '/admin/scanner' ? 'bg-blue-600' : 'bg-slate-800'} p-3 rounded-2xl`}><Camera size={22} /></Link>
+            <Link href="/admin/pending" className="p-4 hover:bg-white/5 rounded-2xl transition-all flex flex-col items-center gap-1"><ShieldCheck size={20} className="text-amber-500" /><span className="text-[10px] font-bold uppercase tracking-widest">BEKLEYEN</span></Link>
           </div>
         </div>
 
