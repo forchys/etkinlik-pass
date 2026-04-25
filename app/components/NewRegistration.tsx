@@ -93,6 +93,21 @@ export default function NewRegistration({
     }
   };
 
+  // Telefon maskesi için yardımcı fonksiyon
+  const renderPhoneMask = () => {
+    const raw = formData.telefon.padEnd(10, 'X');
+    const part1 = raw.slice(0, 3);
+    const part2 = raw.slice(3, 6);
+    const part3 = raw.slice(6, 8);
+    const part4 = raw.slice(8, 10);
+    
+    const fullMask = `(${part1}) ${part2} ${part3} ${part4}`;
+    
+    // Yazılan karakter sayısına göre maskenin neresindeyiz?
+    // "(5XX) XXX XX XX" -> Toplam 15 karakterlik bir görünüm
+    return fullMask;
+  };
+
   return (
     <div className="bg-slate-900/60 backdrop-blur-2xl border border-white/10 p-6 rounded-[2.5rem] shadow-2xl animate-in fade-in duration-700">
       <h2 className="text-2xl font-bold mb-6 flex items-center gap-2 tracking-tighter uppercase text-white">
@@ -105,18 +120,36 @@ export default function NewRegistration({
           <InputItem icon={<User size={18}/>} placeholder="Ad Soyad" value={formData.ad_soyad} onChange={(v: any) => setFormData({...formData, ad_soyad: v})} />
           <InputItem icon={<Mail size={18}/>} placeholder="E-posta" type="email" value={formData.email} onChange={(v: any) => setFormData({...formData, email: v})} />
           
-          {/* Telefon Inputu - Sadece rakam, 5 ile başlar, 10 hane sınırı */}
-          <InputItem 
-            icon={<Smartphone size={18}/>} 
-            placeholder="5XX XXX XX XX" 
-            value={formData.telefon} 
-            onChange={(v: any) => {
-              const val = v.replace(/\D/g, ''); // Sadece rakamlar
-              if (val.length <= 10 && (val.startsWith('5') || val === '')) {
-                setFormData({...formData, telefon: val.startsWith('5') ? val : '5' + val});
-              }
-            }} 
-          />
+          {/* Telefon Inputu - Görsel Maske Eklendi */}
+          <div className="relative">
+            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 z-10">
+              <Smartphone size={18}/>
+            </div>
+            
+            {/* Maske Katmanı (Yarı saydam X'ler) */}
+            <div className="absolute inset-0 flex items-center pl-12 pr-4 pointer-events-none font-mono text-sm tracking-widest uppercase">
+              <span className="text-white opacity-0 whitespace-pre">
+                {renderPhoneMask().split('X')[0]}
+              </span>
+              <span className="text-white/20 whitespace-pre">
+                {renderPhoneMask().includes('X') ? 'X' + renderPhoneMask().split(/X(.*)/s)[1] : ''}
+              </span>
+            </div>
+
+            <input
+              required
+              type="tel"
+              value={formData.telefon}
+              onChange={(e: any) => {
+                const val = e.target.value.replace(/\D/g, '');
+                if (val.length <= 10 && (val.startsWith('5') || val === '')) {
+                  setFormData({...formData, telefon: val.startsWith('5') ? val : (val === '' ? '5' : '5' + val)});
+                }
+              }}
+              className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-white focus:ring-2 focus:ring-blue-500/50 outline-none font-mono text-sm tracking-widest relative z-0 bg-transparent"
+              placeholder="(5XX) XXX XX XX"
+            />
+          </div>
 
           <InputItem icon={<School size={18}/>} placeholder="Okul / Bölüm" value={formData.okul} onChange={(v: any) => setFormData({...formData, okul: v})} />
           <InputItem icon={<Users size={18}/>} placeholder="Referans (Varsa)" value={formData.referans} onChange={(v: any) => setFormData({...formData, referans: v})} />
