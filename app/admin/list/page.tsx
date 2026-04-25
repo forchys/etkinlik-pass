@@ -52,11 +52,16 @@ export default function ListPage() {
   };
 
   const filteredList = participants.filter((p: any) => {
+    // YENİLİK: Sadece onaylı olanları bu listede göster
+    const isApproved = p.onayli_mi === true;
+    
     const matchesSearch = p.ad_soyad.toLowerCase().includes(searchTerm.toLowerCase()) || (p.telefon && p.telefon.includes(searchTerm));
     const matchesArrived = filterArrived ? p.geldi_mi === true : true;
     const matchesTicketed = filterTicketed ? p.bilet_alindi_mi === true : true;
     const matchesNotTicketed = filterNotTicketed ? p.bilet_alindi_mi === false : true;
-    return matchesSearch && matchesArrived && matchesTicketed && matchesNotTicketed;
+    
+    // isApproved şartı eklendi
+    return isApproved && matchesSearch && matchesArrived && matchesTicketed && matchesNotTicketed;
   });
 
   const currentSlotSettings = eventSlots.find((s: any) => s.slot_id === selectedSlotId);
