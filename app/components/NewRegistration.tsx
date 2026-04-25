@@ -90,7 +90,7 @@ export default function NewRegistration({
   // Telefon formatlayıcı fonksiyon
   const formatPhoneDisplay = (val: string) => {
     const s = val.padEnd(10, 'X');
-    return `(${s.slice(0, 3)}) ${s.slice(3, 6)} ${s.slice(6, 8)} ${s.slice(8, 10)}`;
+    return ` (${s.slice(0, 3)}) ${s.slice(3, 6)} ${s.slice(6, 8)} ${s.slice(8, 10)}`;
   };
 
   return (
@@ -148,7 +148,7 @@ export default function NewRegistration({
             </div>
             <p className="text-[10px] text-slate-500 flex items-center gap-1">
               <ShieldCheck size={12} className="text-emerald-500" /> 
-              KVKK uyarınca verileriniz güvenli sunucularda saklanır.
+              Dekont üzerindeki verilerinize yalnızca topluluk yönetimi erişebilir.
             </p>
           </div>
         </div>
