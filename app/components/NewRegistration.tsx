@@ -50,13 +50,13 @@ export default function NewRegistration({
 
     setLoading(true);
     try {
-      // 1. Katılımcıyı ekle (etkinlik_id eklendi)
+      // 1. Katılımcıyı ekle (etkinlik_id ve onayli_mi: false eklendi)
       const { data: user, error: userError } = await supabase
         .from('katilimcilar')
         .insert([{
           ...formData,
           etkinlik_id: selectedEventId, // Seçili etkinliğe bağlar
-          onayli_mi: false,
+          onayli_mi: false,             // Pending sekmesine düşmesini sağlar
           geldi_mi: false,
           bilet_alindi_mi: false
         }])
