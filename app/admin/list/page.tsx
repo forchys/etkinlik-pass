@@ -10,7 +10,7 @@ import {
 export default function ListPage() {
   const { participants, setParticipants, fetchParticipants, loading, selectedSlotId, eventSlots } = useAdmin();
   const [searchTerm, setSearchTerm] = useState("");
-  const [filterArrived, setFilterArrived] = useState(false);
+  const [filterNotArrived, setFilterNotArrived] = useState(false); // filterArrived -> filterNotArrived
   const [filterTicketed, setFilterTicketed] = useState(false);
   const [filterNotTicketed, setFilterNotTicketed] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -52,16 +52,17 @@ export default function ListPage() {
   };
 
   const filteredList = participants.filter((p: any) => {
-    // YENİLİK: Sadece onaylı olanları bu listede göster
     const isApproved = p.onayli_mi === true;
     
     const matchesSearch = p.ad_soyad.toLowerCase().includes(searchTerm.toLowerCase()) || (p.telefon && p.telefon.includes(searchTerm));
-    const matchesArrived = filterArrived ? p.geldi_mi === true : true;
+    
+    // REVİZE: Gelmeyenler filtresi (geldi_mi: false olanları gösterir)
+    const matchesNotArrived = filterNotArrived ? p.geldi_mi === false : true;
+    
     const matchesTicketed = filterTicketed ? p.bilet_alindi_mi === true : true;
     const matchesNotTicketed = filterNotTicketed ? p.bilet_alindi_mi === false : true;
     
-    // isApproved şartı eklendi
-    return isApproved && matchesSearch && matchesArrived && matchesTicketed && matchesNotTicketed;
+    return isApproved && matchesSearch && matchesNotArrived && matchesTicketed && matchesNotTicketed;
   });
 
   const currentSlotSettings = eventSlots.find((s: any) => s.slot_id === selectedSlotId);
@@ -93,7 +94,9 @@ export default function ListPage() {
           <button onClick={fetchParticipants} className="bg-slate-800 p-3 rounded-xl text-white"><RefreshCcw size={20} /></button>
         </div>
         <div className="flex gap-2">
-          <button onClick={() => setFilterArrived(!filterArrived)} className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-[10px] font-bold border transition-all ${filterArrived ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-slate-950 border-white/5 text-slate-500'}`}><CheckCircle size={14} /> GELENLER</button>
+          {/* REVİZE: GELMEYENLER BUTONU */}
+          <button onClick={() => setFilterNotArrived(!filterNotArrived)} className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-[10px] font-bold border transition-all ${filterNotArrived ? 'bg-rose-600 border-rose-500 text-white' : 'bg-slate-950 border-white/5 text-slate-500'}`}><XCircle size={14} /> GELMEYENLER</button>
+          
           <button onClick={() => setFilterTicketed(!filterTicketed)} className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-[10px] font-bold border transition-all ${filterTicketed ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-950 border-white/5 text-slate-500'}`}><TicketCheck size={14} /> BİLET ALANLAR</button>
           <button onClick={() => setFilterNotTicketed(!filterNotTicketed)} className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-[10px] font-bold border transition-all ${filterNotTicketed ? 'bg-amber-600 border-amber-500 text-white' : 'bg-slate-950 border-white/5 text-slate-500'}`}><XCircle size={14} /> BİLET ALMAYANLAR</button>
         </div>
@@ -152,7 +155,7 @@ export default function ListPage() {
         {!loading && filteredList.length === 0 && (
           <div className="text-center p-10 bg-slate-900/20 rounded-[2.5rem] border border-dashed border-white/5">
             <Users className="mx-auto text-slate-700 mb-4" size={48} />
-            <p className="text-slate-500 font-bold uppercase text-xs">Bu slotta henüz kimse yok.</p>
+            <p className="text-slate-500 font-bold uppercase text-xs">Arama kriterlerine uygun kimse yok.</p>
           </div>
         )}
       </div>
