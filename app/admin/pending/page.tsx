@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { 
-  UserCheck, XCircle, RefreshCcw, Loader2, Clock, Check 
+  UserCheck, XCircle, RefreshCcw, Loader2, Clock, Check, ImageIcon 
 } from 'lucide-react';
 
 export default function PendingParticipantsPage() {
@@ -36,6 +36,8 @@ export default function PendingParticipantsPage() {
       // Listeden kaldır (çünkü artık onaylı)
       setParticipants(prev => prev.filter(p => p.id !== id));
       alert("Katılımcı başarıyla onaylandı!");
+    } else {
+      alert("Hata: " + error.message);
     }
   }
 
@@ -61,13 +63,25 @@ export default function PendingParticipantsPage() {
           </div>
         ) : participants.map((person) => (
           <div key={person.id} className="bg-slate-900/40 border border-white/5 p-5 rounded-3xl flex justify-between items-center backdrop-blur-sm">
-            <div>
+            <div className="space-y-1">
               <div className="flex items-center gap-2 mb-1">
                 <Clock size={14} className="text-amber-500" />
                 <h3 className="font-bold text-lg">{person.ad_soyad}</h3>
               </div>
               <p className="text-sm text-slate-400">{person.telefon}</p>
-              <p className="text-[10px] text-slate-500 mt-2 uppercase">Slot ID: {person.slot_id || 'Belirtilmemiş'}</p>
+              <p className="text-[10px] text-slate-500 uppercase font-mono">ID: {person.id} | Slot: {person.etkinlik_id || person.slot_id || 'Belirtilmemiş'}</p>
+              
+              {/* Dekont Görüntüleme Yeniliği */}
+              {person.dekont_url && (
+                <a 
+                  href={person.dekont_url} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 text-blue-400 text-[10px] font-bold hover:underline mt-2 pt-1 border-t border-white/5 w-fit"
+                >
+                  <ImageIcon size={12} /> DEKONTU GÖRÜNTÜLE
+                </a>
+              )}
             </div>
             
             <button 
