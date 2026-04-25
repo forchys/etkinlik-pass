@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { 
   User, Smartphone, Mail, School, Users, 
-  Upload, MessageCircle, CheckCircle2, Loader2, Image as ImageIcon, ShieldCheck 
+  MessageCircle, CheckCircle2, Loader2, Image as ImageIcon, ShieldCheck, KeyRound, Send 
 } from 'lucide-react';
 
 export default function NewRegistration({ 
@@ -20,6 +20,12 @@ export default function NewRegistration({
   const [countdown, setCountdown] = useState(0); 
   const [file, setFile] = useState<File | null>(null);
   
+  // --- E-posta Doğrulama State'leri ---
+  const [emailSent, setEmailSent] = useState(false);
+  const [emailVerified, setEmailVerified] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
+  const [verifyingEmail, setVerifyingEmail] = useState(false);
+  
   const [formData, setFormData] = useState({
     ad_soyad: '',
     email: '',
@@ -35,6 +41,44 @@ export default function NewRegistration({
     }
     return () => clearTimeout(timer);
   }, [countdown]);
+
+  // E-posta'ya kod gönderme fonksiyonu
+  const handleSendOTP = async () => {
+    if (!formData.email.includes('@')) return alert("Lütfen geçerli bir e-posta giriniz!");
+    setVerifyingEmail(true);
+    try {
+      const { error } = await supabase.auth.signInWithOtp({
+        email: formData.email,
+        options: { shouldCreateUser: false }
+      });
+      if (error) throw error;
+      setEmailSent(true);
+      alert("Doğrulama kodu gönderildi!");
+    } catch (error: any) {
+      alert("Hata: " + error.message);
+    } finally {
+      setVerifyingEmail(false);
+    }
+  };
+
+  // Kodu doğrulama fonksiyonu
+  const handleVerifyOTP = async () => {
+    if (otpCode.length < 6) return alert("Lütfen 6 haneli kodu giriniz!");
+    setVerifyingEmail(true);
+    try {
+      const { error } = await supabase.auth.verifyOtp({
+        email: formData.email,
+        token: otpCode,
+        type: 'signup' // Duruma göre 'magiclink' olarak da değişebilir
+      });
+      if (error) throw error;
+      setEmailVerified(true);
+    } catch (error: any) {
+      alert("Kod hatalı veya süresi dolmuş!");
+    } finally {
+      setVerifyingEmail(false);
+    }
+  };
 
   const handleFileUpload = async (userId: string) => {
     if (!file) return null;
@@ -53,6 +97,7 @@ export default function NewRegistration({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!emailVerified) return alert("Lütfen önce e-posta adresinizi doğrulayın!");
     if (!waJoined || countdown > 0) return alert("Lütfen önce WhatsApp grubuna katılın ve doğrulamanın bitmesini bekleyin!");
     if (formData.telefon.length !== 10) return alert("Telefon numarası 10 hane olmalıdır!");
     if (!file) return alert("Lütfen ödeme dekontunu yükleyin!");
@@ -87,7 +132,6 @@ export default function NewRegistration({
     }
   };
 
-  // Telefon formatlayıcı fonksiyon
   const formatPhoneDisplay = (val: string) => {
     const s = val.padEnd(10, 'X');
     return ` (${s.slice(0, 3)}) ${s.slice(3, 6)} ${s.slice(6, 8)} ${s.slice(8, 10)}`;
@@ -102,13 +146,60 @@ export default function NewRegistration({
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="grid grid-cols-1 gap-3">
           <InputItem icon={<User size={18}/>} placeholder="Ad Soyad" value={formData.ad_soyad} onChange={(v: any) => setFormData({...formData, ad_soyad: v})} />
-          <InputItem icon={<Mail size={18}/>} placeholder="E-posta" type="email" value={formData.email} onChange={(v: any) => setFormData({...formData, email: v})} />
           
-          {/* Özel Maskeli Telefon Girişi */}
+          {/* E-posta ve Doğrulama Butonu */}
+          <div className="relative">
+            <InputItem 
+              icon={<Mail size={18}/>} 
+              placeholder="E-posta" 
+              type="email" 
+              disabled={emailVerified}
+              value={formData.email} 
+              onChange={(v: any) => setFormData({...formData, email: v})} 
+            />
+            {!emailVerified && (
+              <button 
+                type="button"
+                onClick={handleSendOTP}
+                disabled={verifyingEmail}
+                className="absolute right-2 top-1/2 -translate-y-1/2 bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-bold py-2 px-3 rounded-xl transition-all disabled:opacity-30"
+              >
+                {verifyingEmail ? <Loader2 size={14} className="animate-spin" /> : (emailSent ? "TEKRAR GÖNDER" : "KOD GÖNDER")}
+              </button>
+            )}
+            {emailVerified && (
+              <div className="absolute right-4 top-1/2 -translate-y-1/2 text-emerald-500 flex items-center gap-1 font-bold text-[10px]">
+                <CheckCircle2 size={16} /> DOĞRULANDI
+              </div>
+            )}
+          </div>
+
+          {/* OTP Kodu Giriş Kutucuğu */}
+          {emailSent && !emailVerified && (
+            <div className="flex gap-2 animate-in slide-in-from-top-2 duration-300">
+              <div className="relative flex-1">
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500"><KeyRound size={18}/></div>
+                <input 
+                  type="text" 
+                  placeholder="6 Haneli Kod"
+                  value={otpCode}
+                  onChange={(e) => setOtpCode(e.target.value)}
+                  className="w-full bg-white/10 border border-blue-500/30 rounded-2xl py-4 pl-12 pr-4 text-white outline-none focus:ring-2 focus:ring-blue-500/50"
+                />
+              </div>
+              <button 
+                type="button"
+                onClick={handleVerifyOTP}
+                disabled={verifyingEmail}
+                className="bg-emerald-600 hover:bg-emerald-500 text-white px-6 rounded-2xl font-bold transition-all disabled:opacity-30"
+              >
+                {verifyingEmail ? <Loader2 size={18} className="animate-spin" /> : "ONAYLA"}
+              </button>
+            </div>
+          )}
+          
           <div className="relative">
             <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 z-20"><Smartphone size={18}/></div>
-            
-            {/* Görsel Katman (Yarı saydam X harfleri için) */}
             <div className="absolute inset-0 pointer-events-none flex items-center pl-12 pr-4 text-white/20 font-mono tracking-wider text-sm">
               <span className="opacity-0">{formatPhoneDisplay(formData.telefon).split('X')[0]}</span>
               {formatPhoneDisplay(formData.telefon).includes('X') && (
@@ -153,23 +244,33 @@ export default function NewRegistration({
           </div>
         </div>
 
+        {/* WhatsApp Butonu: Email doğrulanmadan aktif olmaz */}
         <a 
-          href={whatsappLink || "#"} 
+          href={emailVerified ? (whatsappLink || "#") : undefined} 
           target="_blank"
           onClick={() => {
-            setWaJoined(true);
-            setCountdown(5);
+            if (emailVerified) {
+              setWaJoined(true);
+              setCountdown(5);
+            }
           }}
-          className={`w-full flex items-center justify-center gap-2 py-4 rounded-2xl font-bold transition-all ${waJoined ? 'bg-emerald-500/20 text-emerald-500 border border-emerald-500/50' : 'bg-[#25D366] text-white'}`}
+          className={`w-full flex items-center justify-center gap-2 py-4 rounded-2xl font-bold transition-all ${
+            !emailVerified 
+              ? 'bg-slate-800 text-slate-500 cursor-not-allowed opacity-50' 
+              : waJoined 
+                ? 'bg-emerald-500/20 text-emerald-500 border border-emerald-500/50' 
+                : 'bg-[#25D366] text-white hover:scale-[1.01]'
+          }`}
         >
           <MessageCircle size={20} />
           {waJoined ? (countdown > 0 ? `DOĞRULANIYOR (${countdown})` : "GRUBA KATILINDI") : "WHATSAPP GRUBUNA KATIL"}
         </a>
 
+        {/* Kaydı Tamamla Butonu: Email ve WhatsApp doğrulanmadan aktif olmaz */}
         <button
-          disabled={loading || !waJoined || countdown > 0}
+          disabled={loading || !waJoined || countdown > 0 || !emailVerified}
           type="submit"
-          className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-30 text-white font-bold py-5 rounded-2xl shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2"
+          className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-20 disabled:grayscale text-white font-bold py-5 rounded-2xl shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2"
         >
           {loading ? <Loader2 className="animate-spin" /> : "KAYDI TAMAMLA"}
         </button>
@@ -178,14 +279,18 @@ export default function NewRegistration({
   );
 }
 
-function InputItem({ icon, placeholder, value, onChange, type = "text" }: any) {
+function InputItem({ icon, placeholder, value, onChange, type = "text", disabled = false }: any) {
   return (
     <div className="relative">
       <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500">{icon}</div>
       <input
-        required type={type} placeholder={placeholder} value={value}
+        required 
+        type={type} 
+        placeholder={placeholder} 
+        value={value}
+        disabled={disabled}
         onChange={(e: any) => onChange(e.target.value)}
-        className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-white focus:ring-2 focus:ring-blue-500/50 outline-none"
+        className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-white focus:ring-2 focus:ring-blue-500/50 outline-none disabled:opacity-50 disabled:cursor-not-allowed"
       />
     </div>
   );
