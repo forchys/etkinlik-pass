@@ -49,7 +49,7 @@ export default function NewRegistration({
     try {
       const { error } = await supabase.auth.signInWithOtp({
         email: formData.email,
-        options: { shouldCreateUser: false }
+        options: { shouldCreateUser: true }
       });
       if (error) throw error;
       setEmailSent(true);
