@@ -1,6 +1,6 @@
 "use client";
 import { useState } from 'react';
-import { supabase } from '../../lib/supabase';
+import { supabase } from '@/lib/supabase';
 import * as XLSX from 'xlsx';
 import { useAdmin } from '../layout';
 import { Loader2, UserPlus, FileUp, AlertTriangle } from 'lucide-react';
