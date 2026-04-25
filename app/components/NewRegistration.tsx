@@ -6,13 +6,15 @@ import {
   Upload, MessageCircle, CheckCircle2, Loader2, Image as ImageIcon 
 } from 'lucide-react';
 
-// selectedEventId prop'u eklendi
+// selectedEventId yanına whatsappLink prop'u eklendi
 export default function NewRegistration({ 
   onSuccess, 
-  selectedEventId 
+  selectedEventId,
+  whatsappLink // Bu alan eklendi
 }: { 
   onSuccess: (data: any) => void,
-  selectedEventId: string 
+  selectedEventId: string,
+  whatsappLink?: string // Tip tanımı eklendi
 }) {
   const [loading, setLoading] = useState(false);
   const [waJoined, setWaJoined] = useState(false);
@@ -56,7 +58,7 @@ export default function NewRegistration({
         .insert([{
           ...formData,
           etkinlik_id: selectedEventId, // Seçili etkinliğe bağlar
-          onayli_mi: false,             // Pending sekmesine düşmesini sağlar
+          onayli_mi: false,              // Pending sekmesine düşmesini sağlar
           geldi_mi: false,
           bilet_alindi_mi: false
         }])
@@ -109,9 +111,9 @@ export default function NewRegistration({
           </div>
         </div>
 
-        {/* WhatsApp Butonu */}
+        {/* WhatsApp Butonu - Dinamik Link Bağlandı */}
         <a 
-          href="https://chat.whatsapp.com/DAVET_LINKINIZ" 
+          href={whatsappLink || "#"} 
           target="_blank"
           onClick={() => setWaJoined(true)}
           className={`w-full flex items-center justify-center gap-2 py-4 rounded-2xl font-bold transition-all ${waJoined ? 'bg-emerald-500/20 text-emerald-500 border border-emerald-500/50' : 'bg-[#25D366] text-white'}`}
