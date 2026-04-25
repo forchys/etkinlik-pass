@@ -69,7 +69,7 @@ export default function NewRegistration({
       const { error } = await supabase.auth.verifyOtp({
         email: formData.email,
         token: otpCode,
-        type: 'signup' // Duruma göre 'magiclink' olarak da değişebilir
+        type: 'magiclink' // Duruma göre 'magiclink' olarak da değişebilir
       });
       if (error) throw error;
       setEmailVerified(true);
