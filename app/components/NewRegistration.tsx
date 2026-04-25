@@ -73,25 +73,25 @@ export default function NewRegistration({ onSuccess }: { onSuccess: (data: any) 
 
   return (
     <div className="bg-slate-900/60 backdrop-blur-2xl border border-white/10 p-6 rounded-[2.5rem] shadow-2xl animate-in fade-in duration-700">
-      <h2 className="text-2xl font-bold mb-6 flex items-center gap-2 tracking-tighter uppercase">
+      <h2 className="text-2xl font-bold mb-6 flex items-center gap-2 tracking-tighter uppercase text-white">
         <CheckCircle2 className="text-blue-500" /> Etkinlik Kaydı
       </h2>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* Giriş Alanları */}
         <div className="grid grid-cols-1 gap-3">
-          <InputItem icon={<User size={18}/>} placeholder="Ad Soyad" value={formData.ad_soyad} onChange={(v) => setFormData({...formData, ad_soyad: v})} />
-          <InputItem icon={<Mail size={18}/>} placeholder="E-posta" type="email" value={formData.email} onChange={(v) => setFormData({...formData, email: v})} />
-          <InputItem icon={<Smartphone size={18}/>} placeholder="Telefon" value={formData.telefon} onChange={(v) => setFormData({...formData, telefon: v})} />
-          <InputItem icon={<School size={18}/>} placeholder="Okul / Bölüm" value={formData.okul} onChange={(v) => setFormData({...formData, okul: v})} />
-          <InputItem icon={<Users size={18}/>} placeholder="Referans (Varsa)" value={formData.referans} onChange={(v) => setFormData({...formData, referans: v})} />
+          <InputItem icon={<User size={18}/>} placeholder="Ad Soyad" value={formData.ad_soyad} onChange={(v: any) => setFormData({...formData, ad_soyad: v})} />
+          <InputItem icon={<Mail size={18}/>} placeholder="E-posta" type="email" value={formData.email} onChange={(v: any) => setFormData({...formData, email: v})} />
+          <InputItem icon={<Smartphone size={18}/>} placeholder="Telefon" value={formData.telefon} onChange={(v: any) => setFormData({...formData, telefon: v})} />
+          <InputItem icon={<School size={18}/>} placeholder="Okul / Bölüm" value={formData.okul} onChange={(v: any) => setFormData({...formData, okul: v})} />
+          <InputItem icon={<Users size={18}/>} placeholder="Referans (Varsa)" value={formData.referans} onChange={(v: any) => setFormData({...formData, referans: v})} />
         </div>
 
         {/* Dekont Yükleme */}
         <div className="relative border-2 border-dashed border-white/10 rounded-2xl p-4 transition-all hover:bg-white/5">
           <input 
             type="file" accept="image/*" 
-            onChange={(e) => setFile(e.target.files?.[0] || null)}
+            onChange={(e: any) => setFile(e.target.files?.[0] || null)}
             className="absolute inset-0 opacity-0 cursor-pointer"
           />
           <div className="flex items-center gap-3 text-slate-400">
@@ -130,8 +130,8 @@ function InputItem({ icon, placeholder, value, onChange, type = "text" }: any) {
       <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500">{icon}</div>
       <input
         required type={type} placeholder={placeholder} value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-4 focus:ring-2 focus:ring-blue-500/50 outline-none"
+        onChange={(e: any) => onChange(e.target.value)}
+        className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-white focus:ring-2 focus:ring-blue-500/50 outline-none"
       />
     </div>
   );
