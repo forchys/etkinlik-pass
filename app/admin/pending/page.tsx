@@ -37,7 +37,7 @@ export default function PendingParticipantsPage() {
         setParticipants(pendingOnes);
         
         if (data.length > 0 && pendingOnes.length === 0) {
-          setErrorLog(`Bu slotta ${data.length} kişi var ama hepsinin 'onayli_mi' değeri true veya farklı bir değer.`);
+          setErrorLog(`Bu etkinlikte ${data.length} kişi var ama hepsi onaylı.`);
         }
       }
     } catch (err: any) {
