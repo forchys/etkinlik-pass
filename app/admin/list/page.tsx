@@ -1,6 +1,6 @@
 "use client";
 import { useState } from 'react';
-import { supabase } from '../../lib/supabase';
+import { supabase } from '@/lib/supabase';
 import { useAdmin } from '../layout';
 import { 
   Users, CheckCircle, XCircle, Loader2, Search, X, 
