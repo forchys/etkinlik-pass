@@ -1,30 +1,10 @@
 "use client";
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
-import { supabase } from '../lib/supabase';
-import { QRCodeCanvas } from 'qrcode.react';
-import { 
-  Ticket, Download, Search, Smartphone, User, CheckCircle2, 
-  Loader2, AlertCircle, MapPin, CalendarDays, Presentation, 
-  Clock, HelpCircle, Film, Theater, ChevronRight, Sparkles, ArrowLeft,
-  Users, Trophy, Armchair
-} from 'lucide-react';
-
-const ChairSVG = ({ className }: { className?: string }) => (
-  <svg viewBox="0 0 100 100" className={className} fill="currentColor">
-    <path d="M20 80 L20 40 Q20 20 50 20 Q80 20 80 40 L80 80" fill="none" stroke="currentColor" strokeWidth="6" />
-    <rect x="15" y="65" width="70" height="15" rx="5" />
-    <rect x="20" y="80" width="15" height="10" rx="2" />
-    <rect x="65" y="80" width="15" height="10" rx="2" />
-  </svg>
-);
-
-const EVENT_ICONS: Record<string, React.ElementType> = {
-  cinema: Film,
-  theater: Theater,
-  social: Users,
-  quiz: Trophy
-};
+import { supabase } from '@/lib/supabase';
+import RegistrationForm from './components/RegistrationForm';
+import SeatMap from './components/SeatMap';
+import TicketView from './components/TicketView';
 
 export default function Home() {
   const [adSoyad, setAdSoyad] = useState("");
@@ -41,10 +21,7 @@ export default function Home() {
   const [selectedEvent, setSelectedEvent] = useState<any>(null);
   const [eventSlots, setEventSlots] = useState<any[]>([]);
 
-  const confirmButtonRef = useRef<HTMLButtonElement>(null);
   const [timeLeft, setTimeLeft] = useState(60);
-
-  const rows = ['N', 'M', 'L', 'K', 'J', 'I', 'H', 'G', 'F', 'E', 'D', 'C', 'B', 'A'];
 
   useEffect(() => {
     window.history.pushState({ step }, `Step ${step}`);
@@ -124,25 +101,6 @@ export default function Home() {
     };
   }, [selectedEvent]);
 
-  const formatTime = (seconds: number) => 
-    `${Math.floor(seconds / 60).toString().padStart(2, '0')}:${(seconds % 60).toString().padStart(2, '0')}`;
-
-  const getEventIcon = (type: string, size = 16) => {
-    const Icon = EVENT_ICONS[type] || Film;
-    return <Icon size={size} />;
-  };
-
-  const getSeatNumber = (row: string, slotIndex: number): number | null => {
-    if (['M', 'L', 'K'].includes(row)) {
-      if (slotIndex <= 2) return slotIndex;
-      if (slotIndex >= 6 && slotIndex <= 16) return slotIndex - 3;
-      return null;
-    }
-    if (row === 'N') return slotIndex;
-    if (['J', 'I', 'H', 'G', 'F', 'E', 'D'].includes(row)) return slotIndex <= 11 ? slotIndex : null;
-    return slotIndex <= 13 ? slotIndex : null;
-  };
-
   const handleBiletVerisiniGuncelle = async (user: any) => {
     const { data, error: updateError } = await supabase
       .from('katilimcilar')
@@ -181,7 +139,6 @@ export default function Home() {
       setCurrentUserData(data);
       setUserDisplayName(data.ad_soyad);
       
-      // KOLTUK KONTROLÜ VE ATLATMA MANTIĞI
       if (data.koltuk_no || selectedEvent.has_seating === false) { 
         await handleBiletVerisiniGuncelle(data); 
       } else {
@@ -262,7 +219,6 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-[#020617] text-slate-200 p-6 flex flex-col items-center justify-start font-sans overflow-x-hidden relative">
-      
       <header className="w-full max-w-2xl py-8 mb-4 text-center z-50">
         <div className="space-y-1">
           <h2 className="text-blue-500 font-bold text-[10px] tracking-[0.3em] uppercase italic">
@@ -286,21 +242,6 @@ export default function Home() {
         </div>
       </div>
 
-      {step === 2 && (
-        <div className="fixed top-24 left-1/2 -translate-x-1/2 z-[100] animate-in slide-in-from-top duration-500">
-           <div className={`flex items-center gap-4 px-6 py-3 rounded-2xl border backdrop-blur-2xl shadow-2xl transition-all duration-500 ${timeLeft < 20 ? 'border-rose-500/50 bg-rose-500/10' : 'border-blue-500/30 bg-slate-900/80'}`}>
-              <div className="flex flex-col items-start">
-                <span className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-500 leading-none mb-1">Kalan Süre</span>
-                <span className={`text-2xl font-mono font-black leading-none tracking-tighter ${timeLeft < 20 ? 'text-rose-500 animate-pulse' : 'text-blue-400'}`}>
-                  {formatTime(timeLeft)}
-                </span>
-              </div>
-              <div className={`h-8 w-[1px] ${timeLeft < 20 ? 'bg-rose-500/20' : 'bg-blue-500/20'}`}></div>
-              <Clock size={20} className={timeLeft < 20 ? 'text-rose-500' : 'text-blue-400'} />
-           </div>
-        </div>
-      )}
-
       <div className="w-full max-w-lg relative z-10">
         <div className="relative bg-slate-900/40 backdrop-blur-3xl p-8 rounded-[3rem] border border-white/10 shadow-2xl overflow-hidden">
           
@@ -311,194 +252,43 @@ export default function Home() {
           </div>
 
           <div className="relative z-10">
-            {step === 0 && (
-              <div className="view-transition space-y-6">
-                <div className="flex items-center gap-2 mb-2">
-                  <Sparkles className="text-amber-400" size={18} />
-                  <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">ETKİNLİK TAKVİMİ</h3>
-                </div>
-
-                <div className="grid grid-cols-1 gap-4">
-                  {loading ? (
-                    <div className="flex justify-center p-12"><Loader2 className="animate-spin text-blue-500" /></div>
-                  ) : (
-                    eventSlots.map((event) => (
-                      <div
-                        key={event.id}
-                        onClick={() => { if (event.is_active) { setSelectedEvent(event); setStep(1); } }}
-                        className={`relative overflow-hidden rounded-[2rem] border transition-all duration-500 
-                          ${event.is_active 
-                            ? 'bg-slate-900/60 border-white/5 cursor-pointer hover:border-blue-500/50 hover:scale-[1.02] active:scale-[0.98]' 
-                            : 'bg-slate-900/10 border-white/5 cursor-not-allowed'}`}
-                      >
-                        {!event.is_active && (
-                          <div className="absolute inset-0 z-20 backdrop-blur-sm bg-[#020617]/40 flex items-center justify-center">
-                            <div className="flex flex-col items-center gap-2 opacity-40">
-                              <HelpCircle size={40} className="text-slate-500" />
-                              <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">YAKINDA</span>
-                            </div>
-                          </div>
-                        )}
-
-                        <div className={`p-6 flex items-center justify-between ${!event.is_active ? 'grayscale' : ''}`}>
-                          <div className="space-y-2">
-                            <div className="flex items-center gap-2">
-                              <span className="text-blue-500">{getEventIcon(event.event_type)}</span>
-                              <span className="text-[9px] font-bold uppercase tracking-widest text-slate-500">
-                                {event.is_active ? event.event_type : 'BELİRSİZ'}
-                              </span>
-                            </div>
-                            <h4 className="text-xl font-black text-white">{event.event_name}</h4>
-                            <div className="flex gap-4 pt-1">
-                              <div className="flex items-center gap-1.5 text-slate-500 text-[10px] font-medium uppercase">
-                                <CalendarDays size={12} /> {event.event_date}
-                              </div>
-                              <div className="flex items-center gap-1.5 text-slate-500 text-[10px] font-medium uppercase">
-                                <MapPin size={12} /> {event.event_location}
-                              </div>
-                            </div>
-                          </div>
-                          {event.is_active && (
-                            <div className="bg-blue-600/10 text-blue-500 p-3 rounded-2xl">
-                              <ChevronRight size={20} />
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            )}
-
-            {step === 1 && (
-              <div className="view-transition max-w-md mx-auto">
-                <button onClick={() => setStep(0)} className="flex items-center gap-2 text-slate-500 font-bold text-[10px] uppercase tracking-widest mb-6 hover:text-white transition-colors">
-                  <ArrowLeft size={14} /> ETKİNLİKLERE DÖN
-                </button>
-                <div className="flex flex-col items-center mb-8 text-center">
-                  <div className="w-16 h-16 bg-gradient-to-br from-blue-500/20 to-indigo-600/20 rounded-2xl flex items-center justify-center mb-6 border border-white/10 shadow-xl">
-                    <Ticket size={32} className="text-blue-500" />
-                  </div>
-                  <h1 className="text-4xl font-black tracking-tighter bg-gradient-to-b from-white to-slate-500 bg-clip-text text-transparent uppercase">BİLGİLERİNİZ</h1>
-                </div>
-
-                <form onSubmit={handleSubmit} className="space-y-6">
-                  <div className="relative group">
-                    <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-blue-500 transition-colors" size={20} />
-                    <input required type="text" placeholder="Ad ve Soyad" className="w-full bg-slate-950/50 border border-slate-800 p-4 pl-12 rounded-2xl text-white outline-none focus:border-blue-500/50 focus:ring-4 focus:ring-blue-500/5 transition-all" onChange={(e) => setAdSoyad(e.target.value)} />
-                  </div>
-                  <div className="relative group">
-                    <Smartphone className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-blue-500 transition-colors" size={20} />
-                    <input required type="tel" maxLength={10} value={telefon} placeholder="5XXXXXXXXX" className="w-full bg-slate-950/50 border border-slate-800 p-4 pl-12 rounded-2xl text-white outline-none focus:border-blue-500/50 focus:ring-4 focus:ring-blue-500/5 transition-all" onChange={(e) => setTelefon(e.target.value.replace(/\D/g, ""))} />
-                  </div>
-                  <button disabled={loading} type="submit" className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 p-5 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all active:scale-95 shadow-xl shadow-blue-900/40">
-                    {loading ? <Loader2 className="animate-spin" /> : <Search size={20} />}
-                    <span className="tracking-widest uppercase text-sm">
-                      {selectedEvent?.has_seating === false ? 'Biletimi Hazırla' : 'Koltuk Seçimine Geç'}
-                    </span>
-                  </button>
-
-                  {selectedEvent && (
-                    <div className="grid grid-cols-1 gap-3 pt-4">
-                      <div className="bg-white/5 border border-white/10 p-5 rounded-[2rem] backdrop-blur-sm">
-                        <p className="text-[9px] font-bold text-blue-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                          <Presentation size={14}/> SEÇİLEN ETKİNLİK DETAYLARI
-                        </p>
-                        <div className="space-y-2">
-                          <p className="text-white font-black text-sm uppercase tracking-tight">{selectedEvent.event_name}</p>
-                          <div className="flex flex-col gap-1.5">
-                            <div className="flex items-center gap-2 text-slate-400 text-[10px] font-bold uppercase">
-                              <CalendarDays size={12} className="text-slate-500" /> {selectedEvent.event_date}
-                            </div>
-                            <div className="flex items-center gap-2 text-slate-400 text-[10px] font-bold uppercase">
-                              <MapPin size={12} className="text-slate-500" /> {selectedEvent.event_location}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {error && (
-                    <div className="flex items-center gap-2 text-rose-400 bg-rose-400/10 p-3 rounded-xl border border-rose-400/20">
-                      <AlertCircle size={16} />
-                      <p className="text-xs font-bold">{error}</p>
-                    </div>
-                  )}
-                </form>
-              </div>
+            {(step === 0 || step === 1) && (
+              <RegistrationForm 
+                step={step}
+                setStep={setStep}
+                eventSlots={eventSlots}
+                loading={loading}
+                selectedEvent={selectedEvent}
+                setSelectedEvent={setSelectedEvent}
+                adSoyad={adSoyad}
+                setAdSoyad={setAdSoyad}
+                telefon={telefon}
+                setTelefon={setTelefon}
+                handleSubmit={handleSubmit}
+                error={error}
+              />
             )}
 
             {step === 2 && (
-              <div className="view-transition pt-4">
-                <h2 className="text-xl font-black text-center mb-6 tracking-widest uppercase text-white">KOLTUK SEÇİNİZ</h2>
-                <div className="space-y-4 max-h-[380px] overflow-y-auto pr-2 scrollbar-hide">
-                  {rows.map((row) => (
-                    <div key={row} className="flex items-center gap-3">
-                      <div className="w-4 text-[10px] font-black text-slate-600 font-mono">{row}</div>
-                      <div className="flex-1 grid grid-cols-17 gap-1">
-                        {[...Array(17)].map((_, i) => {
-                          const slotIndex = i + 1;
-                          const seatNum = getSeatNumber(row, slotIndex);
-                          
-                          if (seatNum === null) {
-                            return <div key={`gap-${row}-${slotIndex}`} className="aspect-[1/1.1]"></div>;
-                          }
-
-                          const seatId = `${row}-${seatNum}`;
-                          const isOccupied = occupiedSeats.includes(seatId);
-                          const isSelected = selectedSeat === seatId;
-                          
-                          return (
-                            <button
-                              key={seatId} 
-                              disabled={isOccupied} 
-                              onClick={() => {
-                                setSelectedSeat(seatId);
-                                setTimeout(() => confirmButtonRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100);
-                              }}
-                              className={`relative aspect-[1/1.1] transition-all duration-300 ${isOccupied ? 'occupied-seat' : isSelected ? 'selected-seat' : 'empty-seat'}`}
-                            >
-                              <ChairSVG className="absolute inset-0 w-full h-full pointer-events-none seat-img" />
-                              <span className={`absolute inset-0 flex items-center justify-center text-[7px] font-bold translate-y-1 z-10 ${isOccupied ? 'text-rose-200/40' : isSelected ? 'text-white' : 'text-slate-400'}`}>
-                                {seatNum}
-                              </span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <div className="relative w-full mt-10 mb-6 text-center">
-                  <div className="absolute inset-0 flex items-center"><div className="w-full border-t-2 border-slate-800"></div></div>
-                  <div className="relative flex justify-center"><span className="bg-[#0f172a] px-4 text-[10px] font-black tracking-[0.6em] text-slate-500 uppercase">PERDE</span></div>
-                </div>
-                <div className="mt-8 space-y-3">
-                  <button ref={confirmButtonRef} onClick={handleSeatConfirm} disabled={!selectedSeat || loading} className="w-full bg-emerald-600 text-white p-4 rounded-2xl font-bold tracking-widest disabled:opacity-20 transition-all">
-                    {loading ? <Loader2 className="animate-spin mx-auto" /> : `KOLTUK ${selectedSeat || ''} ONAYLA`}
-                  </button>
-                  <button onClick={() => { setStep(1); setError(""); }} className="w-full text-slate-500 text-xs font-bold uppercase tracking-widest p-2">Geri Dön</button>
-                </div>
-              </div>
+              <SeatMap 
+                timeLeft={timeLeft}
+                occupiedSeats={occupiedSeats}
+                selectedSeat={selectedSeat}
+                setSelectedSeat={setSelectedSeat}
+                handleSeatConfirm={handleSeatConfirm}
+                loading={loading}
+                setStep={setStep}
+                setError={setError}
+              />
             )}
 
             {step === 3 && (
-              <div className="view-transition flex flex-col items-center">
-                <div className="bg-emerald-500/10 text-emerald-400 px-4 py-2 rounded-full mb-6 flex items-center gap-2 text-xs font-black border border-emerald-500/20 uppercase">
-                  <CheckCircle2 size={14} /> Biletiniz Hazır
-                </div>
-                <h2 className="text-2xl font-black mb-1 text-center text-white uppercase">{userDisplayName}</h2>
-                {selectedSeat && <p className="text-blue-400 font-bold mb-8 text-sm uppercase">KOLTUK: {selectedSeat}</p>}
-                {!selectedSeat && <p className="text-blue-400 font-bold mb-8 text-sm uppercase">GENEL GİRİŞ</p>}
-                <div className="bg-white p-6 rounded-[2.5rem] shadow-2xl mb-8 relative z-20">
-                  <QRCodeCanvas id="ticket-qr" value={qrValue || ""} size={180} level="H" />
-                </div>
-                <button onClick={indirPDF} className="w-full bg-emerald-600 text-white p-4 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all">
-                  <Download size={20} /> PDF OLARAK İNDİR
-                </button>
-              </div>
+              <TicketView 
+                userDisplayName={userDisplayName}
+                selectedSeat={selectedSeat}
+                qrValue={qrValue}
+                indirPDF={indirPDF}
+              />
             )}
           </div>
         </div>
@@ -545,4 +335,3 @@ export default function Home() {
     </main>
   );
 }
-
