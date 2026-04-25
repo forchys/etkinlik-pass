@@ -64,7 +64,7 @@ export default function ScannerPage() {
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div className="bg-emerald-500/5 border border-emerald-500/10 p-6 rounded-[2rem] text-center"><p className="text-[10px] text-emerald-500 font-bold uppercase mb-1">İçeride</p><p className="text-4xl font-black text-emerald-400">{participants.filter((p: any) => p.geldi_mi).length}</p></div>
-        <div className="bg-blue-500/5 border border-blue-500/10 p-6 rounded-[2rem] text-center"><p className="text-[10px] text-blue-500 font-bold uppercase mb-1">Beklenen</p><p className="text-4xl font-black text-blue-400">{participants.filter((p: any) => !p.geldi_mi).length}</p></div>
+        <div className="bg-blue-500/5 border border-blue-500/10 p-6 rounded-[2rem] text-center"><p className="text-[10px] text-blue-500 font-bold uppercase mb-1">Beklenen</p><p className="text-4xl font-black text-blue-400">{participants.filter((p: any) => !p.geldi_mi && p.onayli_mi === true).length}</p></div>
       </div>
     </div>
   );
