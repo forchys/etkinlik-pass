@@ -1,4 +1,3 @@
-
 "use client";
 import { useState, useEffect, createContext, useContext } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -7,7 +6,7 @@ import { usePathname } from 'next/navigation';
 import { 
   Users, Lock, Plus, Camera, ShieldCheck, 
   Settings2, LayoutGrid, X, Power, Film, Theater, Trophy, 
-  Calendar, MapPin, Loader2, Save, Armchair 
+  Calendar, MapPin, Loader2, Save, Armchair, Link2 
 } from 'lucide-react';
 
 // Sayfalar arası veri paylaşımı için Context oluşturuyoruz
@@ -65,7 +64,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         event_location: slot.event_location,
         event_type: slot.event_type,
         is_active: slot.is_active,
-        has_seating: slot.has_seating 
+        has_seating: slot.has_seating,
+        whatsapp_link: slot.whatsapp_link // YENİ: WhatsApp linki veritabanına kaydediliyor
       })
       .eq('id', slot.id);
 
@@ -78,7 +78,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     const { data, error } = await supabase
       .from('katilimcilar')
       .select('*')
-      .eq('etkinlik_id', selectedSlotId)
+      .eq('etlik_id', selectedSlotId)
       .order('ad_soyad', { ascending: true });
     if (!error && data) setParticipants(data);
     setLoading(false);
@@ -191,6 +191,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                           <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600" size={14} />
                           <input placeholder="Konum" className="w-full bg-slate-950 border border-white/5 p-4 pl-10 rounded-2xl text-[10px] font-bold outline-none" value={slot.event_location || ''} onChange={(e) => updateLocalSlot(slot.id, 'event_location', e.target.value)} />
                         </div>
+                      </div>
+                      {/* YENİ: WhatsApp Link Giriş Alanı */}
+                      <div className="relative">
+                        <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600" size={14} />
+                        <input placeholder="WhatsApp Grup Linki" className="w-full bg-slate-950 border border-white/5 p-4 pl-10 rounded-2xl text-[10px] font-bold outline-none focus:border-emerald-500/50" value={slot.whatsapp_link || ''} onChange={(e) => updateLocalSlot(slot.id, 'whatsapp_link', e.target.value)} />
                       </div>
                     </div>
 
