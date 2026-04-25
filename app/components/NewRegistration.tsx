@@ -1,9 +1,9 @@
 "use client";
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { 
   User, Smartphone, Mail, School, Users, 
-  Upload, MessageCircle, CheckCircle2, Loader2, Image as ImageIcon 
+  Upload, MessageCircle, CheckCircle2, Loader2, Image as ImageIcon, ShieldCheck 
 } from 'lucide-react';
 
 // selectedEventId yanına whatsappLink prop'u eklendi
@@ -18,16 +18,26 @@ export default function NewRegistration({
 }) {
   const [loading, setLoading] = useState(false);
   const [waJoined, setWaJoined] = useState(false);
+  const [countdown, setCountdown] = useState(0); // Geri sayım state'i
   const [file, setFile] = useState<File | null>(null);
   
-  // Form State
+  // Form State - telefon '5' ile başlatıldı
   const [formData, setFormData] = useState({
     ad_soyad: '',
     email: '',
-    telefon: '',
+    telefon: '5',
     okul: '',
     referans: ''
   });
+
+  // Geri sayım sayacı
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (countdown > 0) {
+      timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+    }
+    return () => clearTimeout(timer);
+  }, [countdown]);
 
   const handleFileUpload = async (userId: string) => {
     if (!file) return null;
@@ -47,7 +57,8 @@ export default function NewRegistration({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!waJoined) return alert("Lütfen önce WhatsApp grubuna katılın!");
+    if (!waJoined || countdown > 0) return alert("Lütfen önce WhatsApp grubuna katılın ve doğrulamanın bitmesini bekleyin!");
+    if (formData.telefon.length !== 10) return alert("Telefon numarası 10 hane olmalıdır (5XXXXXXXXX)");
     if (!file) return alert("Lütfen ödeme dekontunu yükleyin!");
 
     setLoading(true);
@@ -93,38 +104,60 @@ export default function NewRegistration({
         <div className="grid grid-cols-1 gap-3">
           <InputItem icon={<User size={18}/>} placeholder="Ad Soyad" value={formData.ad_soyad} onChange={(v: any) => setFormData({...formData, ad_soyad: v})} />
           <InputItem icon={<Mail size={18}/>} placeholder="E-posta" type="email" value={formData.email} onChange={(v: any) => setFormData({...formData, email: v})} />
-          <InputItem icon={<Smartphone size={18}/>} placeholder="Telefon" value={formData.telefon} onChange={(v: any) => setFormData({...formData, telefon: v})} />
+          
+          {/* Telefon Inputu - Sadece rakam, 5 ile başlar, 10 hane sınırı */}
+          <InputItem 
+            icon={<Smartphone size={18}/>} 
+            placeholder="5XX XXX XX XX" 
+            value={formData.telefon} 
+            onChange={(v: any) => {
+              const val = v.replace(/\D/g, ''); // Sadece rakamlar
+              if (val.length <= 10 && (val.startsWith('5') || val === '')) {
+                setFormData({...formData, telefon: val.startsWith('5') ? val : '5' + val});
+              }
+            }} 
+          />
+
           <InputItem icon={<School size={18}/>} placeholder="Okul / Bölüm" value={formData.okul} onChange={(v: any) => setFormData({...formData, okul: v})} />
           <InputItem icon={<Users size={18}/>} placeholder="Referans (Varsa)" value={formData.referans} onChange={(v: any) => setFormData({...formData, referans: v})} />
         </div>
 
-        {/* Dekont Yükleme */}
-        <div className="relative border-2 border-dashed border-white/10 rounded-2xl p-4 transition-all hover:bg-white/5">
+        {/* Dekont Yükleme - Güvenlik uyarısı eklendi */}
+        <div className="relative border-2 border-dashed border-white/10 rounded-2xl p-4 transition-all hover:bg-white/5 bg-white/2">
           <input 
             type="file" accept="image/*" 
             onChange={(e: any) => setFile(e.target.files?.[0] || null)}
-            className="absolute inset-0 opacity-0 cursor-pointer"
+            className="absolute inset-0 opacity-0 cursor-pointer z-10"
           />
-          <div className="flex items-center gap-3 text-slate-400">
-            <ImageIcon />
-            <span className="text-sm">{file ? file.name : "Ödeme Dekontu Yükle"}</span>
+          <div className="flex flex-col items-center gap-2">
+            <div className="flex items-center gap-3 text-slate-400">
+              <ImageIcon />
+              <span className="text-sm">{file ? file.name : "Ödeme Dekontu Yükle"}</span>
+            </div>
+            <p className="text-[10px] text-slate-500 flex items-center gap-1">
+              <ShieldCheck size={12} className="text-emerald-500" /> 
+              KVKK uyarınca verileriniz güvenli sunucularda saklanır.
+            </p>
           </div>
         </div>
 
-        {/* WhatsApp Butonu - Dinamik Link Bağlandı */}
+        {/* WhatsApp Butonu - Geri sayım eklendi */}
         <a 
           href={whatsappLink || "#"} 
           target="_blank"
-          onClick={() => setWaJoined(true)}
+          onClick={() => {
+            setWaJoined(true);
+            setCountdown(5);
+          }}
           className={`w-full flex items-center justify-center gap-2 py-4 rounded-2xl font-bold transition-all ${waJoined ? 'bg-emerald-500/20 text-emerald-500 border border-emerald-500/50' : 'bg-[#25D366] text-white'}`}
         >
           <MessageCircle size={20} />
-          {waJoined ? "GRUBA KATILINDI" : "WHATSAPP GRUBUNA KATIL"}
+          {waJoined ? (countdown > 0 ? `DOĞRULANIYOR (${countdown})` : "GRUBA KATILINDI") : "WHATSAPP GRUBUNA KATIL"}
         </a>
 
-        {/* Kaydı Tamamla */}
+        {/* Kaydı Tamamla - Geri sayım bitmeden aktif olmaz */}
         <button
-          disabled={loading || !waJoined}
+          disabled={loading || !waJoined || countdown > 0}
           type="submit"
           className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-30 text-white font-bold py-5 rounded-2xl shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2"
         >
