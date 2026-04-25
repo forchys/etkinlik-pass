@@ -293,7 +293,7 @@ export default function Home() {
             {/* Yeni Kayıt Formu (NewRegistration.tsx) */}
             {step === 4 && (
               <div className="space-y-4">
-                <NewRegistration onSuccess={() => setStep(5)} />
+                <NewRegistration selectedEventId={selectedEvent?.id} onSuccess={() => setStep(5)} />
                 <button onClick={() => setStep(1)} className="w-full text-slate-500 text-[10px] font-black uppercase py-2 hover:text-white transition-colors">Vazgeç ve Geri Dön</button>
               </div>
             )}
