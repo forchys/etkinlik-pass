@@ -1,25 +1,30 @@
 "use client";
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
+import { useAdmin } from '../layout'; // Admin layout'tan seçili ID'yi almak için
 import { 
   UserCheck, XCircle, RefreshCcw, Loader2, Clock, Check, ImageIcon 
 } from 'lucide-react';
 
 export default function PendingParticipantsPage() {
+  const { selectedSlotId } = useAdmin(); // Admin panelinde seçili olan etkinlik ID'si
   const [participants, setParticipants] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchPendingParticipants();
-  }, []);
+  }, [selectedSlotId]); // Etkinlik değiştiğinde listeyi otomatik yenile
 
   async function fetchPendingParticipants() {
+    if (!selectedSlotId) return;
+    
     setLoading(true);
-    // Sadece onayli_mi sütunu FALSE olanları getir
+    // Sadece onayli_mi sütunu FALSE olanları VE seçili etkinliğe ait olanları getir
     const { data, error } = await supabase
       .from('katilimcilar')
       .select('*')
       .eq('onayli_mi', false)
+      .eq('etkinlik_id', selectedSlotId)
       .order('created_at', { ascending: false });
     
     if (!error && data) setParticipants(data);
@@ -59,7 +64,7 @@ export default function PendingParticipantsPage() {
         ) : participants.length === 0 ? (
           <div className="text-center p-12 bg-slate-900/20 rounded-[2.5rem] border border-dashed border-white/10">
             <UserCheck className="mx-auto text-slate-700 mb-4" size={48} />
-            <p className="text-slate-500 font-bold uppercase text-xs">Onay bekleyen kimse yok.</p>
+            <p className="text-slate-500 font-bold uppercase text-xs">Bu etkinlik için onay bekleyen kimse yok.</p>
           </div>
         ) : participants.map((person) => (
           <div key={person.id} className="bg-slate-900/40 border border-white/5 p-5 rounded-3xl flex justify-between items-center backdrop-blur-sm">
