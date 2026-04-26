@@ -133,92 +133,100 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <main className="min-h-screen bg-[#020617] text-white p-4 font-sans flex flex-col items-center">
         
         {isSettingsOpen && (
-          <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/90 backdrop-blur-xl overflow-y-auto">
-            <div className="w-full max-w-4xl bg-slate-950 border border-white/10 rounded-[3rem] p-6 my-8">
-              <div className="flex justify-between items-center mb-8 sticky top-0 bg-slate-950 py-2 z-10">
+          <div className="fixed inset-0 z-[150] flex items-center justify-center p-2 sm:p-6 bg-black/95 backdrop-blur-xl">
+            <div className="w-full max-w-5xl bg-slate-950 border border-white/10 rounded-[2.5rem] sm:rounded-[3rem] flex flex-col max-h-[92vh] overflow-hidden shadow-2xl">
+              
+              {/* Sabit Başlık */}
+              <div className="flex justify-between items-center p-6 sm:p-8 border-b border-white/5 bg-slate-950/50 backdrop-blur-md">
                 <div>
                   <h2 className="text-xl font-black uppercase tracking-tighter">Etkinlik Slotları</h2>
-                  <p className="text-[10px] text-slate-500 font-bold tracking-widest">4 AKTİF SLOTU YÖNET</p>
+                  <p className="text-[10px] text-slate-500 font-bold tracking-widest">AKTİF SLOTLARI DÜZENLE</p>
                 </div>
-                <button onClick={() => setIsSettingsOpen(false)} className="bg-slate-900 p-3 rounded-2xl"><X size={24} /></button>
+                <button onClick={() => setIsSettingsOpen(false)} className="bg-slate-900 p-3 rounded-2xl hover:bg-rose-500/20 hover:text-rose-500 transition-all">
+                  <X size={24} />
+                </button>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {eventSlots.map((slot) => (
-                  <div key={slot.id} className={`p-6 rounded-[2.5rem] border transition-all duration-500 ${slot.is_active ? 'bg-slate-900/40 border-blue-500/30' : 'bg-slate-900/10 border-white/5 opacity-60'}`}>
-                    
-                    <div className="flex items-center justify-between mb-6">
-                      <span className="text-[10px] font-black bg-blue-600/20 text-blue-500 px-3 py-1 rounded-lg">SLOT #{slot.slot_id}</span>
-                      <button 
-                        onClick={() => updateLocalSlot(slot.id, 'has_seating', !slot.has_seating)}
-                        className={`flex items-center gap-2 px-3 py-2 rounded-xl text-[8px] font-black transition-all ${slot.has_seating ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-500'}`}
-                      >
-                        <Armchair size={12} /> {slot.has_seating ? 'KOLTUK AÇIK' : 'KOLTUK KAPALI'}
-                      </button>
-                      <button 
-                        onClick={() => updateLocalSlot(slot.id, 'is_active', !slot.is_active)}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[9px] font-black transition-all ${slot.is_active ? 'bg-emerald-500 text-white' : 'bg-slate-800 text-slate-400'}`}
-                      >
-                        <Power size={14} /> {slot.is_active ? 'AKTİF' : 'PASİF'}
-                      </button>
-                    </div>
-
-                    <div className={`space-y-4 ${!slot.is_active && 'pointer-events-none opacity-50'}`}>
-                      {/* Ücret Durumu Seçimi - Yeni Eklenen Buton */}
-                      <button 
-                        onClick={() => updateLocalSlot(slot.id, 'is_paid', !slot.is_paid)}
-                        className={`w-full flex items-center justify-center gap-2 py-3 rounded-2xl text-[9px] font-black transition-all border ${slot.is_paid ? 'bg-amber-600/10 border-amber-600/20 text-amber-500' : 'bg-emerald-600/10 border-emerald-600/20 text-emerald-500'}`}
-                      >
-                        {slot.is_paid ? 'ÜCRETLİ ETKİNLİK (DEKONT İSTER)' : 'ÜCRETSİZ ETKİNLİK (DEKONT İSTEMEZ)'}
-                      </button>
-
-                      <div className="grid grid-cols-4 gap-2">
-                        {[
-                          { id: 'cinema', icon: <Film size={16}/> },
-                          { id: 'theater', icon: <Theater size={16}/> },
-                          { id: 'social', icon: <Users size={16}/> },
-                          { id: 'quiz', icon: <Trophy size={16}/> }
-                        ].map((t) => (
-                          <button
-                            key={t.id}
-                            onClick={() => updateLocalSlot(slot.id, 'event_type', t.id)}
-                            className={`p-3 rounded-xl flex flex-col items-center gap-1 border transition-all ${slot.event_type === t.id ? 'bg-blue-600 border-blue-400 text-white' : 'bg-slate-950 border-white/5 text-slate-500'}`}
-                          >
-                            {t.icon}
-                            <span className="text-[8px] font-bold uppercase">{t.id}</span>
-                          </button>
-                        ))}
-                      </div>
-
-                      <input placeholder="Etkinlik Adı" className="w-full bg-slate-950 border border-white/5 p-4 rounded-2xl text-xs font-bold outline-none focus:border-blue-500/50" value={slot.event_name || ''} onChange={(e) => updateLocalSlot(slot.id, 'event_name', e.target.value)} />
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="relative">
-                          <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600" size={14} />
-                          <input placeholder="Tarih" className="w-full bg-slate-950 border border-white/5 p-4 pl-10 rounded-2xl text-[10px] font-bold outline-none" value={slot.event_date || ''} onChange={(e) => updateLocalSlot(slot.id, 'event_date', e.target.value)} />
-                        </div>
-                        <div className="relative">
-                          <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600" size={14} />
-                          <input placeholder="Konum" className="w-full bg-slate-950 border border-white/5 p-4 pl-10 rounded-2xl text-[10px] font-bold outline-none" value={slot.event_location || ''} onChange={(e) => updateLocalSlot(slot.id, 'event_location', e.target.value)} />
-                        </div>
-                      </div>
+              {/* Kaydırılabilir İçerik Alanı */}
+              <div className="flex-1 overflow-y-auto p-4 sm:p-8 custom-scrollbar">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+                  {eventSlots.map((slot) => (
+                    <div key={slot.id} className={`p-5 sm:p-6 rounded-[2rem] border transition-all duration-500 ${slot.is_active ? 'bg-slate-900/40 border-blue-500/30' : 'bg-slate-900/10 border-white/5 opacity-60'}`}>
                       
-                      <div className="relative">
-                        <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600" size={14} />
-                        <input placeholder="WhatsApp Grup Linki" className="w-full bg-slate-950 border border-white/5 p-4 pl-10 rounded-2xl text-[10px] font-bold outline-none" value={slot.whatsapp_link || ''} onChange={(e) => updateLocalSlot(slot.id, 'whatsapp_link', e.target.value)} />
+                      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+                        <span className="text-[10px] font-black bg-blue-600/20 text-blue-500 px-3 py-1 rounded-lg">SLOT #{slot.slot_id}</span>
+                        <div className="flex items-center gap-2">
+                          <button 
+                            onClick={() => updateLocalSlot(slot.id, 'has_seating', !slot.has_seating)}
+                            className={`flex items-center gap-2 px-3 py-2 rounded-xl text-[8px] font-black transition-all ${slot.has_seating ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-500'}`}
+                          >
+                            <Armchair size={12} /> {slot.has_seating ? 'KOLTUK AÇIK' : 'KOLTUK KAPALI'}
+                          </button>
+                          <button 
+                            onClick={() => updateLocalSlot(slot.id, 'is_active', !slot.is_active)}
+                            className={`flex items-center gap-2 px-3 py-2 rounded-xl text-[8px] font-black transition-all ${slot.is_active ? 'bg-emerald-500 text-white' : 'bg-slate-800 text-slate-400'}`}
+                          >
+                            <Power size={14} /> {slot.is_active ? 'AKTİF' : 'PASİF'}
+                          </button>
+                        </div>
                       </div>
 
-                    </div>
+                      <div className={`space-y-4 ${!slot.is_active && 'pointer-events-none opacity-50'}`}>
+                        <button 
+                          onClick={() => updateLocalSlot(slot.id, 'is_paid', !slot.is_paid)}
+                          className={`w-full flex items-center justify-center gap-2 py-3 rounded-2xl text-[9px] font-black transition-all border ${slot.is_paid ? 'bg-amber-600/10 border-amber-600/20 text-amber-500' : 'bg-emerald-600/10 border-emerald-600/20 text-emerald-500'}`}
+                        >
+                          {slot.is_paid ? 'ÜCRETLİ ETKİNLİK (DEKONT İSTER)' : 'ÜCRETSİZ ETKİNLİK (DEKONT İSTEMEZ)'}
+                        </button>
 
-                    <button 
-                      disabled={savingSlotId === slot.id}
-                      onClick={() => handleUpdateSlot(slot)}
-                      className="w-full bg-white text-black p-4 rounded-2xl font-black text-[10px] tracking-widest mt-6 hover:bg-blue-600 hover:text-white transition-all flex items-center justify-center gap-2"
-                    >
-                      {savingSlotId === slot.id ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
-                      GÜNCELLE
-                    </button>
-                  </div>
-                ))}
+                        <div className="grid grid-cols-4 gap-2">
+                          {[
+                            { id: 'cinema', icon: <Film size={16}/> },
+                            { id: 'theater', icon: <Theater size={16}/> },
+                            { id: 'social', icon: <Users size={16}/> },
+                            { id: 'quiz', icon: <Trophy size={16}/> }
+                          ].map((t) => (
+                            <button
+                              key={t.id}
+                              onClick={() => updateLocalSlot(slot.id, 'event_type', t.id)}
+                              className={`p-3 rounded-xl flex flex-col items-center gap-1 border transition-all ${slot.event_type === t.id ? 'bg-blue-600 border-blue-400 text-white' : 'bg-slate-950 border-white/5 text-slate-500'}`}
+                            >
+                              {t.icon}
+                              <span className="text-[8px] font-bold uppercase">{t.id}</span>
+                            </button>
+                          ))}
+                        </div>
+
+                        <input placeholder="Etkinlik Adı" className="w-full bg-slate-950 border border-white/5 p-4 rounded-2xl text-xs font-bold outline-none focus:border-blue-500/50" value={slot.event_name || ''} onChange={(e) => updateLocalSlot(slot.id, 'event_name', e.target.value)} />
+                        
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div className="relative">
+                            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600" size={14} />
+                            <input placeholder="Tarih" className="w-full bg-slate-950 border border-white/5 p-4 pl-10 rounded-2xl text-[10px] font-bold outline-none" value={slot.event_date || ''} onChange={(e) => updateLocalSlot(slot.id, 'event_date', e.target.value)} />
+                          </div>
+                          <div className="relative">
+                            <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600" size={14} />
+                            <input placeholder="Konum" className="w-full bg-slate-950 border border-white/5 p-4 pl-10 rounded-2xl text-[10px] font-bold outline-none" value={slot.event_location || ''} onChange={(e) => updateLocalSlot(slot.id, 'event_location', e.target.value)} />
+                          </div>
+                        </div>
+                        
+                        <div className="relative">
+                          <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600" size={14} />
+                          <input placeholder="WhatsApp Grup Linki" className="w-full bg-slate-950 border border-white/5 p-4 pl-10 rounded-2xl text-[10px] font-bold outline-none" value={slot.whatsapp_link || ''} onChange={(e) => updateLocalSlot(slot.id, 'whatsapp_link', e.target.value)} />
+                        </div>
+                      </div>
+
+                      <button 
+                        disabled={savingSlotId === slot.id}
+                        onClick={() => handleUpdateSlot(slot)}
+                        className="w-full bg-white text-black p-4 rounded-2xl font-black text-[10px] tracking-widest mt-6 hover:bg-blue-600 hover:text-white transition-all flex items-center justify-center gap-2"
+                      >
+                        {savingSlotId === slot.id ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
+                        GÜNCELLE
+                      </button>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
