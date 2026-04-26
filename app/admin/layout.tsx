@@ -65,7 +65,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         event_type: slot.event_type,
         is_active: slot.is_active,
         has_seating: slot.has_seating,
-        whatsapp_link: slot.whatsapp_link // Sadece bu eklendi
+        whatsapp_link: slot.whatsapp_link,
+        is_paid: slot.is_paid // Yeni alan eklendi
       })
       .eq('id', slot.id);
 
@@ -163,6 +164,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                     </div>
 
                     <div className={`space-y-4 ${!slot.is_active && 'pointer-events-none opacity-50'}`}>
+                      {/* Ücret Durumu Seçimi - Yeni Eklenen Buton */}
+                      <button 
+                        onClick={() => updateLocalSlot(slot.id, 'is_paid', !slot.is_paid)}
+                        className={`w-full flex items-center justify-center gap-2 py-3 rounded-2xl text-[9px] font-black transition-all border ${slot.is_paid ? 'bg-amber-600/10 border-amber-600/20 text-amber-500' : 'bg-emerald-600/10 border-emerald-600/20 text-emerald-500'}`}
+                      >
+                        {slot.is_paid ? 'ÜCRETLİ ETKİNLİK (DEKONT İSTER)' : 'ÜCRETSİZ ETKİNLİK (DEKONT İSTEMEZ)'}
+                      </button>
+
                       <div className="grid grid-cols-4 gap-2">
                         {[
                           { id: 'cinema', icon: <Film size={16}/> },
@@ -193,7 +202,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                         </div>
                       </div>
                       
-                      {/* SADECE BU ALAN EKLENDİ */}
                       <div className="relative">
                         <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600" size={14} />
                         <input placeholder="WhatsApp Grup Linki" className="w-full bg-slate-950 border border-white/5 p-4 pl-10 rounded-2xl text-[10px] font-bold outline-none" value={slot.whatsapp_link || ''} onChange={(e) => updateLocalSlot(slot.id, 'whatsapp_link', e.target.value)} />
