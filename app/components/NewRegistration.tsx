@@ -9,11 +9,13 @@ import {
 export default function NewRegistration({ 
   onSuccess, 
   selectedEventId,
-  whatsappLink 
+  whatsappLink,
+  isPaid = true // Yeni eklendi: Varsayılan olarak ücretli kabul edilir
 }: { 
   onSuccess: (data: any) => void,
   selectedEventId: string,
-  whatsappLink?: string 
+  whatsappLink?: string,
+  isPaid?: boolean // Tip tanımı eklendi
 }) {
   const [loading, setLoading] = useState(false);
   const [waJoined, setWaJoined] = useState(false);
@@ -100,7 +102,9 @@ export default function NewRegistration({
     if (!emailVerified) return alert("Lütfen önce e-posta adresinizi doğrulayın!");
     if (!waJoined || countdown > 0) return alert("Lütfen önce WhatsApp grubuna katılın ve doğrulamanın bitmesini bekleyin!");
     if (formData.telefon.length !== 10) return alert("Telefon numarası 10 hane olmalıdır!");
-    if (!file) return alert("Lütfen ödeme dekontunu yükleyin!");
+    
+    // YENİLİK: Sadece etkinlik ücretliyse dekont kontrolü yap
+    if (isPaid && !file) return alert("Lütfen ödeme dekontunu yükleyin!");
 
     setLoading(true);
     try {
@@ -118,11 +122,14 @@ export default function NewRegistration({
 
       if (userError) throw userError;
 
-      const dekontUrl = await handleFileUpload(user.id);
-      await supabase
-        .from('katilimcilar')
-        .update({ dekont_url: dekontUrl })
-        .eq('id', user.id);
+      // YENİLİK: Sadece dosya seçilmişse (ücretli etkinlikte) upload işlemini yap
+      if (file) {
+        const dekontUrl = await handleFileUpload(user.id);
+        await supabase
+          .from('katilimcilar')
+          .update({ dekont_url: dekontUrl })
+          .eq('id', user.id);
+      }
 
       onSuccess(user);
     } catch (error: any) {
@@ -188,7 +195,7 @@ export default function NewRegistration({
                 />
               </div>
               <button 
-                type="button"
+                type="button" 
                 onClick={handleVerifyOTP}
                 disabled={verifyingEmail}
                 className="bg-emerald-600 hover:bg-emerald-500 text-white px-6 rounded-2xl font-bold transition-all disabled:opacity-30"
@@ -226,23 +233,26 @@ export default function NewRegistration({
           <InputItem icon={<Users size={18}/>} placeholder="Referans (Varsa)" value={formData.referans} onChange={(v: any) => setFormData({...formData, referans: v})} />
         </div>
 
-        <div className="relative border-2 border-dashed border-white/10 rounded-2xl p-4 transition-all hover:bg-white/5 bg-white/2">
-          <input 
-            type="file" accept="image/*" 
-            onChange={(e: any) => setFile(e.target.files?.[0] || null)}
-            className="absolute inset-0 opacity-0 cursor-pointer z-10"
-          />
-          <div className="flex flex-col items-center gap-2">
-            <div className="flex items-center gap-3 text-slate-400">
-              <ImageIcon />
-              <span className="text-sm">{file ? file.name : "Ödeme Dekontu Yükle"}</span>
+        {/* YENİLİK: Sadece ücretli etkinlikse Dekont alanını göster */}
+        {isPaid && (
+          <div className="relative border-2 border-dashed border-white/10 rounded-2xl p-4 transition-all hover:bg-white/5 bg-white/2">
+            <input 
+              type="file" accept="image/*" 
+              onChange={(e: any) => setFile(e.target.files?.[0] || null)}
+              className="absolute inset-0 opacity-0 cursor-pointer z-10"
+            />
+            <div className="flex flex-col items-center gap-2">
+              <div className="flex items-center gap-3 text-slate-400">
+                <ImageIcon />
+                <span className="text-sm">{file ? file.name : "Ödeme Dekontu Yükle"}</span>
+              </div>
+              <p className="text-[10px] text-slate-500 flex items-center gap-1">
+                <ShieldCheck size={12} className="text-emerald-500" /> 
+                Dekont üzerindeki verilerinize yalnızca topluluk yönetimi erişebilir.
+              </p>
             </div>
-            <p className="text-[10px] text-slate-500 flex items-center gap-1">
-              <ShieldCheck size={12} className="text-emerald-500" /> 
-              Dekont üzerindeki verilerinize yalnızca topluluk yönetimi erişebilir.
-            </p>
           </div>
-        </div>
+        )}
 
         {/* WhatsApp Butonu: Email doğrulanmadan aktif olmaz */}
         <a 
