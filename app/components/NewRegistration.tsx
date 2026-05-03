@@ -199,7 +199,7 @@ export default function NewRegistration({
                 <div className="flex items-center gap-3 overflow-hidden">
                   <User className="text-blue-500 shrink-0" size={18} />
                   <span className="text-xs font-bold text-white tracking-wide truncate uppercase">
-                    {eventSettings?.event_ibanname || "Belirtilmedi"}
+                    {eventSettings?.event_ibanname || "Sezennur İşik"}
                   </span>
                 </div>
                 <Copy size={14} className="text-slate-500 group-hover:text-blue-400 shrink-0" />
