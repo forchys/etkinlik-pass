@@ -198,7 +198,7 @@ export default function NewRegistration({
               >
                 <div className="flex items-center gap-3 overflow-hidden">
                   <User className="text-blue-500 shrink-0" size={18} />
-                  <span className="text-xs font-bold text-white tracking-wide truncate uppercase">
+                  <span className="text-xs font-bold text-white tracking-wide truncate ">
                     {eventSettings?.event_ibanname || "Sezennur İşik"}
                   </span>
                 </div>
