@@ -70,7 +70,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         is_paid: slot.is_paid,
         event_price: slot.event_price,
         event_iban: slot.event_iban,
-        // YENİLİK: event_ibanname veritabanına ekleniyor
         event_ibanname: slot.event_ibanname 
       })
       .eq('id', slot.id);
@@ -189,7 +188,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                               <User className="absolute left-3 top-1/2 -translate-y-1/2 text-amber-500/50" size={14} />
                               <input 
                                 placeholder="Hesap Sahibi Adı Soyadı" 
-                                className="w-full bg-slate-950 border border-amber-500/20 p-4 pl-10 rounded-2xl text-[10px] font-bold outline-none focus:border-amber-500/50 text-white uppercase" 
+                                className="w-full bg-slate-950 border border-amber-500/20 p-4 pl-10 rounded-2xl text-[10px] font-bold outline-none focus:border-amber-500/50 text-white " 
                                 value={slot.event_ibanname || ''} 
                                 onChange={(e) => updateLocalSlot(slot.id, 'event_ibanname', e.target.value)} 
                               />
