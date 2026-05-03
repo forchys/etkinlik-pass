@@ -45,7 +45,8 @@ export default function NewRegistration({
       try {
         const { data, error } = await supabase
           .from('etkinlik_ayarlari')
-          .select('event_price, event_iban, is_paid')
+          // event_ibanname sorguya eklendi
+          .select('event_price, event_iban, event_ibanname, is_paid')
           .eq('id', selectedEventId)
           .single();
 
@@ -126,7 +127,6 @@ export default function NewRegistration({
     if (!waJoined || countdown > 0) return alert("Lütfen önce WhatsApp grubuna katılın ve doğrulamanın bitmesini bekleyin!");
     if (formData.telefon.length !== 10) return alert("Telefon numarası 10 hane olmalıdır!");
     
-    // YENİLİK: Veritabanından gelen is_paid değerine göre kontrol
     const isPaid = eventSettings?.is_paid === true || String(eventSettings?.is_paid) === "true";
     if (isPaid && !file) return alert("Lütfen ödeme dekontunu yükleyin!");
 
@@ -167,7 +167,6 @@ export default function NewRegistration({
     return ` (${s.slice(0, 3)}) ${s.slice(3, 6)} ${s.slice(6, 8)} ${s.slice(8, 10)}`;
   };
 
-  // Ödeme durumu kontrolü
   const showPaymentInfo = eventSettings?.is_paid === true || String(eventSettings?.is_paid) === "true";
 
   return (
@@ -178,7 +177,6 @@ export default function NewRegistration({
 
       <form onSubmit={handleSubmit} className="space-y-4">
         
-        {/* YENİLİK: Veritabanından gelen bilgilere göre gösterim */}
         {showPaymentInfo && (
           <div className="bg-blue-600/10 border border-blue-500/20 rounded-3xl p-5 space-y-3 animate-in zoom-in-95 duration-500">
             <div className="flex justify-between items-center">
@@ -188,6 +186,26 @@ export default function NewRegistration({
               </div>
             </div>
             
+            {/* YENİLİK: Hesap Sahibi Kopyalanabilir Alan */}
+            <div className="space-y-1">
+              <p className="text-[10px] text-slate-400 font-bold ml-1 uppercase">Hesap Sahibi</p>
+              <div 
+                onClick={() => {
+                  navigator.clipboard.writeText(eventSettings?.event_ibanname || "");
+                  alert("Hesap Sahibi İsmi Kopyalandı!");
+                }}
+                className="bg-slate-950/50 border border-white/5 p-4 rounded-2xl flex items-center justify-between group cursor-pointer hover:border-blue-500/30 transition-all"
+              >
+                <div className="flex items-center gap-3 overflow-hidden">
+                  <User className="text-blue-500 shrink-0" size={18} />
+                  <span className="text-xs font-bold text-white tracking-wide truncate uppercase">
+                    {eventSettings?.event_ibanname || "Belirtilmedi"}
+                  </span>
+                </div>
+                <Copy size={14} className="text-slate-500 group-hover:text-blue-400 shrink-0" />
+              </div>
+            </div>
+
             <div className="space-y-1">
               <p className="text-[10px] text-slate-400 font-bold ml-1 uppercase">IBAN</p>
               <div 
@@ -290,7 +308,6 @@ export default function NewRegistration({
           <InputItem icon={<Users size={18}/>} placeholder="Referans (Varsa)" value={formData.referans} onChange={(v: any) => setFormData({...formData, referans: v})} />
         </div>
 
-        {/* YENİLİK: Dekont alanı da veritabanı durumuna bağlı */}
         {showPaymentInfo && (
           <div className="relative border-2 border-dashed border-white/10 rounded-2xl p-4 transition-all hover:bg-white/5 bg-white/2">
             <input 
