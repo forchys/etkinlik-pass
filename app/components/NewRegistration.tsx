@@ -10,7 +10,7 @@ export default function NewRegistration({
   onSuccess, 
   selectedEventId,
   whatsappLink,
-  isPaid = false, // YENİLİK BURADA: Varsayılan değer false yapıldı, böylece veri gelene kadar form güvenli kalır.
+  isPaid = true,
   eventPrice, // YENİ: Etkinlik ücreti bilgisi
   eventIban   // YENİ: Ödeme yapılacak IBAN bilgisi
 }: { 
@@ -21,6 +21,9 @@ export default function NewRegistration({
   eventPrice?: string, // Tip tanımı
   eventIban?: string   // Tip tanımı
 }) {
+  // --- DEBUG İÇİN: Gelen verileri tarayıcı konsolunda görebilirsin ---
+  console.log("Bileşene Gelen Prop Değerleri:", { isPaid, eventPrice, eventIban });
+
   const [loading, setLoading] = useState(false);
   const [waJoined, setWaJoined] = useState(false);
   const [countdown, setCountdown] = useState(0); 
@@ -153,7 +156,8 @@ export default function NewRegistration({
       <form onSubmit={handleSubmit} className="space-y-4">
         
         {/* YENİ: Ücretli etkinliklerde IBAN ve Ücret gösterimi */}
-        {isPaid && (
+        {/* DÜZELTME: Hem boolean "true" hem de string "true" durumunu kontrol ediyoruz */}
+        {(isPaid === true || String(isPaid) === "true") && (
           <div className="bg-blue-600/10 border border-blue-500/20 rounded-3xl p-5 space-y-3 animate-in zoom-in-95 duration-500">
             <div className="flex justify-between items-center">
               <span className="text-[10px] font-black text-blue-400 tracking-widest uppercase">Ödeme Bilgileri</span>
@@ -264,7 +268,8 @@ export default function NewRegistration({
           <InputItem icon={<Users size={18}/>} placeholder="Referans (Varsa)" value={formData.referans} onChange={(v: any) => setFormData({...formData, referans: v})} />
         </div>
 
-        {isPaid && (
+        {/* DÜZELTME: Dekont kısmı için de aynı güvenli kontrolü uyguluyoruz */}
+        {(isPaid === true || String(isPaid) === "true") && (
           <div className="relative border-2 border-dashed border-white/10 rounded-2xl p-4 transition-all hover:bg-white/5 bg-white/2">
             <input 
               type="file" accept="image/*" 
