@@ -7,7 +7,7 @@ import {
   Users, Lock, Plus, Camera, ShieldCheck, 
   Settings2, LayoutGrid, X, Power, Film, Theater, Trophy, 
   Calendar, MapPin, Loader2, Save, Armchair, Link2,
-  CreditCard, Banknote // Yeni ikonlar eklendi
+  CreditCard, Banknote, User // User ikonu eklendi
 } from 'lucide-react';
 
 const AdminContext = createContext<any>(null);
@@ -68,9 +68,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         has_seating: slot.has_seating,
         whatsapp_link: slot.whatsapp_link,
         is_paid: slot.is_paid,
-        // YENİ ALANLAR: Veritabanına gönderiliyor
         event_price: slot.event_price,
-        event_iban: slot.event_iban 
+        event_iban: slot.event_iban,
+        // YENİLİK: event_ibanname veritabanına ekleniyor
+        event_ibanname: slot.event_ibanname 
       })
       .eq('id', slot.id);
 
@@ -174,7 +175,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                       </div>
 
                       <div className={`space-y-4 ${!slot.is_active && 'pointer-events-none opacity-50'}`}>
-                        {/* Ücretli/Ücretsiz Seçimi */}
                         <button 
                           onClick={() => updateLocalSlot(slot.id, 'is_paid', !slot.is_paid)}
                           className={`w-full flex items-center justify-center gap-2 py-3 rounded-2xl text-[9px] font-black transition-all border ${slot.is_paid ? 'bg-amber-600/10 border-amber-600/20 text-amber-500' : 'bg-emerald-600/10 border-emerald-600/20 text-emerald-500'}`}
@@ -182,27 +182,39 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                           {slot.is_paid ? 'ÜCRETLİ ETKİNLİK (DEKONT İSTER)' : 'ÜCRETSİZ ETKİNLİK (DEKONT İSTEMEZ)'}
                         </button>
 
-                        {/* YENİ: Ödeme Detay Girişleri (Sadece Ücretli ise Görünür) */}
                         {slot.is_paid && (
-                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 animate-in fade-in slide-in-from-top-2 duration-300">
-                            <div className="relative col-span-1">
-                              <Banknote className="absolute left-3 top-1/2 -translate-y-1/2 text-amber-500/50" size={14} />
+                          <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
+                            {/* YENİLİK: Hesap Sahibi Girişi */}
+                            <div className="relative">
+                              <User className="absolute left-3 top-1/2 -translate-y-1/2 text-amber-500/50" size={14} />
                               <input 
-                                placeholder="Fiyat (TL)" 
-                                type="number"
-                                className="w-full bg-slate-950 border border-amber-500/20 p-4 pl-10 rounded-2xl text-[10px] font-bold outline-none focus:border-amber-500/50 text-white" 
-                                value={slot.event_price || ''} 
-                                onChange={(e) => updateLocalSlot(slot.id, 'event_price', e.target.value)} 
+                                placeholder="Hesap Sahibi Adı Soyadı" 
+                                className="w-full bg-slate-950 border border-amber-500/20 p-4 pl-10 rounded-2xl text-[10px] font-bold outline-none focus:border-amber-500/50 text-white uppercase" 
+                                value={slot.event_ibanname || ''} 
+                                onChange={(e) => updateLocalSlot(slot.id, 'event_ibanname', e.target.value)} 
                               />
                             </div>
-                            <div className="relative col-span-2">
-                              <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 text-amber-500/50" size={14} />
-                              <input 
-                                placeholder="Ödeme IBAN Bilgisi" 
-                                className="w-full bg-slate-950 border border-amber-500/20 p-4 pl-10 rounded-2xl text-[10px] font-bold outline-none focus:border-amber-500/50 text-white" 
-                                value={slot.event_iban || ''} 
-                                onChange={(e) => updateLocalSlot(slot.id, 'event_iban', e.target.value)} 
-                              />
+                            
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                              <div className="relative col-span-1">
+                                <Banknote className="absolute left-3 top-1/2 -translate-y-1/2 text-amber-500/50" size={14} />
+                                <input 
+                                  placeholder="Fiyat (TL)" 
+                                  type="number"
+                                  className="w-full bg-slate-950 border border-amber-500/20 p-4 pl-10 rounded-2xl text-[10px] font-bold outline-none focus:border-amber-500/50 text-white" 
+                                  value={slot.event_price || ''} 
+                                  onChange={(e) => updateLocalSlot(slot.id, 'event_price', e.target.value)} 
+                                />
+                              </div>
+                              <div className="relative col-span-2">
+                                <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 text-amber-500/50" size={14} />
+                                <input 
+                                  placeholder="Ödeme IBAN Bilgisi" 
+                                  className="w-full bg-slate-950 border border-amber-500/20 p-4 pl-10 rounded-2xl text-[10px] font-bold outline-none focus:border-amber-500/50 text-white" 
+                                  value={slot.event_iban || ''} 
+                                  onChange={(e) => updateLocalSlot(slot.id, 'event_iban', e.target.value)} 
+                                />
+                              </div>
                             </div>
                           </div>
                         )}
