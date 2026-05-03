@@ -3,19 +3,23 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { 
   User, Smartphone, Mail, School, Users, 
-  MessageCircle, CheckCircle2, Loader2, Image as ImageIcon, ShieldCheck, KeyRound, Send 
+  MessageCircle, CheckCircle2, Loader2, Image as ImageIcon, ShieldCheck, KeyRound, Copy, CreditCard 
 } from 'lucide-react';
 
 export default function NewRegistration({ 
   onSuccess, 
   selectedEventId,
   whatsappLink,
-  isPaid = true // Yeni eklendi: Varsayılan olarak ücretli kabul edilir
+  isPaid = true,
+  eventPrice, // YENİ: Etkinlik ücreti bilgisi
+  eventIban   // YENİ: Ödeme yapılacak IBAN bilgisi
 }: { 
   onSuccess: (data: any) => void,
   selectedEventId: string,
   whatsappLink?: string,
-  isPaid?: boolean // Tip tanımı eklendi
+  isPaid?: boolean,
+  eventPrice?: string, // Tip tanımı
+  eventIban?: string   // Tip tanımı
 }) {
   const [loading, setLoading] = useState(false);
   const [waJoined, setWaJoined] = useState(false);
@@ -44,7 +48,6 @@ export default function NewRegistration({
     return () => clearTimeout(timer);
   }, [countdown]);
 
-  // E-posta'ya kod gönderme fonksiyonu
   const handleSendOTP = async () => {
     if (!formData.email.includes('@')) return alert("Lütfen geçerli bir e-posta giriniz!");
     setVerifyingEmail(true);
@@ -63,7 +66,6 @@ export default function NewRegistration({
     }
   };
 
-  // Kodu doğrulama fonksiyonu
   const handleVerifyOTP = async () => {
     if (otpCode.length < 6) return alert("Lütfen 6 haneli kodu giriniz!");
     setVerifyingEmail(true);
@@ -71,7 +73,7 @@ export default function NewRegistration({
       const { error } = await supabase.auth.verifyOtp({
         email: formData.email,
         token: otpCode,
-        type: 'magiclink' // Duruma göre 'magiclink' olarak da değişebilir
+        type: 'magiclink'
       });
       if (error) throw error;
       setEmailVerified(true);
@@ -103,7 +105,6 @@ export default function NewRegistration({
     if (!waJoined || countdown > 0) return alert("Lütfen önce WhatsApp grubuna katılın ve doğrulamanın bitmesini bekleyin!");
     if (formData.telefon.length !== 10) return alert("Telefon numarası 10 hane olmalıdır!");
     
-    // YENİLİK: Sadece etkinlik ücretliyse dekont kontrolü yap
     if (isPaid && !file) return alert("Lütfen ödeme dekontunu yükleyin!");
 
     setLoading(true);
@@ -122,7 +123,6 @@ export default function NewRegistration({
 
       if (userError) throw userError;
 
-      // YENİLİK: Sadece dosya seçilmişse (ücretli etkinlikte) upload işlemini yap
       if (file) {
         const dekontUrl = await handleFileUpload(user.id);
         await supabase
@@ -151,10 +151,42 @@ export default function NewRegistration({
       </h2>
 
       <form onSubmit={handleSubmit} className="space-y-4">
+        
+        {/* YENİ: Ücretli etkinliklerde IBAN ve Ücret gösterimi */}
+        {isPaid && (
+          <div className="bg-blue-600/10 border border-blue-500/20 rounded-3xl p-5 space-y-3 animate-in zoom-in-95 duration-500">
+            <div className="flex justify-between items-center">
+              <span className="text-[10px] font-black text-blue-400 tracking-widest uppercase">Ödeme Bilgileri</span>
+              <div className="bg-blue-600 text-white text-[10px] font-black px-3 py-1 rounded-full shadow-lg">
+                {eventPrice || "0"} TL
+              </div>
+            </div>
+            
+            <div className="space-y-1">
+              <p className="text-[10px] text-slate-400 font-bold ml-1 uppercase">IBAN</p>
+              <div 
+                onClick={() => {
+                  navigator.clipboard.writeText(eventIban || "");
+                  alert("IBAN Kopyalandı!");
+                }}
+                className="bg-slate-950/50 border border-white/5 p-4 rounded-2xl flex items-center justify-between group cursor-pointer hover:border-blue-500/30 transition-all"
+              >
+                <div className="flex items-center gap-3 overflow-hidden">
+                  <CreditCard className="text-blue-500 shrink-0" size={18} />
+                  <span className="text-xs font-mono text-white tracking-widest truncate">{eventIban || "Henüz Belirtilmedi"}</span>
+                </div>
+                <Copy size={14} className="text-slate-500 group-hover:text-blue-400 shrink-0" />
+              </div>
+            </div>
+            <p className="text-[9px] text-slate-500 leading-relaxed italic text-center">
+              * Lütfen ödeme yaparken açıklama kısmına adınızı ve kısaca etkinliği yazmayı unutmayın.
+            </p>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 gap-3">
           <InputItem icon={<User size={18}/>} placeholder="Ad Soyad" value={formData.ad_soyad} onChange={(v: any) => setFormData({...formData, ad_soyad: v})} />
           
-          {/* E-posta ve Doğrulama Butonu */}
           <div className="relative">
             <InputItem 
               icon={<Mail size={18}/>} 
@@ -181,7 +213,6 @@ export default function NewRegistration({
             )}
           </div>
 
-          {/* OTP Kodu Giriş Kutucuğu */}
           {emailSent && !emailVerified && (
             <div className="flex gap-2 animate-in slide-in-from-top-2 duration-300">
               <div className="relative flex-1">
@@ -233,7 +264,6 @@ export default function NewRegistration({
           <InputItem icon={<Users size={18}/>} placeholder="Referans (Varsa)" value={formData.referans} onChange={(v: any) => setFormData({...formData, referans: v})} />
         </div>
 
-        {/* YENİLİK: Sadece ücretli etkinlikse Dekont alanını göster */}
         {isPaid && (
           <div className="relative border-2 border-dashed border-white/10 rounded-2xl p-4 transition-all hover:bg-white/5 bg-white/2">
             <input 
@@ -254,7 +284,6 @@ export default function NewRegistration({
           </div>
         )}
 
-        {/* WhatsApp Butonu: Email doğrulanmadan aktif olmaz */}
         <a 
           href={emailVerified ? (whatsappLink || "#") : undefined} 
           target="_blank"
@@ -276,7 +305,6 @@ export default function NewRegistration({
           {waJoined ? (countdown > 0 ? `DOĞRULANIYOR (${countdown})` : "GRUBA KATILINDI") : "WHATSAPP GRUBUNA KATIL"}
         </a>
 
-        {/* Kaydı Tamamla Butonu: Email ve WhatsApp doğrulanmadan aktif olmaz */}
         <button
           disabled={loading || !waJoined || countdown > 0 || !emailVerified}
           type="submit"
