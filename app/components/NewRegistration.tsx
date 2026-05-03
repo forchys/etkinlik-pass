@@ -178,10 +178,10 @@ export default function NewRegistration({
       <form onSubmit={handleSubmit} className="space-y-4">
         
         {showPaymentInfo && (
-          <div className="bg-blue-600/10 border border-blue-500/20 rounded-3x1 p-5 space-y-3 animate-in zoom-in-95 duration-500">
+          <div className="bg-blue-600/10 border border-blue-500/20 rounded-3xl p-5 space-y-3 animate-in zoom-in-95 duration-500">
             <div className="flex justify-between items-center">
               <span className="text-[10px] font-black text-blue-400 tracking-widest ">Ödeme Bilgileri</span>
-              <div className="bg-emerald-950/40 text-white text-[12px] font-black px-4 py-2 rounded-md shadow-lg">
+              <div className="bg-emerald-600 text-white text-[13px] font-bold px-4 py-2 rounded-xl shadow-lg">
                 {eventSettings?.event_price || "0"} TL
               </div>
             </div>
