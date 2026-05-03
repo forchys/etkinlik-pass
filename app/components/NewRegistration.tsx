@@ -10,24 +10,19 @@ export default function NewRegistration({
   onSuccess, 
   selectedEventId,
   whatsappLink,
-  isPaid = true,
-  eventPrice, // YENİ: Etkinlik ücreti bilgisi
-  eventIban   // YENİ: Ödeme yapılacak IBAN bilgisi
 }: { 
   onSuccess: (data: any) => void,
   selectedEventId: string,
   whatsappLink?: string,
-  isPaid?: boolean,
-  eventPrice?: string, // Tip tanımı
-  eventIban?: string   // Tip tanımı
 }) {
-  // --- DEBUG İÇİN: Gelen verileri tarayıcı konsolunda görebilirsin ---
-  console.log("Bileşene Gelen Prop Değerleri:", { isPaid, eventPrice, eventIban });
-
   const [loading, setLoading] = useState(false);
   const [waJoined, setWaJoined] = useState(false);
   const [countdown, setCountdown] = useState(0); 
   const [file, setFile] = useState<File | null>(null);
+  
+  // --- YENİLİK: Veritabanından gelen verileri tutan state ---
+  const [eventSettings, setEventSettings] = useState<any>(null);
+  const [fetchingSettings, setFetchingSettings] = useState(true);
   
   // --- E-posta Doğrulama State'leri ---
   const [emailSent, setEmailSent] = useState(false);
@@ -42,6 +37,29 @@ export default function NewRegistration({
     okul: '',
     referans: ''
   });
+
+  // --- YENİLİK: Supabase'den etkinlik ayarlarını çekme ---
+  useEffect(() => {
+    async function getSettings() {
+      if (!selectedEventId) return;
+      try {
+        const { data, error } = await supabase
+          .from('etkinlik_ayarlari')
+          .select('event_price, event_iban, is_paid')
+          .eq('id', selectedEventId)
+          .single();
+
+        if (!error && data) {
+          setEventSettings(data);
+        }
+      } catch (err) {
+        console.error("Ayarlar çekilemedi:", err);
+      } finally {
+        setFetchingSettings(false);
+      }
+    }
+    getSettings();
+  }, [selectedEventId]);
 
   useEffect(() => {
     let timer: NodeJS.Timeout;
@@ -108,6 +126,8 @@ export default function NewRegistration({
     if (!waJoined || countdown > 0) return alert("Lütfen önce WhatsApp grubuna katılın ve doğrulamanın bitmesini bekleyin!");
     if (formData.telefon.length !== 10) return alert("Telefon numarası 10 hane olmalıdır!");
     
+    // YENİLİK: Veritabanından gelen is_paid değerine göre kontrol
+    const isPaid = eventSettings?.is_paid === true || String(eventSettings?.is_paid) === "true";
     if (isPaid && !file) return alert("Lütfen ödeme dekontunu yükleyin!");
 
     setLoading(true);
@@ -147,6 +167,9 @@ export default function NewRegistration({
     return ` (${s.slice(0, 3)}) ${s.slice(3, 6)} ${s.slice(6, 8)} ${s.slice(8, 10)}`;
   };
 
+  // Ödeme durumu kontrolü
+  const showPaymentInfo = eventSettings?.is_paid === true || String(eventSettings?.is_paid) === "true";
+
   return (
     <div className="bg-slate-900/60 backdrop-blur-2xl border border-white/10 p-6 rounded-[2.5rem] shadow-2xl animate-in fade-in duration-700">
       <h2 className="text-2xl font-bold mb-6 flex items-center gap-2 tracking-tighter uppercase text-white">
@@ -155,14 +178,13 @@ export default function NewRegistration({
 
       <form onSubmit={handleSubmit} className="space-y-4">
         
-        {/* YENİ: Ücretli etkinliklerde IBAN ve Ücret gösterimi */}
-        {/* DÜZELTME: Hem boolean "true" hem de string "true" durumunu kontrol ediyoruz */}
-        {(isPaid === true || String(isPaid) === "true") && (
+        {/* YENİLİK: Veritabanından gelen bilgilere göre gösterim */}
+        {showPaymentInfo && (
           <div className="bg-blue-600/10 border border-blue-500/20 rounded-3xl p-5 space-y-3 animate-in zoom-in-95 duration-500">
             <div className="flex justify-between items-center">
               <span className="text-[10px] font-black text-blue-400 tracking-widest uppercase">Ödeme Bilgileri</span>
               <div className="bg-blue-600 text-white text-[10px] font-black px-3 py-1 rounded-full shadow-lg">
-                {eventPrice || "0"} TL
+                {eventSettings?.event_price || "0"} TL
               </div>
             </div>
             
@@ -170,14 +192,14 @@ export default function NewRegistration({
               <p className="text-[10px] text-slate-400 font-bold ml-1 uppercase">IBAN</p>
               <div 
                 onClick={() => {
-                  navigator.clipboard.writeText(eventIban || "");
+                  navigator.clipboard.writeText(eventSettings?.event_iban || "");
                   alert("IBAN Kopyalandı!");
                 }}
                 className="bg-slate-950/50 border border-white/5 p-4 rounded-2xl flex items-center justify-between group cursor-pointer hover:border-blue-500/30 transition-all"
               >
                 <div className="flex items-center gap-3 overflow-hidden">
                   <CreditCard className="text-blue-500 shrink-0" size={18} />
-                  <span className="text-xs font-mono text-white tracking-widest truncate">{eventIban || "Henüz Belirtilmedi"}</span>
+                  <span className="text-xs font-mono text-white tracking-widest truncate">{eventSettings?.event_iban || "Henüz Belirtilmedi"}</span>
                 </div>
                 <Copy size={14} className="text-slate-500 group-hover:text-blue-400 shrink-0" />
               </div>
@@ -268,8 +290,8 @@ export default function NewRegistration({
           <InputItem icon={<Users size={18}/>} placeholder="Referans (Varsa)" value={formData.referans} onChange={(v: any) => setFormData({...formData, referans: v})} />
         </div>
 
-        {/* DÜZELTME: Dekont kısmı için de aynı güvenli kontrolü uyguluyoruz */}
-        {(isPaid === true || String(isPaid) === "true") && (
+        {/* YENİLİK: Dekont alanı da veritabanı durumuna bağlı */}
+        {showPaymentInfo && (
           <div className="relative border-2 border-dashed border-white/10 rounded-2xl p-4 transition-all hover:bg-white/5 bg-white/2">
             <input 
               type="file" accept="image/*" 
