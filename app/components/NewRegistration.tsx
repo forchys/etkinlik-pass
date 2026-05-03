@@ -204,6 +204,16 @@ export default function NewRegistration({
                 <Copy size={14} className="text-slate-500 group-hover:text-blue-400 shrink-0" />
               </div>
             </div>
+            }}
+                className="bg-slate-950/50 border border-white/5 p-4 rounded-2xl flex items-center justify-between group cursor-pointer hover:border-blue-500/30 transition-all"
+              >
+                <div className="flex items-center gap-3 overflow-hidden">
+                  <User className="text-blue-500 shrink-0" size={18} />
+                  <span className="text-xs font-mono text-white tracking-widest truncate">{eventSettings?.event_ibanname || "Henüz Belirtilmedi"}</span>
+                </div>
+                <Copy size={14} className="text-slate-500 group-hover:text-blue-400 shrink-0" />
+              </div>
+            </div>
             <p className="text-[9px] text-slate-500 leading-relaxed italic text-center">
               * Lütfen ödeme yaparken açıklama kısmına adınızı ve kısaca etkinliği yazmayı unutmayın.
             </p>
