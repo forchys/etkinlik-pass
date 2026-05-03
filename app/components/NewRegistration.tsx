@@ -3,7 +3,8 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { 
   User, Smartphone, Mail, School, Users, 
-  MessageCircle, CheckCircle2, Loader2, Image as ImageIcon, ShieldCheck, KeyRound, Copy, CreditCard 
+  MessageCircle, CheckCircle2, Loader2, Image as ImageIcon, ShieldCheck, KeyRound, Copy, CreditCard,
+  ChevronDown // Yeni eklenen ikon
 } from 'lucide-react';
 
 export default function NewRegistration({ 
@@ -20,11 +21,12 @@ export default function NewRegistration({
   const [countdown, setCountdown] = useState(0); 
   const [file, setFile] = useState<File | null>(null);
   
-  // --- YENİLİK: Veritabanından gelen verileri tutan state ---
+  // --- Ödeme Penceresi State'i ---
+  const [isPaymentSheetOpen, setIsPaymentSheetOpen] = useState(false);
+  
   const [eventSettings, setEventSettings] = useState<any>(null);
   const [fetchingSettings, setFetchingSettings] = useState(true);
   
-  // --- E-posta Doğrulama State'leri ---
   const [emailSent, setEmailSent] = useState(false);
   const [emailVerified, setEmailVerified] = useState(false);
   const [otpCode, setOtpCode] = useState('');
@@ -38,14 +40,12 @@ export default function NewRegistration({
     referans: ''
   });
 
-  // --- YENİLİK: Supabase'den etkinlik ayarlarını çekme ---
   useEffect(() => {
     async function getSettings() {
       if (!selectedEventId) return;
       try {
         const { data, error } = await supabase
           .from('etkinlik_ayarlari')
-          // event_ibanname sorguya eklendi
           .select('event_price, event_iban, event_ibanname, is_paid')
           .eq('id', selectedEventId)
           .single();
@@ -178,53 +178,71 @@ export default function NewRegistration({
       <form onSubmit={handleSubmit} className="space-y-4">
         
         {showPaymentInfo && (
-          <div className="bg-blue-600/10 border border-blue-500/20 rounded-3xl p-5 space-y-3 animate-in zoom-in-95 duration-500">
-            <div className="flex justify-between items-center">
-              <span className="text-[10px] font-black text-blue-400 tracking-widest ">Ödeme Bilgileri</span>
-              <div className="bg-emerald-600 text-white text-[15px] font-bold px-4 py-2 rounded-xl shadow-lg">
+          <div className="bg-emerald-950/20 border border-emerald-500/20 rounded-[2rem] overflow-hidden transition-all duration-500">
+            {/* TIKLANABİLİR BAŞLIK - FİYAT BURADA SABİT */}
+            <div 
+              onClick={() => setIsPaymentSheetOpen(!isPaymentSheetOpen)}
+              className="p-5 flex justify-between items-center cursor-pointer hover:bg-emerald-500/5 transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <ChevronDown 
+                  size={16} 
+                  className={`text-emerald-500 transition-transform duration-300 ${isPaymentSheetOpen ? 'rotate-180' : ''}`} 
+                />
+                <span className="text-[10px] font-black text-emerald-400 tracking-widest uppercase">Ödeme Bilgileri</span>
+              </div>
+              <div className="bg-emerald-600 text-white text-[14px] font-bold px-4 py-2 rounded-xl shadow-lg">
                 {eventSettings?.event_price || "0"} TL
               </div>
             </div>
-            
-            {/* YENİLİK: Hesap Sahibi Kopyalanabilir Alan */}
-            <div className="space-y-1">
-              <p className="text-[10px] text-slate-400 font-bold ml-1 uppercase">Hesap Sahibi</p>
-              <div 
-                onClick={() => {
-                  navigator.clipboard.writeText(eventSettings?.event_ibanname || "");
-                  alert("Hesap Sahibi İsmi Kopyalandı!");
-                }}
-                className="bg-slate-950/50 border border-white/5 p-4 rounded-2xl flex items-center justify-between group cursor-pointer hover:border-blue-500/30 transition-all"
-              >
-                <div className="flex items-center gap-3 overflow-hidden">
-                  <User className="text-blue-500 shrink-0" size={18} />
-                  <span className="text-xs font-bold text-white tracking-wide truncate ">
-                    {eventSettings?.event_ibanname || "Sezennur İşik"}
-                  </span>
-                </div>
-                <Copy size={14} className="text-slate-500 group-hover:text-blue-400 shrink-0" />
-              </div>
-            </div>
 
-            <div className="space-y-1">
-              <p className="text-[10px] text-slate-400 font-bold ml-1 uppercase">IBAN</p>
-              <div 
-                onClick={() => {
-                  navigator.clipboard.writeText(eventSettings?.event_iban || "");
-                  alert("IBAN Kopyalandı!");
-                }}
-                className="bg-slate-950/50 border border-white/5 p-4 rounded-2xl flex items-center justify-between group cursor-pointer hover:border-blue-500/30 transition-all"
-              >
-                <div className="flex items-center gap-3 overflow-hidden">
-                  <CreditCard className="text-blue-500 shrink-0" size={18} />
-                  <span className="text-xs font-mono text-white tracking-widest truncate">{eventSettings?.event_iban || "Henüz Belirtilmedi"}</span>
+            {/* AÇILIR KAPANIR İÇERİK */}
+            <div className={`px-5 pb-5 space-y-4 transition-all duration-500 origin-top overflow-hidden ${
+              isPaymentSheetOpen ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0 pointer-events-none'
+            }`}>
+              <div className="space-y-1 pt-2 border-t border-emerald-500/10">
+                <p className="text-[10px] text-slate-400 font-bold ml-1 uppercase">Hesap Sahibi</p>
+                <div 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigator.clipboard.writeText(eventSettings?.event_ibanname || "");
+                    alert("Hesap Sahibi İsmi Kopyalandı!");
+                  }}
+                  className="bg-slate-950/50 border border-white/5 p-4 rounded-2xl flex items-center justify-between group cursor-pointer hover:border-emerald-500/30 transition-all"
+                >
+                  <div className="flex items-center gap-3 overflow-hidden">
+                    <User className="text-emerald-500 shrink-0" size={18} />
+                    <span className="text-xs font-bold text-white tracking-wide truncate">
+                      {eventSettings?.event_ibanname || "Sezennur İşik"}
+                    </span>
+                  </div>
+                  <Copy size={14} className="text-slate-500 group-hover:text-emerald-400 shrink-0" />
                 </div>
-                <Copy size={14} className="text-slate-500 group-hover:text-blue-400 shrink-0" />
               </div>
+
+              <div className="space-y-1">
+                <p className="text-[10px] text-slate-400 font-bold ml-1 uppercase">IBAN</p>
+                <div 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigator.clipboard.writeText(eventSettings?.event_iban || "");
+                    alert("IBAN Kopyalandı!");
+                  }}
+                  className="bg-slate-950/50 border border-white/5 p-4 rounded-2xl flex items-center justify-between group cursor-pointer hover:border-emerald-500/30 transition-all"
+                >
+                  <div className="flex items-center gap-3 overflow-hidden">
+                    <CreditCard className="text-emerald-500 shrink-0" size={18} />
+                    <span className="text-xs font-mono text-white tracking-widest truncate">
+                      {eventSettings?.event_iban || "Henüz Belirtilmedi"}
+                    </span>
+                  </div>
+                  <Copy size={14} className="text-slate-500 group-hover:text-emerald-400 shrink-0" />
+                </div>
+              </div>
+              <p className="text-[9px] text-slate-500 leading-relaxed italic text-center">
+                * Lütfen ödeme yaparken açıklama kısmına adınızı ve kısaca etkinliği yazmayı unutmayın.
+              </p>
             </div>
-            <p className="text-[9px] text-slate-500 leading-relaxed italic text-center">
-              * Lütfen ödeme yaparken açıklama kısmına adınızı ve kısaca etkinliği yazmayı unutmayın.
-            </p>
           </div>
         )}
 
