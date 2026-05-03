@@ -10,7 +10,7 @@ export default function NewRegistration({
   onSuccess, 
   selectedEventId,
   whatsappLink,
-  isPaid = true,
+  isPaid = false, // YENİLİK BURADA: Varsayılan değer false yapıldı, böylece veri gelene kadar form güvenli kalır.
   eventPrice, // YENİ: Etkinlik ücreti bilgisi
   eventIban   // YENİ: Ödeme yapılacak IBAN bilgisi
 }: { 
