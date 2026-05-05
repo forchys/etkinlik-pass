@@ -327,7 +327,8 @@ export default function Home() {
                 loading={loading}
                 setStep={setStep}
                 setError={setError}
-                seatLayout={eventSlots.find(s => s.slot_id === selectedSlotId)?.seat_layout || []}
+                // DÜZELTİLEN SATIR: selectedSlotId yerine selectedEvent içindeki slot_id'yi kullanıyoruz.
+                seatLayout={eventSlots.find(s => s.slot_id === selectedEvent?.slot_id)?.seat_layout || []}
               />
             )}
 
@@ -368,7 +369,7 @@ export default function Home() {
         .animate-scroll-right { animation: scroll-right 40s linear infinite; }
         .animate-super-slow-rotate { animation: rotate-slow 150s linear infinite; }
         .scrollbar-hide::-webkit-scrollbar { display: none; }
-        .grid-cols-17 { grid-template-columns: repeat(17, minmax(0, 1fr)); }
+        .grid-cols-25 { grid-template-columns: repeat(25, minmax(0, 1fr)); }
         .empty-seat { color: #334155; transition: all 0.2s; }
         .empty-seat:hover { color: #94a3b8; transform: scale(1.1); }
         .occupied-seat { color: #e11d48; cursor: not-allowed; opacity: 0.6; }
