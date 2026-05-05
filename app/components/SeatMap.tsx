@@ -31,11 +31,9 @@ export default function SeatMap({
 
   const confirmButtonRef = useRef<HTMLButtonElement>(null);
 
-  // Tüm olası satırlar ve sütunlar
   const allRows = ['P', 'O', 'N', 'M', 'L', 'K', 'J', 'I', 'H', 'G', 'F', 'E', 'D', 'C', 'B', 'A'];
   const columns = Array.from({ length: 25 }, (_, i) => i + 1);
 
-  // YENİLİK: Sadece içinde en az bir aktif koltuk olan satırları filtrele
   const activeRows = allRows.filter(row => 
     seatLayout.some(seatId => seatId.startsWith(`${row}-`))
   );
@@ -45,8 +43,9 @@ export default function SeatMap({
 
   return (
     <>
-      <div className="fixed top-24 left-1/2 -translate-x-1/2 z-[100] animate-in slide-in-from-top duration-500">
-        <div className={`flex items-center gap-4 px-6 py-3 rounded-2xl border backdrop-blur-2xl shadow-2xl transition-all duration-500 ${timeLeft < 20 ? 'border-rose-500/50 bg-rose-500/10' : 'border-blue-500/30 bg-slate-900/80'}`}>
+      {/* 1. DÜZELTME: Zamanlayıcıyı içeriğin tepesine sabitledik (Koltukların üstünü kapatmaz) */}
+      <div className="sticky top-0 z-[100] pb-6 pt-2 flex justify-center bg-transparent pointer-events-none">
+        <div className={`flex items-center gap-4 px-6 py-3 rounded-2xl border backdrop-blur-2xl shadow-2xl transition-all duration-500 pointer-events-auto ${timeLeft < 20 ? 'border-rose-500/50 bg-rose-500/10' : 'border-blue-500/30 bg-slate-900/80'}`}>
           <div className="flex flex-col items-start">
             <span className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-500 leading-none mb-1">Kalan Süre</span>
             <span className={`text-2xl font-mono font-black leading-none tracking-tighter ${timeLeft < 20 ? 'text-rose-500 animate-pulse' : 'text-blue-400'}`}>
@@ -58,15 +57,14 @@ export default function SeatMap({
         </div>
       </div>
 
-      <div className="view-transition pt-4">
+      <div className="view-transition">
         <h2 className="text-xl font-black text-center mb-6 tracking-widest uppercase text-white">KOLTUK SEÇİNİZ</h2>
         
         <div className="space-y-4 max-h-[380px] overflow-auto pr-2 scrollbar-hide pb-4">
           <div className="min-w-[600px]">
             
-            {/* YENİLİK: Sütun Numaraları (Header) */}
-            <div className="flex items-center gap-3 mb-2 sticky top-0 bg-[#0f172a]/80 backdrop-blur-sm z-20 py-1">
-              <div className="w-4"></div> {/* Harf sütunu boşluğu */}
+            <div className="flex items-center gap-3 mb-2 sticky top-0 bg-[#0f172a]/95 backdrop-blur-sm z-20 py-1">
+              <div className="w-4"></div>
               <div className="flex-1 grid grid-cols-25 gap-1">
                 {columns.map(col => (
                   <div key={`num-${col}`} className="text-[8px] font-bold text-slate-500 text-center">
@@ -76,7 +74,6 @@ export default function SeatMap({
               </div>
             </div>
 
-            {/* Sadece aktif olan satırları dönüyoruz */}
             {activeRows.map((row) => {
               return (
                 <div key={row} className="flex items-center gap-3 mb-1">
@@ -98,7 +95,13 @@ export default function SeatMap({
                           disabled={isOccupied} 
                           onClick={() => {
                             setSelectedSeat(seatId);
-                            setTimeout(() => confirmButtonRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100);
+                            // 2. DÜZELTME: Daha kararlı ve akıcı kaydırma optimizasyonu
+                            requestAnimationFrame(() => {
+                              confirmButtonRef.current?.scrollIntoView({ 
+                                behavior: 'smooth', 
+                                block: 'nearest' 
+                              });
+                            });
                           }}
                           className={`relative aspect-[1/1.1] transition-all duration-300 ${isOccupied ? 'occupied-seat' : isSelected ? 'selected-seat' : 'empty-seat'}`}
                         >
