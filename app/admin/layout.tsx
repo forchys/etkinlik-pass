@@ -7,7 +7,7 @@ import {
   Users, Lock, Plus, Camera, ShieldCheck, 
   Settings2, LayoutGrid, X, Power, Film, Theater, Trophy, 
   Calendar, MapPin, Loader2, Save, Armchair, Link2,
-  CreditCard, Banknote, User // User ikonu eklendi
+  CreditCard, Banknote, User
 } from 'lucide-react';
 
 const AdminContext = createContext<any>(null);
@@ -25,6 +25,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [eventSlots, setEventSlots] = useState<any[]>([]);
   const [selectedSlotId, setSelectedSlotId] = useState<number>(1); 
   const [savingSlotId, setSavingSlotId] = useState<string | null>(null);
+
+  // --- YENİLİK: KOLTUK DÜZENLEYİCİ STATE'LERİ ---
+  const [isSeatEditorOpen, setIsSeatEditorOpen] = useState(false);
+  const [editingSlotForSeats, setEditingSlotForSeats] = useState<any>(null);
+  const [activeSeats, setActiveSeats] = useState<string[]>([]);
+  const [savingSeats, setSavingSeats] = useState(false);
+
+  // Alttan yukarı (A-P) 16 satır ve Soldan sağa 25 sütun
+  const seatRows = ['P', 'O', 'N', 'M', 'L', 'K', 'J', 'I', 'H', 'G', 'F', 'E', 'D', 'C', 'B', 'A'];
+  const seatCols = Array.from({ length: 25 }, (_, i) => i + 1);
 
   const ADMIN_PASSWORD = "flickbaba31";
 
@@ -76,6 +86,31 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
     if (error) alert("Hata: " + error.message);
     setSavingSlotId(null);
+  };
+
+  // --- YENİLİK: KOLTUK DİZİLİMİ KAYDETME FONKSİYONU ---
+  const handleSaveSeats = async () => {
+    if (!editingSlotForSeats) return;
+    setSavingSeats(true);
+    
+    const { error } = await supabase
+      .from('etkinlik_ayarlari')
+      .update({ seat_layout: activeSeats })
+      .eq('id', editingSlotForSeats.id);
+
+    if (!error) {
+      updateLocalSlot(editingSlotForSeats.id, 'seat_layout', activeSeats);
+      setIsSeatEditorOpen(false);
+    } else {
+      alert("Hata: " + error.message);
+    }
+    setSavingSeats(false);
+  };
+
+  const toggleSeat = (seatId: string) => {
+    setActiveSeats(prev => 
+      prev.includes(seatId) ? prev.filter(s => s !== seatId) : [...prev, seatId]
+    );
   };
 
   const fetchParticipants = async () => {
@@ -136,6 +171,96 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }}>
       <main className="min-h-screen bg-[#020617] text-white p-4 font-sans flex flex-col items-center">
         
+        {/* --- YENİLİK: KOLTUK DÜZENLEYİCİ PENCERESİ --- */}
+        {isSeatEditorOpen && editingSlotForSeats && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-2 sm:p-6 bg-black/95 backdrop-blur-xl animate-in fade-in duration-300">
+            <div className="w-full max-w-6xl bg-slate-950 border border-white/10 rounded-[2.5rem] flex flex-col max-h-[95vh] overflow-hidden shadow-2xl">
+              
+              <div className="flex justify-between items-center p-6 sm:p-8 border-b border-white/5 bg-slate-950/50 backdrop-blur-md">
+                <div>
+                  <h2 className="text-xl font-black uppercase tracking-tighter text-white">
+                    Koltuk Düzeni <span className="text-blue-500">(Slot #{editingSlotForSeats.slot_id})</span>
+                  </h2>
+                  <p className="text-[10px] text-slate-500 font-bold tracking-widest">
+                    MÜŞTERİLERİN SEÇEBİLECEĞİ AKTİF KOLTUKLARA TIKLAYARAK BELİRLEYİN
+                  </p>
+                </div>
+                <button 
+                  onClick={() => setIsSeatEditorOpen(false)} 
+                  className="bg-slate-900 p-3 rounded-2xl hover:bg-rose-500/20 hover:text-rose-500 transition-all text-white"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+
+              {/* Yatay ve Dikey Kaydırılabilir Alan */}
+              <div className="flex-1 overflow-auto p-4 sm:p-8 custom-scrollbar bg-[#020617]">
+                <div className="min-w-max flex flex-col gap-2 mx-auto pb-8">
+                   {/* Sütun Numaraları (Tepe) */}
+                   <div className="flex gap-2 items-center mb-4">
+                      <div className="w-6"></div>
+                      {seatCols.map(col => (
+                         <div key={`head-${col}`} className="w-8 text-center text-[10px] font-black text-slate-600">{col}</div>
+                      ))}
+                   </div>
+                   
+                   {/* Koltuk Matrisi */}
+                  {seatRows.map(row => (
+                    <div key={row} className="flex gap-2 items-center">
+                      <div className="w-6 text-center text-xs font-bold text-slate-500">{row}</div>
+                      {seatCols.map(col => {
+                        const seatId = `${row}-${col}`;
+                        const isActive = activeSeats.includes(seatId);
+                        return (
+                          <button
+                            key={seatId}
+                            onClick={() => toggleSeat(seatId)}
+                            className={`w-8 h-8 rounded-lg flex items-center justify-center text-[10px] font-bold transition-all ${
+                              isActive 
+                                ? 'bg-emerald-500 text-white shadow-[0_0_10px_rgba(16,185,129,0.4)] scale-105 z-10' 
+                                : 'bg-slate-800/50 text-slate-500 hover:bg-slate-700 hover:text-white'
+                            }`}
+                          >
+                            {col}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ))}
+                  
+                  {/* Sahne / Perde Göstergesi */}
+                  <div className="w-full mt-10 relative flex justify-center">
+                    <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-dashed border-slate-700"></div></div>
+                    <div className="relative bg-[#020617] px-4 text-[10px] font-black tracking-[0.5em] text-slate-500">PERDE / SAHNE</div>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="p-6 border-t border-white/5 bg-slate-950/50 backdrop-blur-md flex flex-wrap items-center justify-between gap-4">
+                <div className="flex items-center gap-4 text-xs font-bold text-slate-400">
+                  <span>Toplam Aktif Koltuk: <span className="text-emerald-500 text-lg ml-1">{activeSeats.length}</span></span>
+                  <div className="h-6 w-[1px] bg-white/10 hidden sm:block"></div>
+                  <button 
+                    onClick={() => setActiveSeats([])} 
+                    className="text-rose-500 hover:text-rose-400 text-[10px] uppercase tracking-widest hidden sm:block"
+                  >
+                    Tümünü Temizle
+                  </button>
+                </div>
+                <button 
+                  disabled={savingSeats}
+                  onClick={handleSaveSeats}
+                  className="bg-emerald-600 text-white px-8 py-4 rounded-2xl font-black text-[10px] tracking-widest hover:bg-emerald-500 transition-all flex items-center gap-2 w-full sm:w-auto justify-center"
+                >
+                  {savingSeats ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
+                  KAYDET VE KAPAT
+                </button>
+              </div>
+
+            </div>
+          </div>
+        )}
+
         {isSettingsOpen && (
           <div className="fixed inset-0 z-[150] flex items-center justify-center p-2 sm:p-6 bg-black/95 backdrop-blur-xl">
             <div className="w-full max-w-5xl bg-slate-950 border border-white/10 rounded-[2.5rem] sm:rounded-[3rem] flex flex-col max-h-[92vh] overflow-hidden shadow-2xl">
@@ -157,13 +282,28 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                       
                       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
                         <span className="text-[10px] font-black bg-blue-600/20 text-blue-500 px-3 py-1 rounded-lg">SLOT #{slot.slot_id}</span>
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
                           <button 
                             onClick={() => updateLocalSlot(slot.id, 'has_seating', !slot.has_seating)}
                             className={`flex items-center gap-2 px-3 py-2 rounded-xl text-[8px] font-black transition-all ${slot.has_seating ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-500'}`}
                           >
                             <Armchair size={12} /> {slot.has_seating ? 'KOLTUK AÇIK' : 'KOLTUK KAPALI'}
                           </button>
+                          
+                          {/* YENİLİK: KOLTUK DÜZENLE BUTONU */}
+                          {slot.has_seating && (
+                            <button
+                              onClick={() => {
+                                setEditingSlotForSeats(slot);
+                                setActiveSeats(slot.seat_layout || []);
+                                setIsSeatEditorOpen(true);
+                              }}
+                              className="flex items-center gap-2 px-3 py-2 rounded-xl text-[8px] font-black transition-all bg-amber-500 text-slate-900 hover:bg-amber-400"
+                            >
+                              <LayoutGrid size={12} /> DÜZENLE
+                            </button>
+                          )}
+
                           <button 
                             onClick={() => updateLocalSlot(slot.id, 'is_active', !slot.is_active)}
                             className={`flex items-center gap-2 px-3 py-2 rounded-xl text-[8px] font-black transition-all ${slot.is_active ? 'bg-emerald-500 text-white' : 'bg-slate-800 text-slate-400'}`}
@@ -309,10 +449,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <style jsx global>{`
           #reader video { width: 100% !important; height: 100% !important; object-fit: cover !important; }
           #reader { border: none !important; }
-          .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+          .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
           .custom-scrollbar::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); border-radius: 10px; }
-          .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(245, 158, 11, 0.2); border-radius: 10px; }
-          .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(245, 158, 11, 0.4); }
+          .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(16, 185, 129, 0.3); border-radius: 10px; }
+          .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(16, 185, 129, 0.6); }
         `}</style>
       </main>
     </AdminContext.Provider>
