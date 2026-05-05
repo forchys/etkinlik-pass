@@ -31,7 +31,9 @@ export default function SeatMap({
 
   const confirmButtonRef = useRef<HTMLButtonElement>(null);
 
-  const allRows = ['P', 'O', 'N', 'M', 'L', 'K', 'J', 'I', 'H', 'G', 'F', 'E', 'D', 'C', 'B', 'A'];
+  // --- GÜNCELLEME: TÜRK ALFABESİ (A-P ARASI) ---
+  // Kullanıcı arayüzünde P en üstte, A en altta (sahne tarafı) olacak şekilde sıralandı.
+  const allRows = ['P', 'Ö', 'O', 'N', 'M', 'L', 'K', 'İ', 'I', 'H', 'Ğ', 'G', 'F', 'E', 'D', 'Ç', 'C', 'B', 'A'];
   const columns = Array.from({ length: 25 }, (_, i) => i + 1);
 
   const activeRows = allRows.filter(row => 
