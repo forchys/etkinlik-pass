@@ -7,7 +7,7 @@ import {
   Users, Lock, Plus, Camera, ShieldCheck, 
   Settings2, LayoutGrid, X, Power, Film, Theater, Trophy, 
   Calendar, MapPin, Loader2, Save, Armchair, Link2,
-  CreditCard, Banknote, User
+  CreditCard, Banknote, User, ClipboardList // ClipboardList ikonu eklendi
 } from 'lucide-react';
 
 const AdminContext = createContext<any>(null);
@@ -66,7 +66,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }));
   };
 
-  // --- GÜNCELLEME FONKSİYONU ---
   const handleUpdateSlot = async (slot: any) => {
     setSavingSlotId(slot.id);
     const { error } = await supabase
@@ -90,7 +89,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     setSavingSlotId(null);
   };
 
-  // --- YENİLİK: KOLTUK DİZİLİMİ KAYDETME FONKSİYONU ---
   const handleSaveSeats = async () => {
     if (!editingSlotForSeats) return;
     setSavingSeats(true);
@@ -173,11 +171,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }}>
       <main className="min-h-screen bg-[#020617] text-white p-4 font-sans flex flex-col items-center">
         
-        {/* --- YENİLİK: KOLTUK DÜZENLEYİCİ PENCERESİ --- */}
         {isSeatEditorOpen && editingSlotForSeats && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center p-2 sm:p-6 bg-black/95 backdrop-blur-xl animate-in fade-in duration-300">
             <div className="w-full max-w-6xl bg-slate-950 border border-white/10 rounded-[2.5rem] flex flex-col max-h-[95vh] overflow-hidden shadow-2xl">
-              
               <div className="flex justify-between items-center p-6 sm:p-8 border-b border-white/5 bg-slate-950/50 backdrop-blur-md">
                 <div>
                   <h2 className="text-xl font-black uppercase tracking-tighter text-white">
@@ -195,14 +191,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 </button>
               </div>
 
-              {/* Yatay ve Dikey Kaydırılabilir Alan */}
               <div className="flex-1 overflow-auto p-4 sm:p-8 custom-scrollbar bg-[#020617]">
                 <div 
                   className="min-w-max flex flex-col gap-2 mx-auto pb-8"
                   onMouseUp={() => setIsDragging(false)}
                   onMouseLeave={() => setIsDragging(false)}
                 >
-                   {/* Sütun Numaraları (Tepe) */}
                    <div className="flex gap-2 items-center mb-4">
                       <div className="w-6"></div>
                       {seatCols.map(col => (
@@ -210,7 +204,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                       ))}
                    </div>
                    
-                   {/* Koltuk Matrisi */}
                   {seatRows.map(row => (
                     <div key={row} className="flex gap-2 items-center">
                       <div className="w-6 text-center text-xs font-bold text-slate-500">{row}</div>
@@ -242,7 +235,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                     </div>
                   ))}
                   
-                  {/* Sahne / Perde Göstergesi */}
                   <div className="w-full mt-10 relative flex justify-center">
                     <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-dashed border-slate-700"></div></div>
                     <div className="relative bg-[#020617] px-4 text-[10px] font-black tracking-[0.5em] text-slate-500">PERDE / SAHNE</div>
@@ -278,7 +270,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         {isSettingsOpen && (
           <div className="fixed inset-0 z-[150] flex items-center justify-center p-2 sm:p-6 bg-black/95 backdrop-blur-xl">
             <div className="w-full max-w-5xl bg-slate-950 border border-white/10 rounded-[2.5rem] sm:rounded-[3rem] flex flex-col max-h-[92vh] overflow-hidden shadow-2xl">
-              
               <div className="flex justify-between items-center p-6 sm:p-8 border-b border-white/5 bg-slate-950/50 backdrop-blur-md">
                 <div>
                   <h2 className="text-xl font-black uppercase tracking-tighter">Etkinlik Slotları</h2>
@@ -293,7 +284,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
                   {eventSlots.map((slot) => (
                     <div key={slot.id} className={`p-5 sm:p-6 rounded-[2rem] border transition-all duration-500 ${slot.is_active ? 'bg-slate-900/40 border-blue-500/30' : 'bg-slate-900/10 border-white/5 opacity-60'}`}>
-                      
                       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
                         <span className="text-[10px] font-black bg-blue-600/20 text-blue-500 px-3 py-1 rounded-lg">SLOT #{slot.slot_id}</span>
                         <div className="flex flex-wrap items-center gap-2">
@@ -304,7 +294,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                             <Armchair size={12} /> {slot.has_seating ? 'KOLTUK AÇIK' : 'KOLTUK KAPALI'}
                           </button>
                           
-                          {/* YENİLİK: KOLTUK DÜZENLE BUTONU */}
                           {slot.has_seating && (
                             <button
                               onClick={() => {
@@ -337,7 +326,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
                         {slot.is_paid && (
                           <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
-                            {/* YENİLİK: Hesap Sahibi Girişi */}
                             <div className="relative">
                               <User className="absolute left-3 top-1/2 -translate-y-1/2 text-amber-500/50" size={14} />
                               <input 
@@ -434,6 +422,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <button onClick={() => setIsSettingsOpen(true)} className="bg-slate-800 p-3 rounded-2xl text-blue-400"><Settings2 size={22} /></button>
             <Link href="/admin/add" className={`${pathname === '/admin/add' ? 'bg-emerald-600' : 'bg-slate-800'} p-3 rounded-2xl`}><Plus size={22} /></Link>
             <Link href="/admin/list" className={`${pathname === '/admin/list' ? 'bg-blue-600' : 'bg-slate-800'} p-3 rounded-2xl relative`}><Users size={22} /></Link>
+            
+            {/* YENİLİK: ANKET BUTONU EKLEDİĞİMİZ KISIM */}
+            <Link href="/admin/survey" className={`${pathname === '/admin/survey' ? 'bg-purple-600' : 'bg-slate-800'} p-3 rounded-2xl`}>
+              <ClipboardList size={22} />
+            </Link>
+
             <Link href="/admin/scanner" className={`${pathname === '/admin/scanner' ? 'bg-blue-600' : 'bg-slate-800'} p-3 rounded-2xl`}><Camera size={22} /></Link>
             <Link href="/admin/pending" className={`${pathname === '/admin/pending' ? 'bg-blue-600' : 'bg-slate-800'} p-3 rounded-2xl`}><ShieldCheck size={20} /></Link>
           </div>
