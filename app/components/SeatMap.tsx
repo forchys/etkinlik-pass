@@ -20,29 +20,24 @@ interface SeatMapProps {
   loading: boolean;
   setStep: (step: number) => void;
   setError: (err: string) => void;
+  // YENİLİK: Veritabanından gelen aktif koltuk listesi
+  seatLayout: string[]; 
 }
 
 export default function SeatMap({
   timeLeft, occupiedSeats, selectedSeat, setSelectedSeat,
-  handleSeatConfirm, loading, setStep, setError
+  handleSeatConfirm, loading, setStep, setError,
+  seatLayout = [] // Varsayılan boş dizi
 }: SeatMapProps) {
 
   const confirmButtonRef = useRef<HTMLButtonElement>(null);
-  const rows = ['N', 'M', 'L', 'K', 'J', 'I', 'H', 'G', 'F', 'E', 'D', 'C', 'B', 'A'];
+
+  // Admin panelindeki 16x25 matris yapısı ile tam uyumlu
+  const rows = ['P', 'O', 'N', 'M', 'L', 'K', 'J', 'I', 'H', 'G', 'F', 'E', 'D', 'C', 'B', 'A'];
+  const columns = Array.from({ length: 25 }, (_, i) => i + 1);
 
   const formatTime = (seconds: number) => 
     `${Math.floor(seconds / 60).toString().padStart(2, '0')}:${(seconds % 60).toString().padStart(2, '0')}`;
-
-  const getSeatNumber = (row: string, slotIndex: number): number | null => {
-    if (['M', 'L', 'K'].includes(row)) {
-      if (slotIndex <= 2) return slotIndex;
-      if (slotIndex >= 6 && slotIndex <= 16) return slotIndex - 3;
-      return null;
-    }
-    if (row === 'N') return slotIndex;
-    if (['J', 'I', 'H', 'G', 'F', 'E', 'D'].includes(row)) return slotIndex <= 11 ? slotIndex : null;
-    return slotIndex <= 13 ? slotIndex : null;
-  };
 
   return (
     <>
@@ -61,48 +56,56 @@ export default function SeatMap({
 
       <div className="view-transition pt-4">
         <h2 className="text-xl font-black text-center mb-6 tracking-widest uppercase text-white">KOLTUK SEÇİNİZ</h2>
-        <div className="space-y-4 max-h-[380px] overflow-y-auto pr-2 scrollbar-hide">
-          {rows.map((row) => (
-            <div key={row} className="flex items-center gap-3">
-              <div className="w-4 text-[10px] font-black text-slate-600 font-mono">{row}</div>
-              <div className="flex-1 grid grid-cols-17 gap-1">
-                {[...Array(17)].map((_, i) => {
-                  const slotIndex = i + 1;
-                  const seatNum = getSeatNumber(row, slotIndex);
-                  
-                  if (seatNum === null) {
-                    return <div key={`gap-${row}-${slotIndex}`} className="aspect-[1/1.1]"></div>;
-                  }
+        
+        {/* Yatay kaydırma desteği eklendi çünkü 25 sütun geniş bir alan */}
+        <div className="space-y-4 max-h-[380px] overflow-auto pr-2 scrollbar-hide pb-4">
+          <div className="min-w-[600px]"> {/* Mobilde sıkışmaması için minimum genişlik */}
+            {rows.map((row) => {
+              // Eğer bu satırda hiç aktif koltuk yoksa satırı komple render etmeyebiliriz 
+              // ancak salon yapısını bozmamak için tüm satırları dönüyoruz.
+              return (
+                <div key={row} className="flex items-center gap-3 mb-1">
+                  <div className="w-4 text-[10px] font-black text-slate-600 font-mono">{row}</div>
+                  <div className="flex-1 grid grid-cols-25 gap-1">
+                    {columns.map((col) => {
+                      const seatId = `${row}-${col}`;
+                      const isActive = seatLayout.includes(seatId);
+                      const isOccupied = occupiedSeats.includes(seatId);
+                      const isSelected = selectedSeat === seatId;
+                      
+                      if (!isActive) {
+                        return <div key={`gap-${seatId}`} className="aspect-[1/1.1]"></div>;
+                      }
 
-                  const seatId = `${row}-${seatNum}`;
-                  const isOccupied = occupiedSeats.includes(seatId);
-                  const isSelected = selectedSeat === seatId;
-                  
-                  return (
-                    <button
-                      key={seatId} 
-                      disabled={isOccupied} 
-                      onClick={() => {
-                        setSelectedSeat(seatId);
-                        setTimeout(() => confirmButtonRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100);
-                      }}
-                      className={`relative aspect-[1/1.1] transition-all duration-300 ${isOccupied ? 'occupied-seat' : isSelected ? 'selected-seat' : 'empty-seat'}`}
-                    >
-                      <ChairSVG className="absolute inset-0 w-full h-full pointer-events-none seat-img" />
-                      <span className={`absolute inset-0 flex items-center justify-center text-[7px] font-bold translate-y-1 z-10 ${isOccupied ? 'text-rose-200/40' : isSelected ? 'text-white' : 'text-slate-400'}`}>
-                        {seatNum}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
+                      return (
+                        <button
+                          key={seatId} 
+                          disabled={isOccupied} 
+                          onClick={() => {
+                            setSelectedSeat(seatId);
+                            setTimeout(() => confirmButtonRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100);
+                          }}
+                          className={`relative aspect-[1/1.1] transition-all duration-300 ${isOccupied ? 'occupied-seat' : isSelected ? 'selected-seat' : 'empty-seat'}`}
+                        >
+                          <ChairSVG className="absolute inset-0 w-full h-full pointer-events-none seat-img" />
+                          <span className={`absolute inset-0 flex items-center justify-center text-[7px] font-bold translate-y-1 z-10 ${isOccupied ? 'text-rose-200/40' : isSelected ? 'text-white' : 'text-slate-400'}`}>
+                            {col}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
+
         <div className="relative w-full mt-10 mb-6 text-center">
           <div className="absolute inset-0 flex items-center"><div className="w-full border-t-2 border-slate-800"></div></div>
-          <div className="relative flex justify-center"><span className="bg-[#0f172a] px-4 text-[10px] font-black tracking-[0.6em] text-slate-500 uppercase">PERDE</span></div>
+          <div className="relative flex justify-center"><span className="bg-[#0f172a] px-4 text-[10px] font-black tracking-[0.6em] text-slate-500 uppercase">PERDE / SAHNE</span></div>
         </div>
+
         <div className="mt-8 space-y-3">
           <button ref={confirmButtonRef} onClick={handleSeatConfirm} disabled={!selectedSeat || loading} className="w-full bg-emerald-600 text-white p-4 rounded-2xl font-bold tracking-widest disabled:opacity-20 transition-all">
             {loading ? <Loader2 className="animate-spin mx-auto" /> : `KOLTUK ${selectedSeat || ''} ONAYLA`}
@@ -110,6 +113,12 @@ export default function SeatMap({
           <button onClick={() => { setStep(1); setError(""); }} className="w-full text-slate-500 text-xs font-bold uppercase tracking-widest p-2">Geri Dön</button>
         </div>
       </div>
+
+      <style jsx global>{`
+        .grid-cols-25 {
+          grid-template-columns: repeat(25, minmax(0, 1fr));
+        }
+      `}</style>
     </>
   );
 }
