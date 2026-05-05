@@ -35,8 +35,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   // --- DRAG TO SELECT İÇİN YENİ STATE ---
   const [isDragging, setIsDragging] = useState(false);
 
-  // Alttan yukarı (A-P) 16 satır ve Soldan sağa 25 sütun
-  const seatRows = ['P', 'O', 'N', 'M', 'L', 'K', 'J', 'I', 'H', 'G', 'F', 'E', 'D', 'C', 'B', 'A'];
+  // --- GÜNCELLEME: TÜRK ALFABESİ (A-P ARASI) ---
+  // Türk alfabesi: A, B, C, Ç, D, E, F, G, Ğ, H, I, İ, J, K, L, M, N, O, Ö, P
+  // Admin panelinde görsel olarak P en üstte, A en altta (sahne önü) olacak şekilde ters çeviriyoruz.
+  const seatRows = ['A', 'B', 'C', 'Ç', 'D', 'E', 'F', 'G', 'Ğ', 'H', 'I', 'İ', 'J', 'K', 'L', 'M', 'N', 'O', 'Ö', 'P'].reverse();
   const seatCols = Array.from({ length: 25 }, (_, i) => i + 1);
 
   const ADMIN_PASSWORD = "flickbaba31";
