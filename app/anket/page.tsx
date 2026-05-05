@@ -93,8 +93,15 @@ export default function AnketPage() {
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-blue-600/10 blur-[120px] rounded-full pointer-events-none"></div>
 
       <div className="max-w-4xl mx-auto relative z-10">
-        <Link href="/" className="inline-flex items-center gap-2 text-slate-400 hover:text-white transition-colors uppercase text-[10px] font-black tracking-widest mb-12">
-          <ArrowLeft size={16} /> Geri Dön
+        {/* YENİLENEN ANA MENÜYE GERİ DÖN BUTONU */}
+        <Link 
+          href="/" 
+          className="inline-flex items-center gap-3 text-slate-400 hover:text-white transition-all group mb-12"
+        >
+          <div className="bg-white/5 p-2 rounded-lg group-hover:bg-blue-600 transition-colors">
+            <ArrowLeft size={18} />
+          </div>
+          <span className="uppercase text-[10px] font-black tracking-[0.3em]">Ana Menüye Dön</span>
         </Link>
 
         <div className="text-center mb-12">
