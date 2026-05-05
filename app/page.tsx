@@ -327,6 +327,7 @@ export default function Home() {
                 loading={loading}
                 setStep={setStep}
                 setError={setError}
+                seatLayout={eventSlots.find(s => s.slot_id === selectedSlotId)?.seat_layout || []}
               />
             )}
 
