@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+// Yeni oluşturduğumuz anket butonunu içe aktarıyoruz
+import FloatingSurveyButton from "./components/FloatingSurveyButton";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -15,7 +17,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Flick Bilet",
   description: "Ankara Medipol Sinema ve Tiyatro Topluluğu Bilet Sistemi",
-  metadataBase: new URL('https://flickbilet.vercel.app'), // Kendi vercel adresinle değiştir
+  metadataBase: new URL('https://flickbilet.vercel.app'), 
   openGraph: {
     title: "Flick Bilet",
     description: "",
@@ -37,10 +39,19 @@ export default function RootLayout({
 }>) {
   return (
     <html
-      lang="en"
+      lang="tr" // Dil desteğini Türkçe olarak güncelledim
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        {/* Sayfa içerikleri burada render edilir */}
+        {children}
+
+        {/* 
+          Anket Butonu: Sayfa içeriğinin altında tanımlansa da 
+          CSS'indeki 'fixed' özelliği sayesinde ekranda sabit durur.
+        */}
+        <FloatingSurveyButton />
+      </body>
     </html>
   );
 }
