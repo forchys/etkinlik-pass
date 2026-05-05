@@ -31,6 +31,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [editingSlotForSeats, setEditingSlotForSeats] = useState<any>(null);
   const [activeSeats, setActiveSeats] = useState<string[]>([]);
   const [savingSeats, setSavingSeats] = useState(false);
+  
+  // --- DRAG TO SELECT İÇİN YENİ STATE ---
+  const [isDragging, setIsDragging] = useState(false);
 
   // Alttan yukarı (A-P) 16 satır ve Soldan sağa 25 sütun
   const seatRows = ['P', 'O', 'N', 'M', 'L', 'K', 'J', 'I', 'H', 'G', 'F', 'E', 'D', 'C', 'B', 'A'];
@@ -182,7 +185,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                     Koltuk Düzeni <span className="text-blue-500">(Slot #{editingSlotForSeats.slot_id})</span>
                   </h2>
                   <p className="text-[10px] text-slate-500 font-bold tracking-widest">
-                    MÜŞTERİLERİN SEÇEBİLECEĞİ AKTİF KOLTUKLARA TIKLAYARAK BELİRLEYİN
+                    MÜŞTERİLERİN SEÇEBİLECEĞİ AKTİF KOLTUKLARA TIKLAYARAK VEYA SÜRÜKLEYEREK BELİRLEYİN
                   </p>
                 </div>
                 <button 
@@ -195,7 +198,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
               {/* Yatay ve Dikey Kaydırılabilir Alan */}
               <div className="flex-1 overflow-auto p-4 sm:p-8 custom-scrollbar bg-[#020617]">
-                <div className="min-w-max flex flex-col gap-2 mx-auto pb-8">
+                <div 
+                  className="min-w-max flex flex-col gap-2 mx-auto pb-8"
+                  onMouseUp={() => setIsDragging(false)}
+                  onMouseLeave={() => setIsDragging(false)}
+                >
                    {/* Sütun Numaraları (Tepe) */}
                    <div className="flex gap-2 items-center mb-4">
                       <div className="w-6"></div>
@@ -214,8 +221,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                         return (
                           <button
                             key={seatId}
-                            onClick={() => toggleSeat(seatId)}
-                            className={`w-8 h-8 rounded-lg flex items-center justify-center text-[10px] font-bold transition-all ${
+                            onMouseDown={() => {
+                              setIsDragging(true);
+                              toggleSeat(seatId);
+                            }}
+                            onMouseEnter={() => {
+                              if (isDragging) {
+                                toggleSeat(seatId);
+                              }
+                            }}
+                            className={`w-8 h-8 rounded-lg flex items-center justify-center text-[10px] font-bold transition-all select-none ${
                               isActive 
                                 ? 'bg-emerald-500 text-white shadow-[0_0_10px_rgba(16,185,129,0.4)] scale-105 z-10' 
                                 : 'bg-slate-800/50 text-slate-500 hover:bg-slate-700 hover:text-white'
