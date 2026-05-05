@@ -20,21 +20,25 @@ interface SeatMapProps {
   loading: boolean;
   setStep: (step: number) => void;
   setError: (err: string) => void;
-  // YENİLİK: Veritabanından gelen aktif koltuk listesi
   seatLayout: string[]; 
 }
 
 export default function SeatMap({
   timeLeft, occupiedSeats, selectedSeat, setSelectedSeat,
   handleSeatConfirm, loading, setStep, setError,
-  seatLayout = [] // Varsayılan boş dizi
+  seatLayout = []
 }: SeatMapProps) {
 
   const confirmButtonRef = useRef<HTMLButtonElement>(null);
 
-  // Admin panelindeki 16x25 matris yapısı ile tam uyumlu
-  const rows = ['P', 'O', 'N', 'M', 'L', 'K', 'J', 'I', 'H', 'G', 'F', 'E', 'D', 'C', 'B', 'A'];
+  // Tüm olası satırlar ve sütunlar
+  const allRows = ['P', 'O', 'N', 'M', 'L', 'K', 'J', 'I', 'H', 'G', 'F', 'E', 'D', 'C', 'B', 'A'];
   const columns = Array.from({ length: 25 }, (_, i) => i + 1);
+
+  // YENİLİK: Sadece içinde en az bir aktif koltuk olan satırları filtrele
+  const activeRows = allRows.filter(row => 
+    seatLayout.some(seatId => seatId.startsWith(`${row}-`))
+  );
 
   const formatTime = (seconds: number) => 
     `${Math.floor(seconds / 60).toString().padStart(2, '0')}:${(seconds % 60).toString().padStart(2, '0')}`;
@@ -57,12 +61,23 @@ export default function SeatMap({
       <div className="view-transition pt-4">
         <h2 className="text-xl font-black text-center mb-6 tracking-widest uppercase text-white">KOLTUK SEÇİNİZ</h2>
         
-        {/* Yatay kaydırma desteği eklendi çünkü 25 sütun geniş bir alan */}
         <div className="space-y-4 max-h-[380px] overflow-auto pr-2 scrollbar-hide pb-4">
-          <div className="min-w-[600px]"> {/* Mobilde sıkışmaması için minimum genişlik */}
-            {rows.map((row) => {
-              // Eğer bu satırda hiç aktif koltuk yoksa satırı komple render etmeyebiliriz 
-              // ancak salon yapısını bozmamak için tüm satırları dönüyoruz.
+          <div className="min-w-[600px]">
+            
+            {/* YENİLİK: Sütun Numaraları (Header) */}
+            <div className="flex items-center gap-3 mb-2 sticky top-0 bg-[#0f172a]/80 backdrop-blur-sm z-20 py-1">
+              <div className="w-4"></div> {/* Harf sütunu boşluğu */}
+              <div className="flex-1 grid grid-cols-25 gap-1">
+                {columns.map(col => (
+                  <div key={`num-${col}`} className="text-[8px] font-bold text-slate-500 text-center">
+                    {col}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Sadece aktif olan satırları dönüyoruz */}
+            {activeRows.map((row) => {
               return (
                 <div key={row} className="flex items-center gap-3 mb-1">
                   <div className="w-4 text-[10px] font-black text-slate-600 font-mono">{row}</div>
