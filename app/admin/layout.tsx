@@ -7,7 +7,7 @@ import {
   Users, Lock, Plus, Camera, ShieldCheck, 
   Settings2, LayoutGrid, X, Power, Film, Theater, Trophy, 
   Calendar, MapPin, Loader2, Save, Armchair, Link2,
-  CreditCard, Banknote, User, ClipboardList // ClipboardList ikonu eklendi
+  CreditCard, Banknote, User, ClipboardList
 } from 'lucide-react';
 
 const AdminContext = createContext<any>(null);
@@ -81,7 +81,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         is_paid: slot.is_paid,
         event_price: slot.event_price,
         event_iban: slot.event_iban,
-        event_ibanname: slot.event_ibanname 
+        event_ibanname: slot.event_ibanname,
+        is_registration_open: slot.is_registration_open // YENİLİK: Kayıt durumu veritabanına gönderiliyor
       })
       .eq('id', slot.id);
 
@@ -313,6 +314,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                           >
                             <Power size={14} /> {slot.is_active ? 'AKTİF' : 'PASİF'}
                           </button>
+
+                          {/* YENİLİK: Kayıtları Açma / Kapatma Butonu */}
+                          <button 
+                            onClick={() => updateLocalSlot(slot.id, 'is_registration_open', !slot.is_registration_open)}
+                            className={`flex items-center gap-2 px-3 py-2 rounded-xl text-[8px] font-black transition-all ${slot.is_registration_open ? 'bg-purple-600 text-white' : 'bg-slate-800 text-slate-400'}`}
+                          >
+                            <User size={12} /> {slot.is_registration_open ? 'KAYIT AÇIK' : 'KAYIT KAPALI'}
+                          </button>
+                          
                         </div>
                       </div>
 
