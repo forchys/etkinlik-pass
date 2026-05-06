@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { 
   Plus, Trash2, LayoutDashboard, 
   ImageIcon, Loader2, Power, 
-  BarChart3, Save, CheckCircle2, AlertCircle, Edit2, RefreshCw
+  BarChart3, Save, CheckCircle2, AlertCircle, Edit2, RefreshCw, Upload
 } from 'lucide-react';
 
 export default function AdminSurveyPage() {
@@ -14,6 +14,7 @@ export default function AdminSurveyPage() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
+  const [uploadingId, setUploadingId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -62,10 +63,6 @@ export default function AdminSurveyPage() {
     }
   };
 
-  /**
-   * GÜNCELLENMİŞ: hardResetSurvey
-   * Versiyon kontrollü sıfırlama mantığı eklendi.
-   */
   const hardResetSurvey = async () => {
     const confirmFirst = confirm('DİKKAT: Mevcut anket silinecek ve YENİ VERSİYON oluşturulacak. Bu işlem tüm kullanıcıların "oy kullandınız" engelini otomatik kaldırır. Emin misin?');
     if (!confirmFirst) return;
@@ -75,15 +72,11 @@ export default function AdminSurveyPage() {
       const currentTitle = survey.title;
       const currentIsActive = survey.is_active;
       const oldId = survey.id;
-      // Yeni versiyon numarası: Mevcut versiyon + 1 (varsayılan 1'den başlar)
       const newVersion = (survey.version || 1) + 1;
 
-      // 1. İlişkili şıkları temizle
       await supabase.from('survey_options').delete().eq('survey_id', oldId);
-      // 2. Mevcut anketi sil
       await supabase.from('surveys').delete().eq('id', oldId);
 
-      // 3. Yeni anket oluştur (Versiyon bilgisiyle birlikte)
       const { data: newSurvey, error: createError } = await supabase
         .from('surveys')
         .insert([{ 
@@ -96,7 +89,6 @@ export default function AdminSurveyPage() {
 
       if (createError) throw createError;
 
-      // 4. Adminin kendi tarayıcısındaki izleri temizle
       localStorage.removeItem(`voted_${oldId}`);
       localStorage.setItem(`last_cleared_v_${newSurvey.id}`, newVersion.toString());
 
@@ -139,6 +131,47 @@ export default function AdminSurveyPage() {
       .eq('id', opt.id);
     
     if (!error) setMessage({ type: 'success', text: 'Şık kaydedildi.' });
+  };
+
+  // YENİ: Görsel Yükleme Fonksiyonu
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, optId: string) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingId(optId);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Math.random()}.${fileExt}`;
+      const filePath = `${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('survey-images')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data } = supabase.storage
+        .from('survey-images')
+        .getPublicUrl(filePath);
+
+      const publicUrl = data.publicUrl;
+
+      // Local state güncelle
+      setOptions(prev => prev.map(o => o.id === optId ? { ...o, image_url: publicUrl } : o));
+      
+      // DB güncelle
+      await supabase
+        .from('survey_options')
+        .update({ image_url: publicUrl })
+        .eq('id', optId);
+
+      setMessage({ type: 'success', text: 'Görsel başarıyla yüklendi!' });
+    } catch (error: any) {
+      console.error(error);
+      setMessage({ type: 'error', text: 'Yükleme başarısız.' });
+    } finally {
+      setUploadingId(null);
+    }
   };
 
   const totalVotes = options.reduce((acc, curr) => acc + (curr.votes || 0), 0);
@@ -240,13 +273,27 @@ export default function AdminSurveyPage() {
             {options.map((opt) => (
               <div key={opt.id} className="group bg-slate-950/40 border border-white/5 p-4 rounded-3xl hover:border-blue-500/20 transition-all">
                 <div className="flex flex-col md:flex-row gap-4 items-center">
-                  <div className="w-16 h-16 bg-slate-900 rounded-2xl overflow-hidden border border-white/5 flex-shrink-0 flex items-center justify-center">
-                    {opt.image_url ? (
-                      <img src={opt.image_url} alt="" className="w-full h-full object-cover" />
+                  {/* Görsel Yükleme Alanı */}
+                  <div className="relative w-20 h-20 bg-slate-900 rounded-2xl overflow-hidden border border-white/5 flex-shrink-0 flex items-center justify-center group/img">
+                    {uploadingId === opt.id ? (
+                        <Loader2 className="animate-spin text-blue-500" size={20} />
+                    ) : opt.image_url ? (
+                      <img src={opt.image_url} alt="" className="w-full h-full object-cover opacity-60 group-hover/img:opacity-30 transition-opacity" />
                     ) : (
                       <ImageIcon className="text-slate-800" size={24} />
                     )}
+                    
+                    <input 
+                        type="file" 
+                        accept="image/*" 
+                        className="absolute inset-0 opacity-0 cursor-pointer z-20"
+                        onChange={(e) => handleImageUpload(e, opt.id)}
+                    />
+                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/img:opacity-100 transition-opacity">
+                        <Upload size={18} className="text-white" />
+                    </div>
                   </div>
+
                   <div className="flex-1 w-full space-y-3">
                     <input 
                       value={opt.option_text}
@@ -255,17 +302,11 @@ export default function AdminSurveyPage() {
                       placeholder="Şık metni..."
                       className="w-full bg-transparent text-sm font-bold text-white outline-none placeholder:text-slate-800"
                     />
-                    <div className="flex items-center gap-2 opacity-40 focus-within:opacity-100 transition-opacity">
-                      <ImageIcon size={12} />
-                      <input 
-                        value={opt.image_url || ''}
-                        onChange={(e) => updateOptionLocal(opt.id, 'image_url', e.target.value)}
-                        onBlur={() => saveOptionToDB(opt)}
-                        placeholder="Görsel URL..."
-                        className="w-full bg-transparent text-[10px] italic outline-none text-slate-400"
-                      />
+                    <div className="flex items-center gap-2 opacity-60 italic text-[10px] text-slate-400">
+                        <span className="truncate max-w-[250px]">{opt.image_url ? opt.image_url : "Görsel yüklenmedi"}</span>
                     </div>
                   </div>
+
                   <button 
                     onClick={() => deleteOption(opt.id)}
                     className="p-3 text-slate-700 hover:text-rose-500 hover:bg-rose-500/10 rounded-xl transition-all opacity-0 group-hover:opacity-100"
@@ -316,7 +357,6 @@ export default function AdminSurveyPage() {
             })}
           </div>
         </section>
-
       </div>
     </main>
   );
