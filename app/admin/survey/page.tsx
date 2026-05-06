@@ -10,7 +10,7 @@ import {
 
 /**
  * AdminSurveyPage: Profesyonel, dikey hiyerarşili anket yönetim paneli.
- * Hard Reset sonrası tıklanmama sorununu çözen ID-bazlı validasyon eklenmiştir.
+ * Hard Reset sonrası oylama sayfasındaki tıklama engelini çözen yapı eklendi.
  */
 export default function AdminSurveyPage() {
   const [survey, setSurvey] = useState<any>(null);
@@ -41,10 +41,6 @@ export default function AdminSurveyPage() {
         const { data: optionsData } = await supabase
           .from('survey_options').select('*').eq('survey_id', surveyData.id).order('created_at', { ascending: true });
         setOptions(optionsData || []);
-        
-        // YENİLİK: Sayfa yüklendiğinde veya veri çekildiğinde 
-        // tarayıcıdaki 'oy kullandın' kilidini bu spesifik anket ID'si için geçersiz kılabilecek 
-        // bir kontrol mekanizması burada tetiklenebilir.
       }
     } catch (e) {
       console.error("Veri çekme hatası:", e);
@@ -74,7 +70,7 @@ export default function AdminSurveyPage() {
 
   /**
    * hardResetSurvey: Anketi ve bağlı şıkları silip yepyeni bir ID ile oluşturur.
-   * Cihazdaki 'tıklanamama' sorununu aşmak için ID değişimini zorunlu kılar.
+   * Tarayıcıdaki ID-bazlı 'oy kullandın' engelini aşmak için güncellendi.
    */
   const hardResetSurvey = async () => {
     const confirmFirst = confirm('DİKKAT: Mevcut anket ve tüm oylar KALICI OLARAK silinecek ve YENİ bir ID oluşturulacak. Bu işlem cihazlardaki tıklama engelini kaldıracaktır. Emin misin?');
@@ -84,13 +80,12 @@ export default function AdminSurveyPage() {
     try {
       const currentTitle = survey.title;
       const currentIsActive = survey.is_active;
+      const oldId = survey.id; // Eski ID'yi referans için tutuyoruz
 
       // 1. Şıkları sil
-      if (survey?.id) {
-        await supabase.from('survey_options').delete().eq('survey_id', survey.id);
-        // 2. Anketi sil
-        await supabase.from('surveys').delete().eq('id', survey.id);
-      }
+      await supabase.from('survey_options').delete().eq('survey_id', oldId);
+      // 2. Anketi sil
+      await supabase.from('surveys').delete().eq('id', oldId);
 
       // 3. Yeni anket oluştur (Yeni ID ve taze zaman damgası)
       const { data: newSurvey, error: createError } = await supabase
@@ -101,16 +96,17 @@ export default function AdminSurveyPage() {
 
       if (createError) throw createError;
 
-      // 4. State'i temizle ve yeni veriyi çek
+      // 4. Yerel Engel Temizliği: Admin panelini kullandığın cihazdaki engeli hemen kaldırır
+      localStorage.removeItem(`voted_${oldId}`);
+
       setSurvey(newSurvey);
       setOptions([]);
-      
-      // Cihazdaki localStorage engelini aşmak için tarayıcıya yeni ID'yi zorla tanıtır
-      localStorage.removeItem(`voted_${survey?.id}`); 
-      
       setMessage({ type: 'success', text: 'Sistem tamamen sıfırlandı ve yeni ID oluşturuldu!' });
+      
+      // Verileri tazelemek için tekrar çek
       await fetchData();
     } catch (e) {
+      console.error(e);
       setMessage({ type: 'error', text: 'Sıfırlama başarısız.' });
     } finally {
       setActionLoading(false);
