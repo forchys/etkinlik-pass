@@ -124,21 +124,42 @@ export default function Home() {
     e.preventDefault();
     setError("");
     setLoading(true);
+
     try {
+      // Form alanlarını güvenli hale getiriyoruz
+      const temizAd = adSoyad.trim();
+      const temizTel = telefon.replace(/\D/g, "");
+
+      if (!selectedEvent?.id) {
+        setError("Lütfen önce bir etkinlik seçin.");
+        setLoading(false);
+        return;
+      }
+
+      // Veritabanı sorgusu
       const { data, error: supabaseError } = await supabase
         .from('katilimcilar')
         .select('*')
-        .ilike('ad_soyad', adSoyad.trim())
-        .eq('telefon', telefon.trim())
-        .eq('etkinlik_id', selectedEvent.id)
-        .eq('onayli_mi', true) // QR almak için sadece onaylıları kabul et
+        .ilike('ad_soyad', temizAd)
+        .eq('telefon', temizTel)
+        .eq('etkinlik_id', Number(selectedEvent.id))
         .maybeSingle();
 
-      if (supabaseError || !data) {
-        setError("Onaylı kayıt bulunamadı. Kayıt olduysanız lütfen onay bekleyin.");
+      if (supabaseError) throw supabaseError;
+
+      // Kullanıcı hiç bulunamadıysa
+      if (!data) {
+        setError(`${selectedEvent.event_name || 'Bu etkinlik'} için kayıt bulunamadı. Lütfen bilgilerinizi kontrol edin.`);
         return; 
       } 
+
+      // Kullanıcı var ama onaylanmadıysa
+      if (data.onayli_mi === false) {
+        setError("Kaydınız sisteme ulaştı ancak henüz onaylanmadı. Lütfen onay bekleyin.");
+        return;
+      }
       
+      // Başarılı giriş
       setCurrentUserData(data);
       setUserDisplayName(data.ad_soyad);
       
@@ -155,6 +176,7 @@ export default function Home() {
       }
     } catch (err) { 
       setError("Bağlantı hatası oluştu."); 
+      console.error(err);
     } finally {
       setLoading(false); 
     }
