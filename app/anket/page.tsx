@@ -23,19 +23,19 @@ export default function AnketPage() {
         .from('surveys')
         .select('*')
         .eq('is_active', true)
-        .order('created_at', { ascending: false })
+        .order('created_at', { ascending: false }) // En güncel aktif anketi al
         .limit(1)
         .maybeSingle();
 
       if (surveyData) {
         setSurvey(surveyData);
 
-        // --- VERSİYON KONTROLÜ VE TEMİZLİK ---
+        // --- VERSİYON KONTROLÜ VE TEMİZLİK BAŞLANGICI ---
+        // Farklı anketlerin oylarının karışmaması için ID bazlı anahtar kullanıyoruz
         const localVoteKey = `flick_survey_voted_${surveyData.id}`;
         const versionKey = `flick_survey_v_check_${surveyData.id}`;
         const savedVersion = localStorage.getItem(versionKey);
 
-        // Eğer veritabanındaki versiyon yeniyse veya hiç yoksa localstorage temizlenir
         if (surveyData.version && (!savedVersion || parseInt(savedVersion) < surveyData.version)) {
           localStorage.removeItem(localVoteKey);
           localStorage.setItem(versionKey, surveyData.version.toString());
@@ -44,6 +44,7 @@ export default function AnketPage() {
           const savedVote = localStorage.getItem(localVoteKey);
           if (savedVote) setVotedOptionId(savedVote);
         }
+        // --- VERSİYON KONTROLÜ VE TEMİZLİK BİTİŞİ ---
 
         const { data: optionsData } = await supabase
           .from('survey_options')
@@ -74,6 +75,7 @@ export default function AnketPage() {
         .eq('id', optionId);
 
       if (!error) {
+        // Oylama bilgisini anket ID'sine özel olarak kaydediyoruz
         localStorage.setItem(`flick_survey_voted_${survey.id}`, optionId);
         setVotedOptionId(optionId);
         await fetchSurveyData();
@@ -83,6 +85,13 @@ export default function AnketPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Görsel yolunu tam URL'ye dönüştüren yardımcı fonksiyon
+  const getImageUrl = (path: string) => {
+    if (!path) return '';
+    if (path.startsWith('http')) return path; // Zaten tam URL ise dokunma
+    return `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/survey-images/${path}`;
   };
 
   if (loading && !survey) {
@@ -141,7 +150,11 @@ export default function AnketPage() {
               >
                 {option.image_url && (
                   <div className="relative h-56 w-full overflow-hidden bg-slate-950">
-                    <img src={option.image_url} alt={option.option_text} className="w-full h-full object-cover opacity-80" />
+                    <img 
+                      src={getImageUrl(option.image_url)} 
+                      alt={option.option_text} 
+                      className="w-full h-full object-cover opacity-80 group-hover:scale-105 transition-transform duration-700" 
+                    />
                     <div className="absolute inset-0 bg-gradient-to-t from-[#020617] via-[#020617]/50 to-transparent"></div>
                   </div>
                 )}
@@ -157,7 +170,7 @@ export default function AnketPage() {
                     </div>
                   )}
                   {isSelected && (
-                    <div className="absolute top-4 right-4 bg-blue-500 text-white rounded-full p-1"><CheckCircle2 size={24} /></div>
+                    <div className="absolute top-4 right-4 bg-blue-500 text-white rounded-full p-1 shadow-lg shadow-blue-500/50 animate-bounce"><CheckCircle2 size={24} /></div>
                   )}
                 </div>
               </button>
