@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { 
   User, Smartphone, Mail, School, Users, 
   MessageCircle, CheckCircle2, Loader2, Image as ImageIcon, ShieldCheck, KeyRound, Copy, CreditCard,
-  ChevronDown, AlertCircle // AlertCircle eklendi
+  ChevronDown, AlertCircle 
 } from 'lucide-react';
 
 export default function NewRegistration({ 
@@ -27,7 +27,7 @@ export default function NewRegistration({
   const [emailVerified, setEmailVerified] = useState(false);
   const [otpCode, setOtpCode] = useState('');
   const [verifyingEmail, setVerifyingEmail] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null); // Hata state'i
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     ad_soyad: '',
@@ -43,7 +43,8 @@ export default function NewRegistration({
       try {
         const { data, error } = await supabase
           .from('etkinlik_ayarlari')
-          .select('event_price, event_iban, event_ibanname, is_paid')
+          // is_registration_open sütunu sorguya eklendi
+          .select('event_price, event_iban, event_ibanname, is_paid, is_registration_open')
           .eq('id', selectedEventId)
           .single();
 
@@ -166,6 +167,34 @@ export default function NewRegistration({
     const s = val.padEnd(10, 'X');
     return ` (${s.slice(0, 3)}) ${s.slice(3, 6)} ${s.slice(6, 8)} ${s.slice(8, 10)}`;
   };
+
+  // YÜKLEME EKRANI: Veriler çekilirken hiçbir şey göstermiyoruz
+  if (fetchingSettings) {
+    return (
+      <div className="flex items-center justify-center p-20">
+        <Loader2 className="animate-spin text-blue-500" size={32} />
+      </div>
+    );
+  }
+
+  // KAPALI EKRANI: Kayıtlar kapalıysa form yerine bu döner
+  if (eventSettings && eventSettings.is_registration_open === false) {
+    return (
+      <div className="bg-slate-900/60 backdrop-blur-2xl border border-white/10 p-10 rounded-[2.5rem] shadow-2xl flex flex-col items-center justify-center text-center space-y-6 animate-in fade-in zoom-in duration-500">
+        <div className="bg-red-500/20 p-5 rounded-full border border-red-500/30">
+          <AlertCircle size={48} className="text-red-500" />
+        </div>
+        <div className="space-y-2">
+          <h2 className="text-2xl font-bold text-white tracking-tighter uppercase">
+            Kontenjanımız Doldu ☹️
+          </h2>
+          <p className="text-slate-400 text-sm leading-relaxed max-w-[280px]">
+            Bu etkinlik için kayıtlar şu an kapalıdır. İlginiz için teşekkür ederiz!
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   const showPaymentInfo = eventSettings?.is_paid === true || String(eventSettings?.is_paid) === "true";
 
