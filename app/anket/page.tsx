@@ -23,27 +23,27 @@ export default function AnketPage() {
         .from('surveys')
         .select('*')
         .eq('is_active', true)
-        .single();
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
       if (surveyData) {
         setSurvey(surveyData);
 
-        // --- VERSİYON KONTROLÜ VE TEMİZLİK BAŞLANGICI ---
-        const localVoteKey = 'flick_survey_voted';
+        // --- VERSİYON KONTROLÜ VE TEMİZLİK ---
+        const localVoteKey = `flick_survey_voted_${surveyData.id}`;
         const versionKey = `flick_survey_v_check_${surveyData.id}`;
         const savedVersion = localStorage.getItem(versionKey);
 
-        // Eğer veritabanındaki versiyon, tarayıcıdakinden büyükse hafızayı temizle
+        // Eğer veritabanındaki versiyon yeniyse veya hiç yoksa localstorage temizlenir
         if (surveyData.version && (!savedVersion || parseInt(savedVersion) < surveyData.version)) {
           localStorage.removeItem(localVoteKey);
           localStorage.setItem(versionKey, surveyData.version.toString());
-          setVotedOptionId(null); // State'i sıfırla
+          setVotedOptionId(null);
         } else {
-          // Versiyonlar aynıysa normal şekilde oyu yükle
           const savedVote = localStorage.getItem(localVoteKey);
           if (savedVote) setVotedOptionId(savedVote);
         }
-        // --- VERSİYON KONTROLÜ VE TEMİZLİK BİTİŞİ ---
 
         const { data: optionsData } = await supabase
           .from('survey_options')
@@ -53,7 +53,7 @@ export default function AnketPage() {
 
         if (optionsData) {
           setOptions(optionsData);
-          const votes = optionsData.reduce((sum, opt) => sum + opt.votes, 0);
+          const votes = optionsData.reduce((sum, opt) => sum + (opt.votes || 0), 0);
           setTotalVotes(votes);
         }
       }
@@ -65,16 +65,16 @@ export default function AnketPage() {
   };
 
   const handleVote = async (optionId: string, currentVotes: number) => {
-    if (votedOptionId) return;
+    if (votedOptionId || !survey) return;
     setLoading(true);
     try {
       const { error } = await supabase
         .from('survey_options')
-        .update({ votes: currentVotes + 1 })
+        .update({ votes: (currentVotes || 0) + 1 })
         .eq('id', optionId);
 
       if (!error) {
-        localStorage.setItem('flick_survey_voted', optionId);
+        localStorage.setItem(`flick_survey_voted_${survey.id}`, optionId);
         setVotedOptionId(optionId);
         await fetchSurveyData();
       }
@@ -141,7 +141,7 @@ export default function AnketPage() {
               >
                 {option.image_url && (
                   <div className="relative h-56 w-full overflow-hidden bg-slate-950">
-                    <Image src={option.image_url} alt={option.option_text} fill className="object-cover opacity-80" />
+                    <img src={option.image_url} alt={option.option_text} className="w-full h-full object-cover opacity-80" />
                     <div className="absolute inset-0 bg-gradient-to-t from-[#020617] via-[#020617]/50 to-transparent"></div>
                   </div>
                 )}
