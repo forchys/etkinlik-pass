@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { 
   Plus, Trash2, LayoutDashboard, 
   Image as ImageIcon, Loader2, Power, BarChart3,
-  AlertCircle, MousePointer2
+  MousePointer2
 } from 'lucide-react';
 
 export default function AdminSurveyPage() {
@@ -25,12 +25,12 @@ export default function AdminSurveyPage() {
   const fetchAdminData = async () => {
     setLoading(true);
     try {
-      const { data: surveyData, error } = await supabase
+      const { data: surveyData } = await supabase
         .from('surveys')
         .select('*')
         .order('created_at', { ascending: false })
         .limit(1)
-        .maybeSingle(); // .single() yerine .maybeSingle() hatayı önler
+        .maybeSingle();
 
       if (surveyData) {
         setSurvey(surveyData);
@@ -48,11 +48,19 @@ export default function AdminSurveyPage() {
     }
   };
 
-  // --- AKTİFLİK TUŞU: BOŞ TABLO DESTEĞİ ---
+  // --- HATA ALDIĞIN HESAPLAMA KISMI (DÜZELTİLDİ) ---
+  // options? kontrolü ile dizinin varlığından emin oluyoruz
+  const totalVotes = options?.reduce((acc, curr) => acc + (Number(curr.votes) || 0), 0) || 0;
+
+  const calculatePercentage = (votes: number) => {
+    if (totalVotes === 0) return "0";
+    return ((votes / totalVotes) * 100).toFixed(1);
+  };
+
   const toggleSurveyStatus = async () => {
+    if (actionLoading) return;
     setActionLoading(true);
     
-    // Eğer hiç anket yoksa yeni bir tane oluştur
     if (!survey) {
       const { data, error } = await supabase
         .from('surveys')
@@ -65,7 +73,6 @@ export default function AdminSurveyPage() {
       return;
     }
 
-    // Varsa durumunu değiştir
     const nextStatus = !survey.is_active;
     const { error } = await supabase
       .from('surveys')
@@ -77,8 +84,7 @@ export default function AdminSurveyPage() {
   };
 
   const saveNewOptions = async () => {
-    if (!survey) return alert("Önce sistemi aktif ederek bir anket oluşturmalısınız!");
-    
+    if (!survey) return alert("Önce anket başlatmalısın!");
     const toInsert = dynamicInputs
       .filter(opt => opt.text.trim() !== "")
       .map(opt => ({
@@ -96,7 +102,7 @@ export default function AdminSurveyPage() {
   };
 
   const deleteOption = async (id: string) => {
-    if(!confirm("Silinsin mi?")) return;
+    if(!confirm("Silmek istediğine emin misin?")) return;
     await supabase.from('survey_options').delete().eq('id', id);
     fetchAdminData();
   };
@@ -104,126 +110,115 @@ export default function AdminSurveyPage() {
   if (loading) return <div className="min-h-screen bg-[#020617] flex items-center justify-center"><Loader2 className="animate-spin text-indigo-500" size={40} /></div>;
 
   return (
-    <main className="min-h-screen bg-[#020617] text-slate-300 p-8 lg:p-12 font-sans">
-      <div className="max-w-[1400px] mx-auto">
+    <main className="min-h-screen bg-[#020617] text-slate-300 p-6 lg:p-10 font-sans">
+      <div className="max-w-[1200px] mx-auto space-y-8">
         
-        {/* ÜST DASHBOARD PANELİ */}
-        <div className="flex flex-col lg:flex-row justify-between items-stretch gap-6 mb-10">
-          <div className="flex-1 bg-slate-900/40 border border-white/5 p-8 rounded-[2.5rem] flex items-center gap-6 shadow-2xl">
-            <div className="bg-indigo-600/20 p-5 rounded-3xl border border-indigo-500/20">
-              <LayoutDashboard className="text-indigo-500" size={32} />
+        {/* ÜST DASHBOARD */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="md:col-span-2 bg-slate-900/40 border border-white/5 p-8 rounded-[2rem] flex items-center gap-6">
+            <div className="bg-indigo-600/20 p-4 rounded-2xl border border-indigo-500/20 text-indigo-500">
+              <LayoutDashboard size={28} />
             </div>
             <div>
-              <h1 className="text-2xl font-black text-white uppercase tracking-tight italic">Panel <span className="text-indigo-500 not-italic">Merkezi</span></h1>
-              <p className="text-slate-500 text-[10px] font-bold tracking-[0.4em] uppercase">Flick Survey Management</p>
+              <h1 className="text-xl font-black text-white uppercase tracking-tight">Kontrol Paneli</h1>
+              <p className="text-slate-500 text-[10px] font-bold tracking-widest uppercase italic">{survey ? 'Anket Aktif' : 'Veri Bekleniyor'}</p>
             </div>
           </div>
 
           <button 
             onClick={toggleSurveyStatus}
             disabled={actionLoading}
-            className={`lg:w-72 flex flex-col items-center justify-center gap-2 p-6 rounded-[2.5rem] border transition-all duration-500 ${
+            className={`flex flex-col items-center justify-center gap-2 rounded-[2rem] border transition-all duration-300 ${
               survey?.is_active 
-              ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500 shadow-[0_0_30px_-10px_rgba(16,185,129,0.3)]' 
-              : 'bg-rose-500/10 border-rose-500/20 text-rose-500 shadow-[0_0_30px_-10px_rgba(244,63,94,0.3)]'
+              ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500' 
+              : 'bg-rose-500/10 border-rose-500/20 text-rose-500'
             }`}
           >
-            {actionLoading ? <Loader2 className="animate-spin" /> : <Power size={28} />}
-            <span className="text-[10px] font-black tracking-widest uppercase">
-              {!survey ? 'SİSTEMİ BAŞLAT' : (survey.is_active ? 'ANKET YAYINDA' : 'ANKET DURDURULDU')}
+            {actionLoading ? <Loader2 className="animate-spin" size={20} /> : <Power size={24} />}
+            <span className="text-[10px] font-black uppercase tracking-widest">
+              {survey?.is_active ? 'SİSTEM AÇIK' : 'SİSTEM KAPALI'}
             </span>
           </button>
         </div>
 
-        {/* ANA GRID SİSTEMİ */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        {/* MASAÜSTÜ İÇİN YAN YANA PANEL */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           
-          {/* SOL: VERİ GİRİŞ ALANI (4 Kolon) */}
-          <section className="lg:col-span-4 bg-slate-900/40 border border-white/5 rounded-[3rem] p-8 space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 className="text-indigo-400 text-xs font-black uppercase tracking-widest">Seçenek Ekle</h2>
-              <button onClick={() => setDynamicInputs([...dynamicInputs, { text: '', imageUrl: '' }])} className="bg-indigo-600 p-2 rounded-xl text-white">
-                <Plus size={18} />
+          {/* SEÇENEK EKLEME (4 Kolon) */}
+          <section className="lg:col-span-4 bg-slate-900/40 border border-white/5 rounded-[2.5rem] p-6 h-fit">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-indigo-400 text-[11px] font-black uppercase tracking-widest">Seçenek Girişi</h2>
+              <button onClick={() => setDynamicInputs([...dynamicInputs, { text: '', imageUrl: '' }])} className="bg-indigo-600 p-1.5 rounded-lg text-white">
+                <Plus size={16} />
               </button>
             </div>
 
-            <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
+            <div className="space-y-3 mb-6">
               {dynamicInputs.map((input, idx) => (
-                <div key={idx} className="bg-slate-950/80 p-5 rounded-[1.5rem] border border-white/5 space-y-3 transition-all focus-within:border-indigo-500/50">
+                <div key={idx} className="bg-slate-950 p-4 rounded-2xl border border-white/5 space-y-2">
                   <input 
-                    placeholder="Seçenek Metni..."
+                    placeholder="Başlık..."
                     value={input.text}
                     onChange={(e) => {
                       const n = [...dynamicInputs]; n[idx].text = e.target.value; setDynamicInputs(n);
                     }}
-                    className="w-full bg-transparent border-b border-white/5 py-2 outline-none text-sm font-bold text-white"
+                    className="w-full bg-transparent border-b border-white/5 py-1 outline-none text-sm font-bold text-white focus:border-indigo-500 transition-all"
                   />
-                  <div className="flex items-center gap-2 opacity-50">
-                    <ImageIcon size={14} />
-                    <input 
-                      placeholder="Görsel Linki..."
-                      value={input.imageUrl}
-                      onChange={(e) => {
-                        const n = [...dynamicInputs]; n[idx].imageUrl = e.target.value; setDynamicInputs(n);
-                      }}
-                      className="w-full bg-transparent text-[10px] outline-none"
-                    />
-                  </div>
+                  <input 
+                    placeholder="Görsel URL..."
+                    value={input.imageUrl}
+                    onChange={(e) => {
+                      const n = [...dynamicInputs]; n[idx].imageUrl = e.target.value; setDynamicInputs(n);
+                    }}
+                    className="w-full bg-transparent text-[9px] outline-none opacity-40 italic"
+                  />
                 </div>
               ))}
             </div>
 
             <button 
               onClick={saveNewOptions}
-              className="w-full bg-white text-slate-950 font-black py-5 rounded-[2rem] uppercase text-[11px] tracking-widest hover:bg-indigo-600 hover:text-white transition-all shadow-2xl"
+              className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-black py-4 rounded-2xl uppercase text-[10px] tracking-widest transition-all shadow-lg shadow-indigo-900/20"
             >
-              Şıkları Sisteme İşle
+              Şıkları Kaydet
             </button>
           </section>
 
-          {/* SAĞ: CANLI SONUÇLAR (8 Kolon) */}
-          <section className="lg:col-span-8 bg-slate-900/20 border border-white/5 rounded-[3.5rem] p-10 min-h-[600px]">
-             <div className="flex items-center justify-between mb-12 border-b border-white/5 pb-6">
+          {/* SONUÇLAR (8 Kolon) */}
+          <section className="lg:col-span-8 bg-slate-900/20 border border-white/5 rounded-[2.5rem] p-8 min-h-[500px]">
+             <div className="flex items-center justify-between mb-8 border-b border-white/5 pb-4">
                 <div className="flex items-center gap-3">
-                  <BarChart3 className="text-indigo-500" size={24} />
-                  <h2 className="text-xl font-black text-white uppercase italic">Canlı İstatistikler</h2>
+                  <BarChart3 className="text-indigo-500" size={20} />
+                  <h2 className="text-sm font-black text-white uppercase italic">Canlı Oylama Sonuçları</h2>
                 </div>
-                <div className="flex gap-4">
-                  <div className="bg-slate-800/50 px-5 py-2 rounded-2xl border border-white/5 flex items-center gap-2">
-                    <span className="text-[10px] font-black text-slate-500 uppercase">Toplam:</span>
-                    <span className="text-sm font-black text-white">{totalVotes} OY</span>
-                  </div>
+                <div className="bg-slate-800/50 px-4 py-1.5 rounded-xl border border-white/5">
+                  <span className="text-[10px] font-black text-white uppercase tracking-tighter">Toplam: {totalVotes} OY</span>
                 </div>
              </div>
 
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {options.map((opt) => {
-                  const percent = totalVotes > 0 ? ((opt.votes / totalVotes) * 100).toFixed(1) : 0;
+                  const percent = calculatePercentage(opt.votes);
                   return (
-                    <div key={opt.id} className="relative bg-slate-950 p-6 rounded-[2rem] border border-white/5 group hover:scale-[1.02] transition-all overflow-hidden">
-                      {/* Görsel Arka Plan Efekti */}
-                      <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-600/5 blur-[50px] -z-0" />
-                      
-                      <div className="relative z-10 flex items-center justify-between">
-                        <div className="flex items-center gap-5">
-                          <div className="w-14 h-14 bg-slate-900 rounded-2xl border border-white/10 flex items-center justify-center overflow-hidden">
-                            {opt.image_url ? <img src={opt.image_url} className="w-full h-full object-cover" /> : <ImageIcon size={20} className="text-slate-700" />}
+                    <div key={opt.id} className="bg-slate-950 p-4 rounded-2xl border border-white/5 group relative overflow-hidden">
+                      <div className="flex items-center justify-between relative z-10">
+                        <div className="flex items-center gap-4">
+                          <div className="w-10 h-10 bg-slate-900 rounded-xl border border-white/10 flex items-center justify-center overflow-hidden shrink-0">
+                            {opt.image_url ? <img src={opt.image_url} className="w-full h-full object-cover" /> : <ImageIcon size={16} className="text-slate-700" />}
                           </div>
                           <div>
-                            <p className="text-xs font-black uppercase text-white mb-1">{opt.option_text}</p>
+                            <p className="text-[10px] font-black uppercase text-white truncate w-24">{opt.option_text}</p>
                             <div className="flex items-center gap-2">
-                              <span className="text-lg font-black text-indigo-500">%{percent}</span>
-                              <span className="text-[10px] font-bold text-slate-500 uppercase">{opt.votes} Kişi</span>
+                              <span className="text-sm font-black text-indigo-500">%{percent}</span>
+                              <span className="text-[9px] font-bold text-slate-500 uppercase">{opt.votes} Oy</span>
                             </div>
                           </div>
                         </div>
-                        <button onClick={() => deleteOption(opt.id)} className="text-slate-700 hover:text-rose-500 transition-colors">
-                          <Trash2 size={20} />
+                        <button onClick={() => deleteOption(opt.id)} className="text-slate-800 hover:text-rose-500 transition-colors">
+                          <Trash2 size={16} />
                         </button>
                       </div>
-
-                      {/* Progress Bar */}
-                      <div className="mt-6 w-full h-1.5 bg-slate-900 rounded-full overflow-hidden">
+                      <div className="mt-3 w-full h-1 bg-slate-900 rounded-full overflow-hidden">
                         <div className="h-full bg-indigo-500 transition-all duration-1000" style={{ width: `${percent}%` }} />
                       </div>
                     </div>
@@ -232,20 +227,15 @@ export default function AdminSurveyPage() {
              </div>
 
              {options.length === 0 && (
-               <div className="flex flex-col items-center justify-center h-[400px] text-slate-700">
-                  <MousePointer2 size={48} strokeWidth={1} className="mb-4 animate-bounce" />
-                  <p className="text-xs font-black uppercase tracking-[0.2em] italic">Henüz veri girişi yapılmadı</p>
+               <div className="flex flex-col items-center justify-center h-[300px] text-slate-700">
+                  <MousePointer2 size={32} className="mb-2 opacity-20" />
+                  <p className="text-[10px] font-black uppercase tracking-widest italic opacity-40">Veri Girişi Bekleniyor...</p>
                </div>
              )}
           </section>
 
         </div>
       </div>
-
-      <style jsx global>{`
-        .custom-scrollbar::-webkit-scrollbar { width: 3px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #312e81; border-radius: 10px; }
-      `}</style>
     </main>
   );
 }
