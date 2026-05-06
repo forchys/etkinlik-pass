@@ -14,8 +14,6 @@ export default function AnketPage() {
 
   useEffect(() => {
     fetchSurveyData();
-    const savedVote = localStorage.getItem('flick_survey_voted');
-    if (savedVote) setVotedOptionId(savedVote);
   }, []);
 
   const fetchSurveyData = async () => {
@@ -29,6 +27,24 @@ export default function AnketPage() {
 
       if (surveyData) {
         setSurvey(surveyData);
+
+        // --- VERSİYON KONTROLÜ VE TEMİZLİK BAŞLANGICI ---
+        const localVoteKey = 'flick_survey_voted';
+        const versionKey = `flick_survey_v_check_${surveyData.id}`;
+        const savedVersion = localStorage.getItem(versionKey);
+
+        // Eğer veritabanındaki versiyon, tarayıcıdakinden büyükse hafızayı temizle
+        if (surveyData.version && (!savedVersion || parseInt(savedVersion) < surveyData.version)) {
+          localStorage.removeItem(localVoteKey);
+          localStorage.setItem(versionKey, surveyData.version.toString());
+          setVotedOptionId(null); // State'i sıfırla
+        } else {
+          // Versiyonlar aynıysa normal şekilde oyu yükle
+          const savedVote = localStorage.getItem(localVoteKey);
+          if (savedVote) setVotedOptionId(savedVote);
+        }
+        // --- VERSİYON KONTROLÜ VE TEMİZLİK BİTİŞİ ---
+
         const { data: optionsData } = await supabase
           .from('survey_options')
           .select('*')
@@ -93,7 +109,6 @@ export default function AnketPage() {
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-blue-600/10 blur-[120px] rounded-full pointer-events-none"></div>
 
       <div className="max-w-4xl mx-auto relative z-10">
-        {/* YENİLENEN ANA MENÜYE GERİ DÖN BUTONU */}
         <Link 
           href="/" 
           className="inline-flex items-center gap-3 text-slate-400 hover:text-white transition-all group mb-12"
