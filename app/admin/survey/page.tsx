@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { 
   Plus, Trash2, LayoutDashboard, 
   Image as ImageIcon, Loader2, Power, BarChart3,
-  MousePointer2, Save, Activity, Check, Edit2
+  MousePointer2, Save, CheckCircle2
 } from 'lucide-react';
 
 export default function AdminSurveyPage() {
@@ -13,10 +13,6 @@ export default function AdminSurveyPage() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   
-  // Başlık düzenleme için yeni state'ler
-  const [isEditingTitle, setIsEditingTitle] = useState(false);
-  const [editedTitle, setEditedTitle] = useState("");
-
   const [dynamicInputs, setDynamicInputs] = useState([
     { text: '', imageUrl: '' },
     { text: '', imageUrl: '' }
@@ -38,7 +34,6 @@ export default function AdminSurveyPage() {
 
       if (surveyData) {
         setSurvey(surveyData);
-        setEditedTitle(surveyData.title); // Mevcut başlığı düzenleme state'ine al
         const { data: optionsData } = await supabase
           .from('survey_options')
           .select('*')
@@ -47,29 +42,10 @@ export default function AdminSurveyPage() {
         setOptions(optionsData || []);
       }
     } catch (e) {
-      console.error("Yükleme hatası:", e);
+      console.error("Veri çekme hatası:", e);
     } finally {
       setLoading(false);
     }
-  };
-
-  // Başlığı veritabanında güncelleyen fonksiyon
-  const updateSurveyTitle = async () => {
-    if (!survey || editedTitle.trim() === survey.title) {
-      setIsEditingTitle(false);
-      return;
-    }
-    setActionLoading(true);
-    const { error } = await supabase
-      .from('surveys')
-      .update({ title: editedTitle })
-      .eq('id', survey.id);
-    
-    if (!error) {
-      setSurvey({ ...survey, title: editedTitle });
-      setIsEditingTitle(false);
-    }
-    setActionLoading(false);
   };
 
   const totalVotes = options?.reduce((acc, curr) => acc + (Number(curr.votes) || 0), 0) || 0;
@@ -79,252 +55,219 @@ export default function AdminSurveyPage() {
     return ((votes / totalVotes) * 100).toFixed(1);
   };
 
-  const toggleSurveyStatus = async () => {
-    if (actionLoading) return;
-    setActionLoading(true);
-    
-    if (!survey) {
-      const { data, error } = await supabase
-        .from('surveys')
-        .insert([{ title: 'Yeni Anket', is_active: true }])
-        .select()
-        .single();
-      
-      if (!error) setSurvey(data);
-    } else {
-      const nextStatus = !survey.is_active;
-      const { error } = await supabase
-        .from('surveys')
-        .update({ is_active: nextStatus })
-        .eq('id', survey.id);
-      if (!error) setSurvey({ ...survey, is_active: nextStatus });
-    }
-    setActionLoading(false);
-  };
-
+  // --- SİSTEMİ KAYDET FONKSİYONU (YENİLENMİŞ) ---
   const saveNewOptions = async () => {
     if (actionLoading) return;
     setActionLoading(true);
 
-    let currentSurveyId = survey?.id;
+    try {
+      let currentSurveyId = survey?.id;
 
-    if (!currentSurveyId) {
-      const { data, error } = await supabase
-        .from('surveys')
-        .insert([{ title: 'Anket', is_active: true }])
-        .select()
-        .single();
-      
-      if (error) {
-        alert("Anket oluşturulamadı.");
+      // 1. Eğer anket yoksa önce oluştur
+      if (!currentSurveyId) {
+        const { data: newSurvey, error: sError } = await supabase
+          .from('surveys')
+          .insert([{ title: 'Aktif Anket', is_active: true }])
+          .select()
+          .single();
+        
+        if (sError) throw sError;
+        currentSurveyId = newSurvey.id;
+        setSurvey(newSurvey);
+      }
+
+      // 2. Şıkları filtrele ve hazırla
+      const toInsert = dynamicInputs
+        .filter(opt => opt.text.trim() !== "")
+        .map(opt => ({
+          survey_id: currentSurveyId,
+          option_text: opt.text,
+          image_url: opt.imageUrl,
+          votes: 0
+        }));
+
+      if (toInsert.length === 0) {
+        alert("Lütfen en az bir şık metni girin.");
         setActionLoading(false);
         return;
       }
-      currentSurveyId = data.id;
-      setSurvey(data);
-    }
 
-    const toInsert = dynamicInputs
-      .filter(opt => opt.text.trim() !== "")
-      .map(opt => ({
-        survey_id: currentSurveyId,
-        option_text: opt.text,
-        image_url: opt.imageUrl,
-        votes: 0
-      }));
+      // 3. Veritabanına şıkları ekle
+      const { error: optError } = await supabase.from('survey_options').insert(toInsert);
+      if (optError) throw optError;
 
-    if (toInsert.length === 0) {
-      alert("Lütfen en az bir seçenek metni girin.");
-      setActionLoading(false);
-      return;
-    }
-
-    const { error: optError } = await supabase.from('survey_options').insert(toInsert);
-    
-    if (!optError) {
+      // 4. Başarılıysa temizle ve listeyi tazele
       setDynamicInputs([{ text: '', imageUrl: '' }, { text: '', imageUrl: '' }]);
-      await fetchAdminData(); 
-    } else {
-      console.error("Kaydetme hatası:", optError);
+      await fetchAdminData();
+      alert("Başarıyla kaydedildi!");
+
+    } catch (error: any) {
+      console.error("Hata:", error.message);
+      alert("Bir hata oluştu. Supabase RLS ayarlarını kontrol edin.");
+    } finally {
+      setActionLoading(false);
     }
+  };
+
+  const toggleSurveyStatus = async () => {
+    if (!survey || actionLoading) return;
+    setActionLoading(true);
+    const nextStatus = !survey.is_active;
+    const { error } = await supabase.from('surveys').update({ is_active: nextStatus }).eq('id', survey.id);
+    if (!error) setSurvey({ ...survey, is_active: nextStatus });
     setActionLoading(false);
   };
 
   const deleteOption = async (id: string) => {
-    if(!confirm("Bu seçeneği silmek istediğine emin misin?")) return;
+    if(!confirm("Bu şık silinecek, emin misin?")) return;
     await supabase.from('survey_options').delete().eq('id', id);
     fetchAdminData();
   };
 
-  if (loading) return (
-    <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-center gap-4">
-      <Loader2 className="animate-spin text-indigo-500" size={40} />
-      <p className="text-indigo-500 font-black text-[10px] tracking-widest uppercase">Hazırlanıyor...</p>
-    </div>
-  );
+  if (loading) return <div className="min-h-screen bg-[#020617] flex items-center justify-center"><Loader2 className="animate-spin text-blue-500" size={40} /></div>;
 
   return (
-    <main className="min-h-screen bg-[#020617] text-slate-300 p-6 lg:p-12 font-sans overflow-x-hidden">
-      <div className="max-w-[1500px] mx-auto space-y-8">
+    <main className="min-h-screen bg-[#020617] text-slate-300 p-4 md:p-8 lg:p-12 font-sans">
+      <div className="max-w-7xl mx-auto space-y-8">
         
-        {/* ÜST DASHBOARD PANELİ */}
-        <div className="flex flex-col lg:flex-row justify-between items-stretch gap-6">
-          <div className="flex-1 bg-slate-900/40 border border-white/5 p-8 rounded-[2.5rem] flex items-center gap-6 shadow-2xl backdrop-blur-md">
-            <div className="bg-indigo-600/20 p-5 rounded-3xl border border-indigo-500/20 text-indigo-500 shadow-lg shadow-indigo-500/10 shrink-0">
-              <LayoutDashboard size={32} />
+        {/* ÜST PANEL: RESPONSIVE DÜZEN */}
+        <header className="flex flex-col md:flex-row gap-4 items-stretch">
+          <div className="flex-1 bg-slate-900/40 border border-white/5 p-6 rounded-3xl flex items-center gap-4">
+            <div className="bg-blue-600/20 p-3 rounded-2xl text-blue-500">
+              <LayoutDashboard size={24} />
             </div>
-            <div className="flex-1">
-              {isEditingTitle ? (
-                <div className="flex items-center gap-2 bg-slate-950/50 p-2 rounded-2xl border border-indigo-500/30">
-                  <input 
-                    autoFocus
-                    value={editedTitle}
-                    onChange={(e) => setEditedTitle(e.target.value)}
-                    onBlur={updateSurveyTitle}
-                    onKeyDown={(e) => e.key === 'Enter' && updateSurveyTitle()}
-                    className="bg-transparent border-none outline-none text-xl font-black text-white w-full uppercase italic"
-                  />
-                  <button onClick={updateSurveyTitle} className="text-emerald-500 p-2 hover:bg-emerald-500/10 rounded-xl transition-all">
-                    <Check size={20} />
-                  </button>
-                </div>
-              ) : (
-                <div 
-                  onClick={() => setIsEditingTitle(true)}
-                  className="group flex items-center gap-3 cursor-pointer"
-                >
-                  <h1 className="text-2xl font-black text-white uppercase tracking-tight italic group-hover:text-indigo-400 transition-colors">
-                    {survey?.title || "Panel Merkezi"}
-                  </h1>
-                  <Edit2 size={16} className="text-slate-600 opacity-0 group-hover:opacity-100 transition-all" />
-                </div>
-              )}
-              <p className="text-slate-500 text-[10px] font-bold tracking-[0.4em] uppercase mt-1">Flick Admin v2.0</p>
+            <div>
+              <h1 className="text-xl font-black text-white uppercase tracking-tight">Admin Kontrol</h1>
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest italic">Anket Yönetim Sistemi</p>
             </div>
           </div>
 
           <button 
             onClick={toggleSurveyStatus}
-            disabled={actionLoading}
-            className={`w-full lg:w-[350px] flex flex-col items-center justify-center gap-3 p-6 rounded-[2.5rem] border transition-all duration-500 ${
+            className={`md:w-64 flex items-center justify-between px-6 py-4 rounded-3xl border transition-all duration-500 ${
               survey?.is_active 
-              ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500 shadow-[0_0_40px_-10px_rgba(16,185,129,0.2)]' 
-              : 'bg-rose-500/10 border-rose-500/20 text-rose-500 shadow-[0_0_40px_-10px_rgba(244,63,94,0.2)]'
+              ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500 shadow-lg shadow-emerald-500/5' 
+              : 'bg-rose-500/10 border-rose-500/20 text-rose-500 shadow-lg shadow-rose-500/5'
             }`}
           >
-            {actionLoading ? <Loader2 className="animate-spin" size={28} /> : <Power size={32} />}
-            <span className="text-[11px] font-black tracking-widest uppercase">
-              {survey?.is_active ? 'SİSTEM ÇEVRİMİÇİ' : 'SİSTEM DURDURULDU'}
-            </span>
+            <div className="text-left">
+              <p className="text-[9px] font-black uppercase opacity-60">Durum</p>
+              <p className="text-xs font-black">{survey?.is_active ? 'AKTİF' : 'KAPALI'}</p>
+            </div>
+            {actionLoading ? <Loader2 className="animate-spin" size={20} /> : <Power size={20} />}
           </button>
-        </div>
+        </header>
 
-        {/* ANA İÇERİK YAPISI (Geri kalan kod aynı kalacak şekilde...) */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start relative">
+        {/* ANA İÇERİK: MOBİLDE TEK, MASAÜSTÜNDE ÇİFT KOLON */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           
-          {/* SOL: SEÇENEK YÖNETİMİ */}
-          <section className="lg:col-span-4 bg-slate-900/40 border border-white/5 rounded-[3rem] p-8 space-y-6 lg:sticky lg:top-8 shadow-xl">
-            <div className="flex justify-between items-center border-b border-white/5 pb-4">
-              <h2 className="text-indigo-400 text-xs font-black uppercase tracking-widest">Veri Girişi</h2>
+          {/* SEÇENEK EKLEME (SOL PANEL - 4 KOLON) */}
+          <section className="lg:col-span-4 space-y-6">
+            <div className="bg-slate-900/40 border border-white/5 p-6 rounded-[2rem] h-full">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-blue-400 text-[11px] font-black uppercase tracking-widest">Şık Ekle</h2>
+                <button 
+                  onClick={() => setDynamicInputs([...dynamicInputs, { text: '', imageUrl: '' }])}
+                  className="bg-blue-600/20 hover:bg-blue-600 p-2 rounded-xl text-blue-400 hover:text-white transition-all"
+                >
+                  <Plus size={18} />
+                </button>
+              </div>
+
+              <div className="space-y-3 mb-6 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                {dynamicInputs.map((input, idx) => (
+                  <div key={idx} className="bg-slate-950/80 p-4 rounded-2xl border border-white/5 space-y-2 focus-within:border-blue-500/40 transition-all">
+                    <input 
+                      placeholder="Şık metni..."
+                      value={input.text}
+                      onChange={(e) => {
+                        const n = [...dynamicInputs]; n[idx].text = e.target.value; setDynamicInputs(n);
+                      }}
+                      className="w-full bg-transparent text-sm font-bold text-white outline-none placeholder:text-slate-700"
+                    />
+                    <div className="flex items-center gap-2 opacity-30 focus-within:opacity-100 transition-opacity">
+                      <ImageIcon size={12} />
+                      <input 
+                        placeholder="Görsel URL (isteğe bağlı)..."
+                        value={input.imageUrl}
+                        onChange={(e) => {
+                          const n = [...dynamicInputs]; n[idx].imageUrl = e.target.value; setDynamicInputs(n);
+                        }}
+                        className="w-full bg-transparent text-[10px] outline-none italic"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+
               <button 
-                onClick={() => setDynamicInputs([...dynamicInputs, { text: '', imageUrl: '' }])} 
-                className="bg-indigo-600/20 hover:bg-indigo-600 p-2 rounded-xl text-indigo-400 hover:text-white transition-all"
+                onClick={saveNewOptions}
+                disabled={actionLoading}
+                className="w-full bg-white text-slate-950 hover:bg-blue-600 hover:text-white font-black py-4 rounded-2xl uppercase text-[11px] tracking-widest transition-all flex items-center justify-center gap-3 shadow-xl"
               >
-                <Plus size={18} />
+                {actionLoading ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
+                Sisteme Kaydet
               </button>
             </div>
-
-            <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
-              {dynamicInputs.map((input, idx) => (
-                <div key={idx} className="bg-slate-950/80 p-5 rounded-[1.5rem] border border-white/5 space-y-3 focus-within:border-indigo-500/50 transition-all group">
-                  <input 
-                    placeholder="Seçenek Metni..."
-                    value={input.text}
-                    onChange={(e) => {
-                      const n = [...dynamicInputs]; n[idx].text = e.target.value; setDynamicInputs(n);
-                    }}
-                    className="w-full bg-transparent outline-none text-sm font-bold text-white placeholder:text-slate-700"
-                  />
-                  <div className="flex items-center gap-2 opacity-30 group-focus-within:opacity-100 transition-opacity">
-                    <ImageIcon size={14} className="text-indigo-400" />
-                    <input 
-                      placeholder="Görsel URL..."
-                      value={input.imageUrl}
-                      onChange={(e) => {
-                        const n = [...dynamicInputs]; n[idx].imageUrl = e.target.value; setDynamicInputs(n);
-                      }}
-                      className="w-full bg-transparent text-[11px] outline-none italic"
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <button 
-              onClick={saveNewOptions}
-              disabled={actionLoading}
-              className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-black py-5 rounded-[2rem] uppercase text-[11px] tracking-widest transition-all shadow-xl shadow-indigo-600/20 flex items-center justify-center gap-3 disabled:opacity-50"
-            >
-              {actionLoading ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
-              Sistemi Güncelle
-            </button>
           </section>
 
-          {/* SAĞ: BENTO ANALİZ MERKEZİ */}
-          <section className="lg:col-span-8 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-            
-            {/* HERO KART */}
-            <div className="col-span-full bg-gradient-to-br from-indigo-600 to-violet-800 rounded-[3rem] p-10 flex flex-col md:flex-row justify-between items-center relative overflow-hidden group shadow-2xl">
-                <div className="relative z-10 text-center md:text-left">
-                    <h3 className="text-indigo-100/60 text-[10px] font-black uppercase tracking-[0.4em] mb-2">Canlı Katılım Durumu</h3>
-                    <h2 className="text-4xl lg:text-5xl font-black text-white italic uppercase tracking-tighter">İstatistik <br/> Merkezi</h2>
+          {/* SONUÇLAR (SAĞ PANEL - 8 KOLON) */}
+          <section className="lg:col-span-8 bg-slate-900/20 border border-white/5 p-6 md:p-8 rounded-[2.5rem] min-h-[500px]">
+             <div className="flex flex-col md:flex-row justify-between items-center mb-10 gap-4 border-b border-white/5 pb-6">
+                <div className="flex items-center gap-3">
+                  <BarChart3 className="text-blue-500" size={24} />
+                  <h2 className="text-xl font-black text-white uppercase italic">Canlı Sonuçlar</h2>
                 </div>
-                <div className="relative z-10 bg-white/10 backdrop-blur-xl px-10 py-6 rounded-[2.5rem] border border-white/10 flex items-center gap-6 mt-6 md:mt-0">
-                    <Activity className="text-indigo-200" size={40} />
-                    <div>
-                        <p className="text-white/60 text-[10px] font-black uppercase tracking-widest">Toplam Oy</p>
-                        <p className="text-4xl font-black text-white">{totalVotes}</p>
-                    </div>
+                <div className="bg-slate-800/50 px-5 py-2 rounded-2xl border border-white/5">
+                  <span className="text-[10px] font-black text-blue-400 uppercase mr-3">Toplam Oy:</span>
+                  <span className="text-lg font-black text-white">{totalVotes}</span>
                 </div>
-                <BarChart3 size={200} className="absolute -bottom-10 -right-10 text-white/5 -rotate-12 group-hover:rotate-0 transition-transform duration-700" />
-            </div>
+             </div>
 
-            {/* SEÇENEK KARTLARI */}
-            {options.map((opt) => {
-              const percent = calculatePercentage(opt.votes);
-              return (
-                <div key={opt.id} className="bg-slate-900/30 border border-white/5 p-6 rounded-[2.5rem] hover:bg-slate-900/50 transition-all group flex flex-col justify-between h-full">
-                  <div>
-                    <div className="flex justify-between items-start mb-6">
-                      <div className="w-14 h-14 bg-slate-950 rounded-2xl border border-white/5 overflow-hidden flex items-center justify-center">
-                        {opt.image_url ? <img src={opt.image_url} className="w-full h-full object-cover" alt="" /> : <ImageIcon size={20} className="text-slate-800" />}
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {options.map((opt) => {
+                  const percent = calculatePercentage(opt.votes);
+                  return (
+                    <div key={opt.id} className="relative bg-slate-950 p-5 rounded-3xl border border-white/5 group hover:border-blue-500/30 transition-all overflow-hidden">
+                      <div className="relative z-10 flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                          <div className="w-12 h-12 bg-slate-900 rounded-xl border border-white/10 flex items-center justify-center overflow-hidden shrink-0">
+                            {opt.image_url ? <img src={opt.image_url} className="w-full h-full object-cover" alt="" /> : <ImageIcon size={20} className="text-slate-700" />}
+                          </div>
+                          <div>
+                            <p className="text-xs font-black uppercase text-white mb-1 truncate w-32">{opt.option_text}</p>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xl font-black text-blue-500">%{percent}</span>
+                              <span className="text-[9px] font-bold text-slate-500 uppercase">{opt.votes} Oy</span>
+                            </div>
+                          </div>
+                        </div>
+                        <button onClick={() => deleteOption(opt.id)} className="text-slate-800 hover:text-rose-500 transition-colors p-2">
+                          <Trash2 size={18} />
+                        </button>
                       </div>
-                      <button onClick={() => deleteOption(opt.id)} className="text-slate-700 hover:text-rose-500 transition-colors p-2">
-                        <Trash2 size={18} />
-                      </button>
+                      <div className="mt-4 w-full h-1.5 bg-slate-900 rounded-full overflow-hidden">
+                        <div className="h-full bg-blue-500 transition-all duration-1000 shadow-[0_0_15px_rgba(59,130,246,0.5)]" style={{ width: `${percent}%` }} />
+                      </div>
                     </div>
-                    <p className="text-sm font-black uppercase text-white mb-2 truncate" title={opt.option_text}>{opt.option_text}</p>
-                    <div className="flex items-baseline gap-2 mb-6">
-                      <span className="text-3xl font-black text-indigo-500 italic">%{percent}</span>
-                      <span className="text-[10px] font-bold text-slate-600 uppercase">{opt.votes} OY</span>
-                    </div>
-                  </div>
+                  );
+                })}
+             </div>
 
-                  <div className="w-full h-2 bg-slate-950 rounded-full overflow-hidden border border-white/5">
-                    <div className="h-full bg-indigo-500 transition-all duration-1000" style={{ width: `${percent}%` }} />
-                  </div>
-                </div>
-              );
-            })}
+             {options.length === 0 && (
+               <div className="flex flex-col items-center justify-center h-[300px] text-slate-700">
+                  <MousePointer2 size={40} strokeWidth={1} className="mb-4 animate-bounce opacity-20" />
+                  <p className="text-xs font-black uppercase tracking-[0.3em] italic opacity-30">Seçenek Bekleniyor...</p>
+               </div>
+             )}
           </section>
+
         </div>
       </div>
 
       <style jsx global>{`
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #312e81; border-radius: 10px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #4f46e5; }
+        .custom-scrollbar::-webkit-scrollbar { width: 3px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 10px; }
       `}</style>
     </main>
   );
