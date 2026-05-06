@@ -98,6 +98,7 @@ export default function AdminSurveyPage() {
       setOptions([]);
       setMessage({ type: 'success', text: 'Sistem sıfırlandı ve yeni anket kimliği oluşturuldu!' });
       
+      // Verileri yeniden çekerek arayüzü tazele
       await fetchData();
     } catch (e) {
       console.error(e);
