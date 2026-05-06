@@ -4,14 +4,10 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { 
   Plus, Trash2, LayoutDashboard, 
-  Image as ImageIcon, Loader2, Power, 
+  ImageIcon, Loader2, Power, 
   BarChart3, Save, CheckCircle2, AlertCircle, Edit2, RefreshCw
 } from 'lucide-react';
 
-/**
- * AdminSurveyPage: Profesyonel, dikey hiyerarşili anket yönetim paneli.
- * Hard Reset sonrası oylama sayfasındaki tıklama engelini çözen yapı eklendi.
- */
 export default function AdminSurveyPage() {
   const [survey, setSurvey] = useState<any>(null);
   const [options, setOptions] = useState<any[]>([]);
@@ -49,8 +45,6 @@ export default function AdminSurveyPage() {
     }
   };
 
-  // --- YÖNETİM FONKSİYONLARI ---
-
   const handleUpdateSurvey = async () => {
     setActionLoading(true);
     try {
@@ -69,24 +63,26 @@ export default function AdminSurveyPage() {
   };
 
   /**
-   * hardResetSurvey: Anketi ve bağlı şıkları silip yepyeni bir ID ile oluşturur.
-   * Bu işlem, oylama sayfasındaki localStorage kilitlerini (voted_ID) geçersiz kılar.
+   * YENİLİK: hardResetSurvey
+   * Bu fonksiyon mevcut anketi siler ve yepyeni bir veritabanı kaydı oluşturur.
+   * Yeni ID sayesinde oylama sayfasındaki "voted_ID" kontrolü boşa düşer ve engel kalkar.
    */
   const hardResetSurvey = async () => {
-    const confirmFirst = confirm('DİKKAT: Mevcut anket ve tüm oylar KALICI OLARAK silinecek ve YENİ bir ID oluşturulacak. Bu işlem cihazlardaki tıklama engelini kaldıracaktır. Emin misin?');
+    const confirmFirst = confirm('DİKKAT: Mevcut anket ve tüm oylar KALICI OLARAK silinecek. Yeni bir ID oluşturulacağı için tüm cihazlardaki "oy kullandınız" engeli kalkacaktır. Emin misin?');
     if (!confirmFirst) return;
 
     setActionLoading(true);
     try {
       const currentTitle = survey.title;
       const currentIsActive = survey.is_active;
-      const oldId = survey.id; 
+      const oldId = survey.id;
 
-      // 1. Şıkları ve anketi veritabanından tamamen sil
+      // 1. İlişkili şıkları temizle
       await supabase.from('survey_options').delete().eq('survey_id', oldId);
+      // 2. Mevcut anketi sil
       await supabase.from('surveys').delete().eq('id', oldId);
 
-      // 2. Yeni anket oluştur (Yeni bir UUID atanacaktır)
+      // 3. Yepyeni bir anket oluştur (ID otomatik olarak UUID olarak atanacaktır)
       const { data: newSurvey, error: createError } = await supabase
         .from('surveys')
         .insert([{ title: currentTitle, is_active: currentIsActive }])
@@ -95,17 +91,17 @@ export default function AdminSurveyPage() {
 
       if (createError) throw createError;
 
-      // 3. Yerel Engel Temizliği: Mevcut admin tarayıcısındaki kilidi de kaldırır
+      // 4. Adminin kendi tarayıcısındaki eski izi temizle
       localStorage.removeItem(`voted_${oldId}`);
 
       setSurvey(newSurvey);
       setOptions([]);
-      setMessage({ type: 'success', text: 'Sistem tamamen sıfırlandı ve kilitler açıldı!' });
+      setMessage({ type: 'success', text: 'Sistem sıfırlandı ve yeni anket kimliği oluşturuldu!' });
       
       await fetchData();
     } catch (e) {
       console.error(e);
-      setMessage({ type: 'error', text: 'Sıfırlama başarısız.' });
+      setMessage({ type: 'error', text: 'Sıfırlama işlemi sırasında bir hata oluştu.' });
     } finally {
       setActionLoading(false);
     }
