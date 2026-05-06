@@ -4,24 +4,34 @@ import { supabase } from '@/lib/supabase';
 import { 
   Plus, Trash2, LayoutDashboard, 
   Image as ImageIcon, Loader2, Power, BarChart3,
-  MousePointer2, Save
+  MousePointer2, Save, CheckCircle2
 } from 'lucide-react';
 
+/**
+ * AdminSurveyPage: Anket yönetimi, canlı sonuç takibi ve şık ekleme işlemlerini 
+ * gerçekleştiren merkezi yönetim panelidir.
+ */
 export default function AdminSurveyPage() {
-  const [survey, setSurvey] = useState<any>(null);
-  const [options, setOptions] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [actionLoading, setActionLoading] = useState(false);
+  // --- STATE YÖNETİMİ ---
+  const [survey, setSurvey] = useState<any>(null); // Mevcut anket bilgisi
+  const [options, setOptions] = useState<any[]>([]); // Ankete ait şıklar
+  const [loading, setLoading] = useState(true); // Sayfa ilk yüklenme durumu
+  const [actionLoading, setActionLoading] = useState(false); // Buton işlem durumları
   
+  // Yeni eklenecek şıklar için dinamik input state'i
   const [dynamicInputs, setDynamicInputs] = useState([
     { text: '', imageUrl: '' },
     { text: '', imageUrl: '' }
   ]);
 
+  // Sayfa açıldığında verileri çek
   useEffect(() => {
     fetchAdminData();
   }, []);
 
+  /**
+   * fetchAdminData: Veritabanındaki en güncel anketi ve bu ankete ait şıkları getirir.
+   */
   const fetchAdminData = async () => {
     setLoading(true);
     try {
@@ -42,13 +52,13 @@ export default function AdminSurveyPage() {
         setOptions(optionsData || []);
       }
     } catch (e) {
-      console.error("Yükleme hatası:", e);
+      console.error("Veri yükleme hatası:", e);
     } finally {
       setLoading(false);
     }
   };
 
-  // Toplam oy hesaplama (Hata korumalı)
+  // İstatistiksel hesaplamalar
   const totalVotes = options?.reduce((acc, curr) => acc + (Number(curr.votes) || 0), 0) || 0;
 
   const calculatePercentage = (votes: number) => {
@@ -56,79 +66,69 @@ export default function AdminSurveyPage() {
     return ((votes / totalVotes) * 100).toFixed(1);
   };
 
-  const toggleSurveyStatus = async () => {
-    if (actionLoading) return;
-    setActionLoading(true);
-    
-    // Eğer anket yoksa yeni bir tane oluştur
-    if (!survey) {
-      const { data, error } = await supabase
-        .from('surveys')
-        .insert([{ title: 'Yeni Anket', is_active: true }])
-        .select()
-        .single();
-      
-      if (!error) setSurvey(data);
-    } else {
-      const nextStatus = !survey.is_active;
-      const { error } = await supabase
-        .from('surveys')
-        .update({ is_active: nextStatus })
-        .eq('id', survey.id);
-      if (!error) setSurvey({ ...survey, is_active: nextStatus });
-    }
-    setActionLoading(false);
-  };
-
-  // --- ŞIK KAYDETME (DÜZELTİLDİ) ---
+  /**
+   * saveNewOptions: Şık ekleme ve anket oluşturma mantığı.
+   * Eğer anket yoksa önce oluşturur, sonra şıkları bu ankete bağlayarak kaydeder.
+   */
   const saveNewOptions = async () => {
     if (actionLoading) return;
     setActionLoading(true);
 
-    let currentSurveyId = survey?.id;
+    try {
+      let currentSurveyId = survey?.id;
 
-    // 1. Eğer anket yoksa önce oluştur
-    if (!currentSurveyId) {
-      const { data, error } = await supabase
-        .from('surveys')
-        .insert([{ title: 'Anket', is_active: true }])
-        .select()
-        .single();
-      
-      if (error) {
-        alert("Anket oluşturulamadı.");
+      // 1. ADIM: Aktif bir anket yoksa otomatik olarak bir tane oluştur
+      if (!currentSurveyId) {
+        const { data: newSurvey, error: sError } = await supabase
+          .from('surveys')
+          .insert([{ title: 'Aktif Anket', is_active: true }])
+          .select()
+          .single();
+        
+        if (sError) throw sError;
+        currentSurveyId = newSurvey.id;
+        setSurvey(newSurvey);
+      }
+
+      // 2. ADIM: Boş olmayan şıkları filtrele ve hazırla
+      const toInsert = dynamicInputs
+        .filter(opt => opt.text.trim() !== "")
+        .map(opt => ({
+          survey_id: currentSurveyId,
+          option_text: opt.text,
+          image_url: opt.imageUrl,
+          votes: 0
+        }));
+
+      if (toInsert.length === 0) {
+        alert("Lütfen en az bir seçenek metni girin.");
         setActionLoading(false);
         return;
       }
-      currentSurveyId = data.id;
-      setSurvey(data);
-    }
 
-    // 2. Şıkları hazırla
-    const toInsert = dynamicInputs
-      .filter(opt => opt.text.trim() !== "")
-      .map(opt => ({
-        survey_id: currentSurveyId,
-        option_text: opt.text,
-        image_url: opt.imageUrl,
-        votes: 0
-      }));
+      // 3. ADIM: Şıkları veritabanına toplu olarak ekle
+      const { error: optError } = await supabase.from('survey_options').insert(toInsert);
+      
+      if (optError) throw optError;
 
-    if (toInsert.length === 0) {
-      alert("Lütfen en az bir seçenek metni girin.");
-      setActionLoading(false);
-      return;
-    }
-
-    // 3. Veritabanına kaydet
-    const { error: optError } = await supabase.from('survey_options').insert(toInsert);
-    
-    if (!optError) {
+      // Başarılı işlem sonrası formu temizle ve verileri tazele
       setDynamicInputs([{ text: '', imageUrl: '' }, { text: '', imageUrl: '' }]);
-      await fetchAdminData(); // Listeyi tazele
-    } else {
-      console.error("Kaydetme hatası:", optError);
+      await fetchAdminData();
+      
+    } catch (error: any) {
+      console.error("Kayıt Hatası:", error.message);
+      alert("İşlem sırasında bir sorun oluştu. Lütfen bağlantınızı kontrol edin.");
+    } finally {
+      setActionLoading(false);
     }
+  };
+
+  const toggleSurveyStatus = async () => {
+    if (actionLoading || !survey) return;
+    setActionLoading(true);
+    const nextStatus = !survey.is_active;
+    const { error } = await supabase.from('surveys').update({ is_active: nextStatus }).eq('id', survey.id);
+    if (!error) setSurvey({ ...survey, is_active: nextStatus });
     setActionLoading(false);
   };
 
@@ -138,52 +138,54 @@ export default function AdminSurveyPage() {
     fetchAdminData();
   };
 
+  // Yüklenme Ekranı
   if (loading) return (
     <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-center gap-4">
       <Loader2 className="animate-spin text-indigo-500" size={40} />
-      <p className="text-indigo-500 font-black text-[10px] tracking-widest uppercase">Yükleniyor...</p>
+      <p className="text-indigo-500 font-bold text-xs tracking-widest uppercase">Veriler Hazırlanıyor...</p>
     </div>
   );
 
   return (
-    <main className="min-h-screen bg-[#020617] text-slate-300 p-8 lg:p-12 font-sans">
-      <div className="max-w-[1300px] mx-auto space-y-10">
+    <main className="min-h-screen bg-[#020617] text-slate-300 p-4 md:p-8 lg:p-12 font-sans">
+      <div className="max-w-[1400px] mx-auto space-y-8">
         
-        {/* ÜST DASHBOARD */}
-        <div className="flex flex-col md:flex-row justify-between items-stretch gap-6">
-          <div className="flex-1 bg-slate-900/40 border border-white/5 p-8 rounded-[2.5rem] flex items-center gap-6 shadow-2xl">
-            <div className="bg-indigo-600/20 p-5 rounded-3xl border border-indigo-500/20 text-indigo-500 shadow-lg shadow-indigo-500/10">
-              <LayoutDashboard size={32} />
+        {/* ÜST DASHBOARD: Responsive Header */}
+        <div className="flex flex-col md:flex-row justify-between items-stretch gap-4">
+          <div className="flex-1 bg-slate-900/40 border border-white/5 p-6 rounded-3xl flex items-center gap-6 shadow-xl">
+            <div className="bg-indigo-600/20 p-4 rounded-2xl text-indigo-500">
+              <LayoutDashboard size={28} />
             </div>
             <div>
-              <h1 className="text-2xl font-black text-white uppercase tracking-tight italic">Panel <span className="text-indigo-500 not-italic">Merkezi</span></h1>
-              <p className="text-slate-500 text-[10px] font-bold tracking-[0.4em] uppercase">Flick Admin v2.0</p>
+              <h1 className="text-xl font-black text-white uppercase tracking-tight italic">Panel <span className="text-indigo-500 not-italic">Merkezi</span></h1>
+              <p className="text-slate-500 text-[9px] font-bold tracking-[0.3em] uppercase">Flick Admin v2.1</p>
             </div>
           </div>
 
           <button 
             onClick={toggleSurveyStatus}
             disabled={actionLoading}
-            className={`md:w-72 flex flex-col items-center justify-center gap-2 p-6 rounded-[2.5rem] border transition-all duration-500 ${
+            className={`md:w-64 flex items-center justify-between px-6 py-4 rounded-3xl border transition-all duration-500 ${
               survey?.is_active 
-              ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500 shadow-[0_0_40px_-10px_rgba(16,185,129,0.2)]' 
-              : 'bg-rose-500/10 border-rose-500/20 text-rose-500 shadow-[0_0_40px_-10px_rgba(244,63,94,0.2)]'
+              ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500 shadow-lg shadow-emerald-500/10' 
+              : 'bg-rose-500/10 border-rose-500/20 text-rose-500 shadow-lg shadow-rose-500/10'
             }`}
           >
-            {actionLoading ? <Loader2 className="animate-spin" size={24} /> : <Power size={28} />}
-            <span className="text-[10px] font-black tracking-widest uppercase">
-              {survey?.is_active ? 'SİSTEM ÇALIŞIYOR' : 'SİSTEM DURDURULDU'}
-            </span>
+            <div className="text-left">
+              <p className="text-[9px] font-black uppercase opacity-60">Sistem Durumu</p>
+              <p className="text-xs font-black tracking-widest">{survey?.is_active ? 'ÇALIŞIYOR' : 'DURDURULDU'}</p>
+            </div>
+            {actionLoading ? <Loader2 className="animate-spin" size={24} /> : <Power size={24} />}
           </button>
         </div>
 
-        {/* ANA İÇERİK YAPISI */}
+        {/* ANA İÇERİK: Masaüstünde 12'li grid, mobilde tek kolon */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           
-          {/* SEÇENEK EKLEME (4 Kolon) */}
-          <section className="lg:col-span-4 bg-slate-900/40 border border-white/5 rounded-[3rem] p-8 space-y-6 backdrop-blur-sm">
+          {/* SEÇENEK EKLEME (Masaüstünde 4 Kolon) */}
+          <section className="lg:col-span-4 bg-slate-900/40 border border-white/5 rounded-[2.5rem] p-6 md:p-8 space-y-6 backdrop-blur-md sticky top-8">
             <div className="flex justify-between items-center border-b border-white/5 pb-4">
-              <h2 className="text-indigo-400 text-xs font-black uppercase tracking-widest">Seçenekleri Hazırla</h2>
+              <h2 className="text-indigo-400 text-xs font-black uppercase tracking-widest">Şıkları Hazırla</h2>
               <button 
                 onClick={() => setDynamicInputs([...dynamicInputs, { text: '', imageUrl: '' }])} 
                 className="bg-indigo-600/20 hover:bg-indigo-600 p-2 rounded-xl text-indigo-400 hover:text-white transition-all"
@@ -192,21 +194,21 @@ export default function AdminSurveyPage() {
               </button>
             </div>
 
-            <div className="space-y-4 max-h-[450px] overflow-y-auto pr-2 custom-scrollbar">
+            <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
               {dynamicInputs.map((input, idx) => (
-                <div key={idx} className="bg-slate-950/80 p-5 rounded-[1.5rem] border border-white/5 space-y-3 transition-all focus-within:border-indigo-500/50 group">
+                <div key={idx} className="bg-slate-950/80 p-4 rounded-2xl border border-white/5 space-y-3 transition-all focus-within:border-indigo-500/50 group">
                   <input 
-                    placeholder="Şık Başlığı..."
+                    placeholder="Seçenek metni..."
                     value={input.text}
                     onChange={(e) => {
                       const n = [...dynamicInputs]; n[idx].text = e.target.value; setDynamicInputs(n);
                     }}
-                    className="w-full bg-transparent border-b border-white/5 py-2 outline-none text-sm font-bold text-white focus:border-indigo-500 transition-all"
+                    className="w-full bg-transparent border-b border-white/5 py-1 outline-none text-sm font-bold text-white focus:border-indigo-500 transition-all placeholder:text-slate-700"
                   />
                   <div className="flex items-center gap-2 opacity-40 group-focus-within:opacity-100 transition-opacity">
                     <ImageIcon size={14} />
                     <input 
-                      placeholder="Görsel URL..."
+                      placeholder="Görsel Linki (Opsiyonel)..."
                       value={input.imageUrl}
                       onChange={(e) => {
                         const n = [...dynamicInputs]; n[idx].imageUrl = e.target.value; setDynamicInputs(n);
@@ -221,23 +223,23 @@ export default function AdminSurveyPage() {
             <button 
               onClick={saveNewOptions}
               disabled={actionLoading}
-              className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-black py-5 rounded-[2rem] uppercase text-[11px] tracking-[0.2em] transition-all shadow-xl shadow-indigo-600/20 flex items-center justify-center gap-3 group"
+              className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 text-white font-black py-4 rounded-2xl uppercase text-[11px] tracking-widest transition-all shadow-xl shadow-indigo-600/20 flex items-center justify-center gap-3 group"
             >
-              <Save size={18} className="group-hover:scale-110 transition-transform" />
+              {actionLoading ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} className="group-hover:scale-110 transition-transform" />}
               Sisteme Kaydet
             </button>
           </section>
 
-          {/* CANLI SONUÇLAR (8 Kolon) */}
-          <section className="lg:col-span-8 bg-slate-900/20 border border-white/5 rounded-[3.5rem] p-10 min-h-[600px]">
-             <div className="flex items-center justify-between mb-12 border-b border-white/5 pb-6">
+          {/* CANLI SONUÇLAR (Masaüstünde 8 Kolon) */}
+          <section className="lg:col-span-8 bg-slate-900/20 border border-white/5 rounded-[3rem] p-6 md:p-10 min-h-[600px]">
+             <div className="flex flex-col sm:flex-row items-center justify-between mb-10 gap-4 border-b border-white/5 pb-6">
                 <div className="flex items-center gap-4">
                   <BarChart3 className="text-indigo-500" size={24} />
-                  <h2 className="text-xl font-black text-white uppercase italic">Canlı İstatistik Merkezi</h2>
+                  <h2 className="text-xl font-black text-white uppercase italic">Canlı İstatistikler</h2>
                 </div>
-                <div className="bg-slate-800/50 px-6 py-2.5 rounded-2xl border border-white/5 shadow-inner">
-                  <span className="text-[10px] font-black text-indigo-400 uppercase tracking-tighter mr-3">Toplam Katılım:</span>
-                  <span className="text-lg font-black text-white">{totalVotes}</span>
+                <div className="bg-slate-800/50 px-5 py-2 rounded-2xl border border-white/5 flex items-baseline gap-3">
+                  <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Katılım</span>
+                  <span className="text-xl font-black text-white">{totalVotes}</span>
                 </div>
              </div>
 
@@ -248,14 +250,14 @@ export default function AdminSurveyPage() {
                     <div key={opt.id} className="relative bg-slate-950 p-6 rounded-[2rem] border border-white/5 group hover:border-indigo-500/30 transition-all overflow-hidden">
                       <div className="relative z-10 flex items-center justify-between">
                         <div className="flex items-center gap-5">
-                          <div className="w-16 h-16 bg-slate-900 rounded-2xl border border-white/10 flex items-center justify-center overflow-hidden shrink-0 group-hover:border-indigo-500/50 transition-colors">
-                            {opt.image_url ? <img src={opt.image_url} className="w-full h-full object-cover" /> : <ImageIcon size={24} className="text-slate-700" />}
+                          <div className="w-14 h-14 bg-slate-900 rounded-2xl border border-white/10 flex items-center justify-center overflow-hidden shrink-0 group-hover:border-indigo-500/50 transition-colors">
+                            {opt.image_url ? <img src={opt.image_url} className="w-full h-full object-cover" alt="" /> : <ImageIcon size={20} className="text-slate-700" />}
                           </div>
                           <div className="min-w-0">
-                            <p className="text-sm font-black uppercase text-white mb-2 truncate max-w-[120px]">{opt.option_text}</p>
+                            <p className="text-xs font-black uppercase text-white mb-2 truncate max-w-[150px]">{opt.option_text}</p>
                             <div className="flex items-baseline gap-2">
                               <span className="text-2xl font-black text-indigo-500">%{percent}</span>
-                              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tighter">{opt.votes} OY</span>
+                              <span className="text-[9px] font-bold text-slate-500 uppercase">{opt.votes} OY</span>
                             </div>
                           </div>
                         </div>
@@ -264,9 +266,12 @@ export default function AdminSurveyPage() {
                         </button>
                       </div>
 
-                      {/* İlerleme Çubuğu */}
-                      <div className="mt-6 w-full h-2 bg-slate-900 rounded-full overflow-hidden border border-white/5">
-                        <div className="h-full bg-indigo-500 transition-all duration-1000 shadow-[0_0_15px_rgba(99,102,241,0.5)]" style={{ width: `${percent}%` }} />
+                      {/* Görsel İlerleme Çubuğu */}
+                      <div className="mt-6 w-full h-1.5 bg-slate-900 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-indigo-500 transition-all duration-1000 shadow-[0_0_15px_rgba(99,102,241,0.5)]" 
+                          style={{ width: `${percent}%` }} 
+                        />
                       </div>
                     </div>
                   );
@@ -274,9 +279,9 @@ export default function AdminSurveyPage() {
              </div>
 
              {options.length === 0 && (
-               <div className="flex flex-col items-center justify-center h-[400px] text-slate-700">
+               <div className="flex flex-col items-center justify-center h-[350px] text-slate-700">
                   <MousePointer2 size={48} strokeWidth={1} className="mb-4 animate-bounce opacity-20" />
-                  <p className="text-xs font-black uppercase tracking-[0.3em] italic opacity-30 tracking-widest">Veri Girişi Bekleniyor...</p>
+                  <p className="text-xs font-black uppercase tracking-[0.4em] italic opacity-30">Veri Girişi Bekleniyor...</p>
                </div>
              )}
           </section>
