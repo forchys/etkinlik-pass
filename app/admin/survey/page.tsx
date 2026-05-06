@@ -5,7 +5,7 @@ import {
   Plus, Trash2, LayoutDashboard, 
   Image as ImageIcon, Loader2, Power, BarChart3,
   MousePointer2, Save, Activity, Check, Edit2
-} from 'lucide-center';
+} from 'lucide-react';
 
 export default function AdminSurveyPage() {
   const [survey, setSurvey] = useState<any>(null);
