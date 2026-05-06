@@ -2,9 +2,8 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { 
-  Plus, Trash2, LayoutDashboard, 
-  Image as ImageIcon, Loader2, Power, BarChart3,
-  MousePointer2, Save, Activity
+  Plus, Trash2, Image as ImageIcon, Loader2, 
+  Power, Save, Hash, Activity
 } from 'lucide-react';
 
 export default function AdminSurveyPage() {
@@ -14,7 +13,6 @@ export default function AdminSurveyPage() {
   const [actionLoading, setActionLoading] = useState(false);
   
   const [dynamicInputs, setDynamicInputs] = useState([
-    { text: '', imageUrl: '' },
     { text: '', imageUrl: '' }
   ]);
 
@@ -92,7 +90,6 @@ export default function AdminSurveyPage() {
         .single();
       
       if (error) {
-        alert("Anket oluşturulamadı.");
         setActionLoading(false);
         return;
       }
@@ -110,7 +107,6 @@ export default function AdminSurveyPage() {
       }));
 
     if (toInsert.length === 0) {
-      alert("Lütfen en az bir seçenek metni girin.");
       setActionLoading(false);
       return;
     }
@@ -118,10 +114,8 @@ export default function AdminSurveyPage() {
     const { error: optError } = await supabase.from('survey_options').insert(toInsert);
     
     if (!optError) {
-      setDynamicInputs([{ text: '', imageUrl: '' }, { text: '', imageUrl: '' }]);
+      setDynamicInputs([{ text: '', imageUrl: '' }]);
       await fetchAdminData(); 
-    } else {
-      console.error("Kaydetme hatası:", optError);
     }
     setActionLoading(false);
   };
@@ -133,159 +127,131 @@ export default function AdminSurveyPage() {
   };
 
   if (loading) return (
-    <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-center gap-4">
-      <Loader2 className="animate-spin text-indigo-500" size={40} />
-      <p className="text-indigo-500 font-black text-[10px] tracking-widest uppercase">Hazırlanıyor...</p>
+    <div className="min-h-screen bg-[#020617] flex items-center justify-center">
+      <Loader2 className="animate-spin text-indigo-500" size={32} />
     </div>
   );
 
   return (
-    <main className="min-h-screen bg-[#020617] text-slate-300 p-6 lg:p-12 font-sans overflow-x-hidden">
-      <div className="max-w-[1500px] mx-auto space-y-8">
+    <main className="min-h-screen bg-[#020617] text-slate-300 p-4 lg:p-8 font-sans">
+      <div className="max-w-[1200px] mx-auto space-y-4">
         
-        {/* ÜST DASHBOARD PANELİ */}
-        <div className="flex flex-col lg:flex-row justify-between items-stretch gap-6">
-          <div className="flex-1 bg-slate-900/40 border border-white/5 p-8 rounded-[2.5rem] flex items-center gap-6 shadow-2xl backdrop-blur-md">
-            <div className="bg-indigo-600/20 p-5 rounded-3xl border border-indigo-500/20 text-indigo-500 shadow-lg shadow-indigo-500/10">
-              <LayoutDashboard size={32} />
-            </div>
-            <div>
-              <h1 className="text-2xl font-black text-white uppercase tracking-tight italic">Panel <span className="text-indigo-500 not-italic">Merkezi</span></h1>
-              <p className="text-slate-500 text-[10px] font-bold tracking-[0.4em] uppercase mt-1">Flick Admin v2.0</p>
+        {/* KOMPAKT ÜST BAR */}
+        <header className="flex items-center justify-between bg-slate-900/50 border border-white/5 p-4 rounded-2xl">
+          <div className="flex items-center gap-6">
+            <h1 className="text-sm font-black uppercase tracking-widest text-white italic">Flick <span className="text-indigo-500 not-italic">Admin</span></h1>
+            <div className="h-4 w-px bg-white/10 hidden md:block" />
+            <div className="hidden md:flex items-center gap-2 text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+              <Activity size={14} className="text-indigo-500" />
+              Toplam Katılım: <span className="text-white">{totalVotes}</span>
             </div>
           </div>
-
+          
           <button 
             onClick={toggleSurveyStatus}
             disabled={actionLoading}
-            className={`w-full lg:w-[350px] flex flex-col items-center justify-center gap-3 p-6 rounded-[2.5rem] border transition-all duration-500 ${
+            className={`px-4 py-2 rounded-xl border text-[10px] font-black tracking-widest transition-all ${
               survey?.is_active 
-              ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500 shadow-[0_0_40px_-10px_rgba(16,185,129,0.2)]' 
-              : 'bg-rose-500/10 border-rose-500/20 text-rose-500 shadow-[0_0_40px_-10px_rgba(244,63,94,0.2)]'
+              ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-500 hover:bg-emerald-500/10' 
+              : 'bg-rose-500/5 border-rose-500/20 text-rose-500 hover:bg-rose-500/10'
             }`}
           >
-            {actionLoading ? <Loader2 className="animate-spin" size={28} /> : <Power size={32} />}
-            <span className="text-[11px] font-black tracking-widest uppercase">
-              {survey?.is_active ? 'SİSTEM ÇEVRİMİÇİ' : 'SİSTEM DURDURULDU'}
-            </span>
+            {survey?.is_active ? 'SİSTEM AKTİF' : 'SİSTEM DURDURULDU'}
           </button>
-        </div>
+        </header>
 
-        {/* ANA İÇERİK YAPISI */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start relative">
-          
-          {/* SOL: SEÇENEK YÖNETİMİ (Kompakt Panel) */}
-          <section className="lg:col-span-4 bg-slate-900/40 border border-white/5 rounded-[3rem] p-8 space-y-6 lg:sticky lg:top-8 shadow-xl">
-            <div className="flex justify-between items-center border-b border-white/5 pb-4">
-              <h2 className="text-indigo-400 text-xs font-black uppercase tracking-widest">Veri Girişi</h2>
-              <button 
-                onClick={() => setDynamicInputs([...dynamicInputs, { text: '', imageUrl: '' }])} 
-                className="bg-indigo-600/20 hover:bg-indigo-600 p-2 rounded-xl text-indigo-400 hover:text-white transition-all"
-              >
-                <Plus size={18} />
-              </button>
+        {/* YATAY VERİ GİRİŞ SATIRI */}
+        <section className="bg-slate-900/30 border border-white/5 p-3 rounded-2xl flex flex-col md:flex-row gap-3">
+          <div className="flex-1 flex gap-3">
+            <div className="flex-[2] relative">
+              <input 
+                placeholder="Yeni Seçenek Metni..."
+                value={dynamicInputs[0].text}
+                onChange={(e) => {
+                  const n = [...dynamicInputs]; n[0].text = e.target.value; setDynamicInputs(n);
+                }}
+                className="w-full bg-slate-950 border border-white/5 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-indigo-500/50 transition-all placeholder:text-slate-700 font-bold"
+              />
             </div>
+            <div className="flex-1 relative">
+              <input 
+                placeholder="Görsel URL..."
+                value={dynamicInputs[0].imageUrl}
+                onChange={(e) => {
+                  const n = [...dynamicInputs]; n[0].imageUrl = e.target.value; setDynamicInputs(n);
+                }}
+                className="w-full bg-slate-950 border border-white/5 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-indigo-500/50 transition-all placeholder:text-slate-700"
+              />
+            </div>
+          </div>
+          <button 
+            onClick={saveNewOptions}
+            disabled={actionLoading}
+            className="bg-indigo-600 hover:bg-indigo-500 text-white px-8 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2"
+          >
+            {actionLoading ? <Loader2 className="animate-spin" size={14} /> : <Plus size={14} />}
+            Ekle
+          </button>
+        </section>
 
-            <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
-              {dynamicInputs.map((input, idx) => (
-                <div key={idx} className="bg-slate-950/80 p-5 rounded-[1.5rem] border border-white/5 space-y-3 focus-within:border-indigo-500/50 transition-all group">
-                  <input 
-                    placeholder="Seçenek Metni..."
-                    value={input.text}
-                    onChange={(e) => {
-                      const n = [...dynamicInputs]; n[idx].text = e.target.value; setDynamicInputs(n);
-                    }}
-                    className="w-full bg-transparent outline-none text-sm font-bold text-white placeholder:text-slate-700"
-                  />
-                  <div className="flex items-center gap-2 opacity-30 group-focus-within:opacity-100 transition-opacity">
-                    <ImageIcon size={14} className="text-indigo-400" />
-                    <input 
-                      placeholder="Görsel URL..."
-                      value={input.imageUrl}
-                      onChange={(e) => {
-                        const n = [...dynamicInputs]; n[idx].imageUrl = e.target.value; setDynamicInputs(n);
-                      }}
-                      className="w-full bg-transparent text-[11px] outline-none italic"
+        {/* YATAY LİSTE ELEMANLARI */}
+        <section className="space-y-2">
+          {options.map((opt) => {
+            const percent = calculatePercentage(opt.votes);
+            return (
+              <div key={opt.id} className="group bg-slate-900/20 border border-white/5 hover:border-white/10 p-3 rounded-xl flex items-center gap-4 transition-all">
+                {/* Küçük Görsel */}
+                <div className="w-12 h-12 bg-slate-950 rounded-lg border border-white/5 overflow-hidden flex items-center justify-center shrink-0">
+                  {opt.image_url ? (
+                    <img src={opt.image_url} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
+                  ) : (
+                    <ImageIcon size={18} className="text-slate-800" />
+                  )}
+                </div>
+
+                {/* Metin ve İstatistik Alanı */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex justify-between items-center mb-1.5">
+                    <h4 className="text-sm font-bold text-white truncate pr-4">{opt.option_text}</h4>
+                    <div className="flex items-center gap-4 shrink-0 font-mono">
+                      <span className="text-indigo-400 text-xs font-black">%{percent}</span>
+                      <span className="text-slate-600 text-[10px] font-bold uppercase">{opt.votes} OY</span>
+                    </div>
+                  </div>
+                  {/* Yatay İlerleme Çubuğu */}
+                  <div className="w-full h-1.5 bg-slate-950 rounded-full overflow-hidden border border-white/5">
+                    <div 
+                      className="h-full bg-indigo-500/80 group-hover:bg-indigo-500 transition-all duration-1000 shadow-[0_0_10px_rgba(99,102,241,0.3)]" 
+                      style={{ width: `${percent}%` }} 
                     />
                   </div>
                 </div>
-              ))}
-            </div>
 
-            <button 
-              onClick={saveNewOptions}
-              disabled={actionLoading}
-              className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-black py-5 rounded-[2rem] uppercase text-[11px] tracking-widest transition-all shadow-xl shadow-indigo-600/20 flex items-center justify-center gap-3 disabled:opacity-50"
-            >
-              {actionLoading ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
-              Sistemi Güncelle
-            </button>
-          </section>
-
-          {/* SAĞ: BENTO ANALİZ MERKEZİ */}
-          <section className="lg:col-span-8 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-            
-            {/* HERO KART: TOPLAM KATILIM (Geniş Yer Kaplayan Modern Kart) */}
-            <div className="col-span-full bg-gradient-to-br from-indigo-600 to-violet-800 rounded-[3rem] p-10 flex flex-col md:flex-row justify-between items-center relative overflow-hidden group shadow-2xl">
-                <div className="relative z-10 text-center md:text-left">
-                    <h3 className="text-indigo-100/60 text-[10px] font-black uppercase tracking-[0.4em] mb-2">Canlı Katılım Durumu</h3>
-                    <h2 className="text-4xl lg:text-5xl font-black text-white italic uppercase tracking-tighter">İstatistik <br/> Merkezi</h2>
-                </div>
-                <div className="relative z-10 bg-white/10 backdrop-blur-xl px-10 py-6 rounded-[2.5rem] border border-white/10 flex items-center gap-6 mt-6 md:mt-0">
-                    <Activity className="text-indigo-200" size={40} />
-                    <div>
-                        <p className="text-white/60 text-[10px] font-black uppercase tracking-widest">Toplam Oy</p>
-                        <p className="text-4xl font-black text-white">{totalVotes}</p>
-                    </div>
-                </div>
-                <BarChart3 size={200} className="absolute -bottom-10 -right-10 text-white/5 -rotate-12 group-hover:rotate-0 transition-transform duration-700" />
-            </div>
-
-            {/* SEÇENEK KARTLARI */}
-            {options.map((opt) => {
-              const percent = calculatePercentage(opt.votes);
-              return (
-                <div key={opt.id} className="bg-slate-900/30 border border-white/5 p-6 rounded-[2.5rem] hover:bg-slate-900/50 transition-all group flex flex-col justify-between h-full">
-                  <div>
-                    <div className="flex justify-between items-start mb-6">
-                      <div className="w-14 h-14 bg-slate-950 rounded-2xl border border-white/5 overflow-hidden flex items-center justify-center">
-                        {opt.image_url ? <img src={opt.image_url} className="w-full h-full object-cover" alt="" /> : <ImageIcon size={20} className="text-slate-800" />}
-                      </div>
-                      <button onClick={() => deleteOption(opt.id)} className="text-slate-700 hover:text-rose-500 transition-colors p-2">
-                        <Trash2 size={18} />
-                      </button>
-                    </div>
-                    <p className="text-sm font-black uppercase text-white mb-2 truncate" title={opt.option_text}>{opt.option_text}</p>
-                    <div className="flex items-baseline gap-2 mb-6">
-                      <span className="text-3xl font-black text-indigo-500 italic">%{percent}</span>
-                      <span className="text-[10px] font-bold text-slate-600 uppercase">{opt.votes} OY</span>
-                    </div>
-                  </div>
-
-                  <div className="w-full h-2 bg-slate-950 rounded-full overflow-hidden border border-white/5">
-                    <div className="h-full bg-indigo-500 transition-all duration-1000" style={{ width: `${percent}%` }} />
-                  </div>
-                </div>
-              );
-            })}
-
-            {/* BOŞ DURUM */}
-            {options.length === 0 && (
-              <div className="col-span-full flex flex-col items-center justify-center py-20 text-slate-800 border-2 border-dashed border-white/5 rounded-[3rem]">
-                <MousePointer2 size={40} className="mb-4 opacity-20 animate-bounce" />
-                <p className="text-[10px] font-black uppercase tracking-[0.3em]">Veri Bekleniyor...</p>
+                {/* Silme Butonu */}
+                <button 
+                  onClick={() => deleteOption(opt.id)} 
+                  className="opacity-0 group-hover:opacity-100 p-2 text-slate-700 hover:text-rose-500 transition-all shrink-0"
+                >
+                  <Trash2 size={16} />
+                </button>
               </div>
-            )}
-          </section>
+            );
+          })}
 
-        </div>
+          {/* BOŞ DURUM */}
+          {options.length === 0 && (
+            <div className="py-12 text-center border border-dashed border-white/5 rounded-2xl text-slate-700">
+              <p className="text-[10px] font-black uppercase tracking-[0.2em]">Gösterilecek veri bulunamadı.</p>
+            </div>
+          )}
+        </section>
+
       </div>
 
       <style jsx global>{`
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #312e81; border-radius: 10px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #4f46e5; }
       `}</style>
     </main>
   );
