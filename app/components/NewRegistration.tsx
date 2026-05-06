@@ -4,8 +4,8 @@ import { supabase } from '@/lib/supabase';
 import { 
   User, Smartphone, Mail, School, Users, 
   MessageCircle, CheckCircle2, Loader2, Image as ImageIcon, ShieldCheck, KeyRound, Copy, CreditCard,
-  ChevronDown // Yeni eklenen ikon
-} from 'lucide-react';
+  ChevronDown, AlertCircle // AlertCircle eklendi
+} from 'lucide-center';
 
 export default function NewRegistration({ 
   onSuccess, 
@@ -20,18 +20,15 @@ export default function NewRegistration({
   const [waJoined, setWaJoined] = useState(false);
   const [countdown, setCountdown] = useState(0); 
   const [file, setFile] = useState<File | null>(null);
-  
-  // --- Ödeme Penceresi State'i ---
   const [isPaymentSheetOpen, setIsPaymentSheetOpen] = useState(false);
-  
   const [eventSettings, setEventSettings] = useState<any>(null);
   const [fetchingSettings, setFetchingSettings] = useState(true);
-  
   const [emailSent, setEmailSent] = useState(false);
   const [emailVerified, setEmailVerified] = useState(false);
   const [otpCode, setOtpCode] = useState('');
   const [verifyingEmail, setVerifyingEmail] = useState(false);
-  
+  const [errorMessage, setErrorMessage] = useState<string | null>(null); // Hata state'i
+
   const [formData, setFormData] = useState({
     ad_soyad: '',
     email: '',
@@ -54,7 +51,7 @@ export default function NewRegistration({
           setEventSettings(data);
         }
       } catch (err) {
-        console.error("Ayarlar çekilemedi:", err);
+        setErrorMessage("Ayarlar çekilemedi.");
       } finally {
         setFetchingSettings(false);
       }
@@ -71,8 +68,9 @@ export default function NewRegistration({
   }, [countdown]);
 
   const handleSendOTP = async () => {
-    if (!formData.email.includes('@')) return alert("Lütfen geçerli bir e-posta giriniz!");
+    if (!formData.email.includes('@')) return setErrorMessage("Lütfen geçerli bir e-posta giriniz!");
     setVerifyingEmail(true);
+    setErrorMessage(null);
     try {
       const { error } = await supabase.auth.signInWithOtp({
         email: formData.email,
@@ -80,16 +78,15 @@ export default function NewRegistration({
       });
       if (error) throw error;
       setEmailSent(true);
-      alert("Doğrulama kodu gönderildi!");
     } catch (error: any) {
-      alert("Hata: " + error.message);
+      setErrorMessage("Hata: " + error.message);
     } finally {
       setVerifyingEmail(false);
     }
   };
 
   const handleVerifyOTP = async () => {
-    if (otpCode.length < 6) return alert("Lütfen 6 haneli kodu giriniz!");
+    if (otpCode.length < 6) return setErrorMessage("Lütfen 6 haneli kodu giriniz!");
     setVerifyingEmail(true);
     try {
       const { error } = await supabase.auth.verifyOtp({
@@ -99,8 +96,9 @@ export default function NewRegistration({
       });
       if (error) throw error;
       setEmailVerified(true);
+      setErrorMessage(null);
     } catch (error: any) {
-      alert("Kod hatalı veya süresi dolmuş!");
+      setErrorMessage("Kod hatalı veya süresi dolmuş!");
     } finally {
       setVerifyingEmail(false);
     }
@@ -109,7 +107,7 @@ export default function NewRegistration({
   const handleFileUpload = async (userId: string) => {
     if (!file) return null;
     const fileExt = file.name.split('.').pop();
-    const fileName = `${userId}-${Math.random()}.${fileExt}`;
+    const fileName = `${userId}/${Date.now()}.${fileExt}`;
 
     const { error: uploadError } = await supabase.storage
       .from('dekontlar')
@@ -123,12 +121,14 @@ export default function NewRegistration({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!emailVerified) return alert("Lütfen önce e-posta adresinizi doğrulayın!");
-    if (!waJoined || countdown > 0) return alert("Lütfen önce WhatsApp grubuna katılın ve doğrulamanın bitmesini bekleyin!");
-    if (formData.telefon.length !== 10) return alert("Telefon numarası 10 hane olmalıdır!");
+    setErrorMessage(null);
+
+    if (!emailVerified) return setErrorMessage("Lütfen önce e-posta adresinizi doğrulayın!");
+    if (!waJoined || countdown > 0) return setErrorMessage("Lütfen önce WhatsApp grubuna katılın!");
+    if (formData.telefon.length !== 10) return setErrorMessage("Telefon numarası 10 hane olmalıdır!");
     
     const isPaid = eventSettings?.is_paid === true || String(eventSettings?.is_paid) === "true";
-    if (isPaid && !file) return alert("Lütfen ödeme dekontunu yükleyin!");
+    if (isPaid && !file) return setErrorMessage("Lütfen ödeme dekontunu yükleyin!");
 
     setLoading(true);
     try {
@@ -146,7 +146,7 @@ export default function NewRegistration({
 
       if (userError) throw userError;
 
-      if (file) {
+      if (file && user) {
         const dekontUrl = await handleFileUpload(user.id);
         await supabase
           .from('katilimcilar')
@@ -156,7 +156,7 @@ export default function NewRegistration({
 
       onSuccess(user);
     } catch (error: any) {
-      alert("Hata: " + error.message);
+      setErrorMessage("Hata: " + error.message);
     } finally {
       setLoading(false);
     }
@@ -175,11 +175,16 @@ export default function NewRegistration({
         <CheckCircle2 className="text-blue-500" /> Etkinlik Kaydı
       </h2>
 
+      {errorMessage && (
+        <div className="mb-4 p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-500 text-[11px] flex items-center gap-2 animate-in zoom-in duration-300">
+          <AlertCircle size={16} /> {errorMessage}
+        </div>
+      )}
+
       <form onSubmit={handleSubmit} className="space-y-4">
         
         {showPaymentInfo && (
           <div className="bg-emerald-950/20 border border-emerald-500/20 rounded-[2rem] overflow-hidden transition-all duration-500">
-            {/* TIKLANABİLİR BAŞLIK - FİYAT BURADA SABİT */}
             <div 
               onClick={() => setIsPaymentSheetOpen(!isPaymentSheetOpen)}
               className="p-5 flex justify-between items-center cursor-pointer hover:bg-emerald-500/5 transition-colors"
@@ -196,7 +201,6 @@ export default function NewRegistration({
               </div>
             </div>
 
-            {/* AÇILIR KAPANIR İÇERİK */}
             <div className={`px-5 pb-5 space-y-4 transition-all duration-500 origin-top overflow-hidden ${
               isPaymentSheetOpen ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0 pointer-events-none'
             }`}>
@@ -206,14 +210,14 @@ export default function NewRegistration({
                   onClick={(e) => {
                     e.stopPropagation();
                     navigator.clipboard.writeText(eventSettings?.event_ibanname || "");
-                    alert("Hesap Sahibi İsmi Kopyalandı!");
+                    setErrorMessage("Hesap Sahibi İsmi Kopyalandı!");
                   }}
                   className="bg-slate-950/50 border border-white/5 p-4 rounded-2xl flex items-center justify-between group cursor-pointer hover:border-emerald-500/30 transition-all"
                 >
                   <div className="flex items-center gap-3 overflow-hidden">
                     <User className="text-emerald-500 shrink-0" size={18} />
                     <span className="text-xs font-bold text-white tracking-wide truncate">
-                      {eventSettings?.event_ibanname || "Sezennur İşik"}
+                      {eventSettings?.event_ibanname || "Belirtilmedi"}
                     </span>
                   </div>
                   <Copy size={14} className="text-slate-500 group-hover:text-emerald-400 shrink-0" />
@@ -226,7 +230,7 @@ export default function NewRegistration({
                   onClick={(e) => {
                     e.stopPropagation();
                     navigator.clipboard.writeText(eventSettings?.event_iban || "");
-                    alert("IBAN Kopyalandı!");
+                    setErrorMessage("IBAN Kopyalandı!");
                   }}
                   className="bg-slate-950/50 border border-white/5 p-4 rounded-2xl flex items-center justify-between group cursor-pointer hover:border-emerald-500/30 transition-all"
                 >
@@ -240,7 +244,7 @@ export default function NewRegistration({
                 </div>
               </div>
               <p className="text-[9px] text-slate-500 leading-relaxed italic text-center">
-                * Lütfen ödeme yaparken açıklama kısmına adınızı ve kısaca etkinliği yazmayı unutmayın.
+                * Lütfen ödeme yaparken açıklama kısmına adınızı yazmayı unutmayın.
               </p>
             </div>
           </div>
@@ -340,7 +344,7 @@ export default function NewRegistration({
               </div>
               <p className="text-[10px] text-slate-500 flex items-center gap-1">
                 <ShieldCheck size={12} className="text-emerald-500" /> 
-                Dekont üzerindeki verilerinize yalnızca topluluk yönetimi erişebilir.
+                Dekont verilerinize yalnızca yönetim erişebilir.
               </p>
             </div>
           </div>
