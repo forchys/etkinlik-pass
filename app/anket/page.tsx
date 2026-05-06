@@ -18,8 +18,8 @@ export default function AnketPage() {
 
   const fetchSurveyData = async () => {
     setLoading(true);
-    console.log("Veri çekme işlemi başladı..."); // Takip için
     try {
+      // 1. Aktif anketi çek
       const { data: surveyData, error: surveyError } = await supabase
         .from('surveys')
         .select('*')
@@ -31,7 +31,6 @@ export default function AnketPage() {
       if (surveyError) throw surveyError;
 
       if (surveyData) {
-        console.log("Aktif Anket Bulundu:", surveyData);
         setSurvey(surveyData);
 
         // --- LOCAL STORAGE YÖNETİMİ ---
@@ -48,7 +47,7 @@ export default function AnketPage() {
           if (savedVote) setVotedOptionId(savedVote);
         }
 
-        // Seçenekleri çek
+        // 2. Anket seçeneklerini çek
         const { data: optionsData, error: optionsError } = await supabase
           .from('survey_options')
           .select('*')
@@ -58,16 +57,13 @@ export default function AnketPage() {
         if (optionsError) throw optionsError;
 
         if (optionsData) {
-          console.log("Seçenekler Yüklendi:", optionsData);
           setOptions(optionsData);
           const votes = optionsData.reduce((sum, opt) => sum + (opt.votes || 0), 0);
           setTotalVotes(votes);
         }
-      } else {
-        console.warn("Veritabanında aktif (is_active: true) anket bulunamadı!");
       }
     } catch (error) {
-      console.error("Supabase Bağlantı Hatası:", error);
+      console.error("Veri çekme hatası:", error);
     } finally {
       setLoading(false);
     }
@@ -88,25 +84,28 @@ export default function AnketPage() {
         await fetchSurveyData();
       }
     } catch (error) {
-      console.error("Oy kullanma hatası:", error);
+      console.error("Oy hatası:", error);
     } finally {
       setLoading(false);
     }
   };
 
+  // KRİTİK: Görsel URL'sini oluşturan ana fonksiyon
   const getImageUrl = (path: string) => {
     if (!path) return '';
+    // Eğer path zaten tam bir URL ise (http ile başlıyorsa) direkt döndür
     if (path.startsWith('http')) return path;
     
-    // Baştaki eğik çizgileri temizleyerek hatalı URL oluşumunu engeller
+    // Supabase URL'sini ve bucket adını birleştir
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const bucketName = 'survey-images'; // Buranın Supabase'deki bucket adıyla aynı olduğundan emin ol
+    
+    // Baştaki eğik çizgileri temizle
     const cleanPath = path.replace(/^\/+/, '');
-    const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/survey-images/${cleanPath}`;
-    return url;
+    
+    return `${supabaseUrl}/storage/v1/object/public/${bucketName}/${cleanPath}`;
   };
 
-  // ... (Geri kalan render kodun aynı kalabilir, yukarıdaki mantıksal düzeltmeler yeterlidir)
-  // NOT: Eğer görsel yine gelmezse, tarayıcıda "İncele > Konsol" kısmındaki mesajları bana ilet.
-  
   if (loading && !survey) {
     return (
       <div className="min-h-screen bg-[#020617] flex items-center justify-center text-blue-500">
@@ -131,10 +130,7 @@ export default function AnketPage() {
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-blue-600/10 blur-[120px] rounded-full pointer-events-none"></div>
 
       <div className="max-w-4xl mx-auto relative z-10">
-        <Link 
-          href="/" 
-          className="inline-flex items-center gap-3 text-slate-400 hover:text-white transition-all group mb-12"
-        >
+        <Link href="/" className="inline-flex items-center gap-3 text-slate-400 hover:text-white transition-all group mb-12">
           <div className="bg-white/5 p-2 rounded-lg group-hover:bg-blue-600 transition-colors">
             <ArrowLeft size={18} />
           </div>
@@ -142,7 +138,6 @@ export default function AnketPage() {
         </Link>
 
         <div className="text-center mb-12">
-          <span className="text-blue-500 font-bold text-[10px] tracking-[0.3em] uppercase mb-4 block">Topluluk Anketi</span>
           <h1 className="text-3xl md:text-5xl font-black tracking-tighter uppercase">{survey.title}</h1>
         </div>
 
@@ -158,7 +153,7 @@ export default function AnketPage() {
                 onClick={() => handleVote(option.id, option.votes)}
                 disabled={!!votedOptionId || loading}
                 className={`relative group overflow-hidden rounded-3xl border-2 transition-all duration-500 text-left ${
-                  isSelected ? 'border-blue-500 bg-blue-500/10 scale-[1.02]' : votedOptionId ? 'border-white/5 bg-slate-900/50 opacity-80' : 'border-white/10 bg-slate-900 hover:border-blue-500/50 hover:bg-slate-800 hover:-translate-y-1'
+                  isSelected ? 'border-blue-500 bg-blue-500/10' : 'border-white/10 bg-slate-900'
                 }`}
               >
                 {option.image_url && (
@@ -166,10 +161,10 @@ export default function AnketPage() {
                     <img 
                       src={getImageUrl(option.image_url)} 
                       alt={option.option_text} 
-                      className="w-full h-full object-cover opacity-80 group-hover:scale-105 transition-transform duration-700" 
+                      className="w-full h-full object-cover opacity-80"
                       onError={(e) => {
-                        console.error(`Görsel yüklenemedi: ${option.image_url}`);
-                        (e.target as HTMLImageElement).src = 'https://via.placeholder.com/400x300?text=Görsel+Yok';
+                        // Görsel yüklenemezse çalışacak hata yönetimi
+                        (e.target as HTMLImageElement).src = "https://via.placeholder.com/400x300?text=Görsel+Bulunamadı";
                       }}
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-[#020617] via-[#020617]/50 to-transparent"></div>
@@ -178,25 +173,19 @@ export default function AnketPage() {
 
                 <div className={`p-6 relative z-10 ${option.image_url ? '-mt-16' : ''}`}>
                   <div className="flex justify-between items-end mb-4">
-                    <h3 className={`text-xl font-black uppercase tracking-wide ${isSelected ? 'text-blue-400' : 'text-white'}`}>{option.option_text}</h3>
-                    {votedOptionId && <span className="text-2xl font-mono font-black text-slate-400">%{percentage}</span>}
+                    <h3 className="text-xl font-black uppercase">{option.option_text}</h3>
+                    {votedOptionId && <span className="text-2xl font-mono">%{percentage}</span>}
                   </div>
                   {votedOptionId && (
-                    <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden mt-4">
-                      <div className={`h-full transition-all duration-1000 ${isWinner ? 'bg-emerald-500' : 'bg-blue-500'}`} style={{ width: `${percentage}%` }}></div>
+                    <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                      <div className={`h-full ${isWinner ? 'bg-emerald-500' : 'bg-blue-500'}`} style={{ width: `${percentage}%` }}></div>
                     </div>
-                  )}
-                  {isSelected && (
-                    <div className="absolute top-4 right-4 bg-blue-500 text-white rounded-full p-1 shadow-lg shadow-blue-500/50 animate-bounce"><CheckCircle2 size={24} /></div>
                   )}
                 </div>
               </button>
             );
           })}
         </div>
-        {votedOptionId && (
-          <div className="mt-12 text-center text-slate-500 font-bold uppercase tracking-widest text-[10px]">Toplam {totalVotes} Oy Kullanıldı</div>
-        )}
       </div>
     </main>
   );
