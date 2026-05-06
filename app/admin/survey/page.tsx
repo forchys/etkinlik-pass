@@ -141,7 +141,8 @@ export default function AdminSurveyPage() {
 
   return (
     <main className="min-h-screen bg-[#020617] text-slate-300 p-6 lg:p-12 font-sans overflow-hidden">
-      <div className="max-w-[1400px] mx-auto space-y-8 lg:space-y-12">
+      {/* YENİLİK BURADA: max-w-[1400px] değeri masaüstü genişlemesi için max-w-[1600px] yapıldı */}
+      <div className="max-w-[1600px] mx-auto space-y-8 lg:space-y-12">
         
         {/* ÜST DASHBOARD */}
         <div className="flex flex-col lg:flex-row justify-between items-stretch gap-6">
@@ -158,7 +159,6 @@ export default function AdminSurveyPage() {
           <button 
             onClick={toggleSurveyStatus}
             disabled={actionLoading}
-            // Masaüstü için boyut ve görünüm iyileştirildi (lg:w-[300px])
             className={`w-full lg:w-[300px] flex flex-col items-center justify-center gap-3 p-6 rounded-[2.5rem] border transition-all duration-500 ${
               survey?.is_active 
               ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500 shadow-[0_0_40px_-10px_rgba(16,185,129,0.2)] hover:bg-emerald-500/20' 
@@ -175,7 +175,7 @@ export default function AdminSurveyPage() {
         {/* ANA İÇERİK YAPISI */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 items-start relative">
           
-          {/* SEÇENEK EKLEME (4 Kolon) - Masaüstünde Sabit (Sticky) */}
+          {/* SEÇENEK EKLEME (4 Kolon) */}
           <section className="lg:col-span-4 bg-slate-900/40 border border-white/5 rounded-[3rem] p-8 space-y-6 backdrop-blur-sm lg:sticky lg:top-8 h-fit">
             <div className="flex justify-between items-center border-b border-white/5 pb-4">
               <h2 className="text-indigo-400 text-xs font-black uppercase tracking-widest">Seçenekleri Hazırla</h2>
@@ -188,7 +188,6 @@ export default function AdminSurveyPage() {
               </button>
             </div>
 
-            {/* Masaüstünde daha uzun listeler için max-h artırıldı */}
             <div className="space-y-4 max-h-[450px] lg:max-h-[55vh] overflow-y-auto pr-2 custom-scrollbar">
               {dynamicInputs.map((input, idx) => (
                 <div key={idx} className="bg-slate-950/80 p-5 rounded-[1.5rem] border border-white/5 space-y-3 transition-all focus-within:border-indigo-500/50 group">
@@ -261,7 +260,6 @@ export default function AdminSurveyPage() {
                         </button>
                       </div>
 
-                      {/* İlerleme Çubuğu */}
                       <div className="mt-8 w-full h-2.5 bg-slate-900 rounded-full overflow-hidden border border-white/5">
                         <div className="h-full bg-indigo-500 transition-all duration-1000 shadow-[0_0_15px_rgba(99,102,241,0.5)]" style={{ width: `${percent}%` }} />
                       </div>
