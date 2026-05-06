@@ -5,7 +5,7 @@ import {
   User, Smartphone, Mail, School, Users, 
   MessageCircle, CheckCircle2, Loader2, Image as ImageIcon, ShieldCheck, KeyRound, Copy, CreditCard,
   ChevronDown, AlertCircle // AlertCircle eklendi
-} from 'lucide-center';
+} from 'lucide-react';
 
 export default function NewRegistration({ 
   onSuccess, 
