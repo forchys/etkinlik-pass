@@ -70,7 +70,7 @@ export default function AdminSurveyPage() {
 
   /**
    * hardResetSurvey: Anketi ve bağlı şıkları silip yepyeni bir ID ile oluşturur.
-   * Tarayıcıdaki ID-bazlı 'oy kullandın' engelini aşmak için güncellendi.
+   * Bu işlem, oylama sayfasındaki localStorage kilitlerini (voted_ID) geçersiz kılar.
    */
   const hardResetSurvey = async () => {
     const confirmFirst = confirm('DİKKAT: Mevcut anket ve tüm oylar KALICI OLARAK silinecek ve YENİ bir ID oluşturulacak. Bu işlem cihazlardaki tıklama engelini kaldıracaktır. Emin misin?');
@@ -80,14 +80,13 @@ export default function AdminSurveyPage() {
     try {
       const currentTitle = survey.title;
       const currentIsActive = survey.is_active;
-      const oldId = survey.id; // Eski ID'yi referans için tutuyoruz
+      const oldId = survey.id; 
 
-      // 1. Şıkları sil
+      // 1. Şıkları ve anketi veritabanından tamamen sil
       await supabase.from('survey_options').delete().eq('survey_id', oldId);
-      // 2. Anketi sil
       await supabase.from('surveys').delete().eq('id', oldId);
 
-      // 3. Yeni anket oluştur (Yeni ID ve taze zaman damgası)
+      // 2. Yeni anket oluştur (Yeni bir UUID atanacaktır)
       const { data: newSurvey, error: createError } = await supabase
         .from('surveys')
         .insert([{ title: currentTitle, is_active: currentIsActive }])
@@ -96,14 +95,13 @@ export default function AdminSurveyPage() {
 
       if (createError) throw createError;
 
-      // 4. Yerel Engel Temizliği: Admin panelini kullandığın cihazdaki engeli hemen kaldırır
+      // 3. Yerel Engel Temizliği: Mevcut admin tarayıcısındaki kilidi de kaldırır
       localStorage.removeItem(`voted_${oldId}`);
 
       setSurvey(newSurvey);
       setOptions([]);
-      setMessage({ type: 'success', text: 'Sistem tamamen sıfırlandı ve yeni ID oluşturuldu!' });
+      setMessage({ type: 'success', text: 'Sistem tamamen sıfırlandı ve kilitler açıldı!' });
       
-      // Verileri tazelemek için tekrar çek
       await fetchData();
     } catch (e) {
       console.error(e);
