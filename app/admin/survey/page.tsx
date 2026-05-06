@@ -5,11 +5,12 @@ import { supabase } from '@/lib/supabase';
 import { 
   Plus, Trash2, LayoutDashboard, 
   Image as ImageIcon, Loader2, Power, 
-  BarChart3, Save, CheckCircle2, AlertCircle, Edit2
+  BarChart3, Save, CheckCircle2, AlertCircle, Edit2, RefreshCw
 } from 'lucide-react';
 
 /**
  * AdminSurveyPage: Profesyonel, dikey hiyerarşili anket yönetim paneli.
+ * Hard Reset (Tam Sıfırlama) özelliği eklenmiştir.
  */
 export default function AdminSurveyPage() {
   const [survey, setSurvey] = useState<any>(null);
@@ -22,7 +23,6 @@ export default function AdminSurveyPage() {
     fetchData();
   }, []);
 
-  // Mesajları 3 saniye sonra temizle
   useEffect(() => {
     if (message.text) {
       const timer = setTimeout(() => setMessage({ type: '', text: '' }), 3000);
@@ -68,6 +68,44 @@ export default function AdminSurveyPage() {
     }
   };
 
+  /**
+   * hardResetSurvey: Anketi ve bağlı şıkları silip yepyeni bir ID ile oluşturur.
+   * Bu sayede tarayıcıdaki "oy kullandın" engeli aşılır.
+   */
+  const hardResetSurvey = async () => {
+    const confirmFirst = confirm('DİKKAT: Mevcut anket ve tüm oylar KALICI OLARAK silinecek ve YENİ bir ID oluşturulacak. Emin misin?');
+    if (!confirmFirst) return;
+
+    setActionLoading(true);
+    try {
+      const currentTitle = survey.title;
+      const currentIsActive = survey.is_active;
+
+      // 1. Şıkları sil
+      await supabase.from('survey_options').delete().eq('survey_id', survey.id);
+      // 2. Anketi sil
+      await supabase.from('surveys').delete().eq('id', survey.id);
+
+      // 3. Yeni anket oluştur (Yeni ID)
+      const { data: newSurvey, error: createError } = await supabase
+        .from('surveys')
+        .insert([{ title: currentTitle, is_active: currentIsActive }])
+        .select()
+        .single();
+
+      if (createError) throw createError;
+
+      setSurvey(newSurvey);
+      setOptions([]);
+      setMessage({ type: 'success', text: 'Sistem tamamen sıfırlandı ve yeni ID oluşturuldu!' });
+      fetchData();
+    } catch (e) {
+      setMessage({ type: 'error', text: 'Sıfırlama başarısız.' });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const addOption = async () => {
     const { data: newOpt, error } = await supabase
       .from('survey_options')
@@ -96,7 +134,6 @@ export default function AdminSurveyPage() {
     if (!error) setMessage({ type: 'success', text: 'Şık kaydedildi.' });
   };
 
-  // --- HESAPLAMALAR ---
   const totalVotes = options.reduce((acc, curr) => acc + (curr.votes || 0), 0);
 
   if (loading) return (
@@ -110,7 +147,6 @@ export default function AdminSurveyPage() {
     <main className="min-h-screen bg-[#020617] text-slate-200 p-4 md:p-12 font-sans selection:bg-blue-500/30">
       <div className="max-w-4xl mx-auto space-y-6">
         
-        {/* BİLDİRİM PANELİ */}
         {message.text && (
           <div className={`fixed top-6 right-6 z-50 flex items-center gap-3 px-6 py-4 rounded-2xl border shadow-2xl animate-in fade-in slide-in-from-top-4 duration-300 ${
             message.type === 'success' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500' : 'bg-rose-500/10 border-rose-500/20 text-rose-500'
@@ -120,7 +156,6 @@ export default function AdminSurveyPage() {
           </div>
         )}
 
-        {/* BAŞLIK VE DURUM KONTROLÜ */}
         <header className="bg-slate-900/50 border border-white/5 p-6 rounded-[2.5rem] backdrop-blur-md space-y-6">
           <div className="flex items-center justify-between border-b border-white/5 pb-4">
             <div className="flex items-center gap-3">
@@ -129,22 +164,33 @@ export default function AdminSurveyPage() {
               </div>
               <h1 className="text-lg font-black text-white uppercase tracking-tighter">Anket Editörü</h1>
             </div>
-            <button 
-              onClick={() => {
-                const nextStatus = !survey.is_active;
-                setSurvey({ ...survey, is_active: nextStatus });
-                // Doğrudan güncelle
-                supabase.from('surveys').update({ is_active: nextStatus }).eq('id', survey.id);
-              }}
-              className={`flex items-center gap-3 px-5 py-2.5 rounded-2xl border transition-all duration-500 font-bold text-[10px] tracking-widest ${
-                survey.is_active 
-                ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.1)]' 
-                : 'bg-rose-500/10 border-rose-500/20 text-rose-500'
-              }`}
-            >
-              {survey.is_active ? 'SİSTEM AKTİF' : 'SİSTEM KAPALI'}
-              <Power size={14} strokeWidth={3} />
-            </button>
+            
+            <div className="flex gap-2">
+              <button 
+                onClick={hardResetSurvey}
+                disabled={actionLoading}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-2xl border border-rose-500/20 bg-rose-500/5 text-rose-500 hover:bg-rose-500/10 transition-all font-bold text-[9px] tracking-widest uppercase"
+              >
+                {actionLoading ? <Loader2 className="animate-spin" size={14} /> : <RefreshCw size={14} />}
+                HER ŞEYİ SIFIRLA
+              </button>
+              
+              <button 
+                onClick={() => {
+                  const nextStatus = !survey.is_active;
+                  setSurvey({ ...survey, is_active: nextStatus });
+                  supabase.from('surveys').update({ is_active: nextStatus }).eq('id', survey.id);
+                }}
+                className={`flex items-center gap-3 px-5 py-2.5 rounded-2xl border transition-all duration-500 font-bold text-[10px] tracking-widest ${
+                  survey.is_active 
+                  ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.1)]' 
+                  : 'bg-rose-500/10 border-rose-500/20 text-rose-500'
+                }`}
+              >
+                {survey.is_active ? 'SİSTEM AKTİF' : 'SİSTEM KAPALI'}
+                <Power size={14} strokeWidth={3} />
+              </button>
+            </div>
           </div>
 
           <div className="space-y-2">
@@ -171,7 +217,6 @@ export default function AdminSurveyPage() {
           </div>
         </header>
 
-        {/* ŞIK DÜZENLEME ALANI */}
         <section className="bg-slate-900/30 border border-white/5 p-6 rounded-[2.5rem] space-y-6">
           <div className="flex justify-between items-center border-b border-white/5 pb-4">
             <h2 className="text-[11px] font-black text-blue-400 uppercase tracking-[0.3em]">Anket Şıkları</h2>
@@ -226,7 +271,6 @@ export default function AdminSurveyPage() {
           </div>
         </section>
 
-        {/* CANLI SONUÇLAR */}
         <section className="bg-slate-900/50 border border-white/5 p-8 rounded-[2.5rem] space-y-8">
           <div className="flex justify-between items-end">
             <div>
