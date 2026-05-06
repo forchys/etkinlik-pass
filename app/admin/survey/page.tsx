@@ -63,12 +63,11 @@ export default function AdminSurveyPage() {
   };
 
   /**
-   * YENİLİK: hardResetSurvey
-   * Bu fonksiyon mevcut anketi siler ve yepyeni bir veritabanı kaydı oluşturur.
-   * Yeni ID sayesinde oylama sayfasındaki "voted_ID" kontrolü boşa düşer ve engel kalkar.
+   * GÜNCELLENMİŞ: hardResetSurvey
+   * Versiyon kontrollü sıfırlama mantığı eklendi.
    */
   const hardResetSurvey = async () => {
-    const confirmFirst = confirm('DİKKAT: Mevcut anket ve tüm oylar KALICI OLARAK silinecek. Yeni bir ID oluşturulacağı için tüm cihazlardaki "oy kullandınız" engeli kalkacaktır. Emin misin?');
+    const confirmFirst = confirm('DİKKAT: Mevcut anket silinecek ve YENİ VERSİYON oluşturulacak. Bu işlem tüm kullanıcıların "oy kullandınız" engelini otomatik kaldırır. Emin misin?');
     if (!confirmFirst) return;
 
     setActionLoading(true);
@@ -76,29 +75,35 @@ export default function AdminSurveyPage() {
       const currentTitle = survey.title;
       const currentIsActive = survey.is_active;
       const oldId = survey.id;
+      // Yeni versiyon numarası: Mevcut versiyon + 1 (varsayılan 1'den başlar)
+      const newVersion = (survey.version || 1) + 1;
 
       // 1. İlişkili şıkları temizle
       await supabase.from('survey_options').delete().eq('survey_id', oldId);
       // 2. Mevcut anketi sil
       await supabase.from('surveys').delete().eq('id', oldId);
 
-      // 3. Yepyeni bir anket oluştur (ID otomatik olarak UUID olarak atanacaktır)
+      // 3. Yeni anket oluştur (Versiyon bilgisiyle birlikte)
       const { data: newSurvey, error: createError } = await supabase
         .from('surveys')
-        .insert([{ title: currentTitle, is_active: currentIsActive }])
+        .insert([{ 
+            title: currentTitle, 
+            is_active: currentIsActive,
+            version: newVersion 
+        }])
         .select()
         .single();
 
       if (createError) throw createError;
 
-      // 4. Adminin kendi tarayıcısındaki eski izi temizle
+      // 4. Adminin kendi tarayıcısındaki izleri temizle
       localStorage.removeItem(`voted_${oldId}`);
+      localStorage.setItem(`last_cleared_v_${newSurvey.id}`, newVersion.toString());
 
       setSurvey(newSurvey);
       setOptions([]);
-      setMessage({ type: 'success', text: 'Sistem sıfırlandı ve yeni anket kimliği oluşturuldu!' });
+      setMessage({ type: 'success', text: `Sistem v${newVersion} olarak sıfırlandı!` });
       
-      // Verileri yeniden çekerek arayüzü tazele
       await fetchData();
     } catch (e) {
       console.error(e);
