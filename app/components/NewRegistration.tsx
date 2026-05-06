@@ -412,6 +412,7 @@ export default function NewRegistration({
   );
 }
 
+
 function InputItem({ icon, placeholder, value, onChange, type = "text", disabled = false }: any) {
   return (
     <div className="relative">
@@ -428,6 +429,4 @@ function InputItem({ icon, placeholder, value, onChange, type = "text", disabled
     </div>
   );
 }
-
-
 
