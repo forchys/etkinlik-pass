@@ -72,6 +72,7 @@ export default function Home() {
       const { data: slots } = await supabase
         .from('etkinlik_ayarlari')
         .select('*')
+        .order('is_active', { ascending: false })
         .order('slot_id', { ascending: true });
       
       if (slots) setEventSlots(slots);
