@@ -133,6 +133,28 @@ export default function NewRegistration({
 
     setLoading(true);
     try {
+      // --- Mükerrer Kayıt Kontrolü Başlangıcı ---
+      const { data: existingUser, error: checkError } = await supabase
+        .from('katilimcilar')
+        .select('onayli_mi')
+        .ilike('ad_soyad', formData.ad_soyad.trim())
+        .eq('telefon', formData.telefon.trim())
+        .eq('etkinlik_id', selectedEventId)
+        .maybeSingle();
+
+      if (checkError) throw checkError;
+
+      if (existingUser) {
+        if (existingUser.onayli_mi === false) {
+          setErrorMessage("böyle bir kayıt zaten var, onay bekliyor.");
+        } else {
+          setErrorMessage("böyle bir kayıt var. biletinizi alabilirsiniz");
+        }
+        setLoading(false);
+        return; // Kayıt işlemini burada durduruyoruz
+      }
+      // --- Mükerrer Kayıt Kontrolü Bitişi ---
+
       const { data: user, error: userError } = await supabase
         .from('katilimcilar')
         .insert([{
@@ -429,4 +451,3 @@ function InputItem({ icon, placeholder, value, onChange, type = "text", disabled
     </div>
   );
 }
-
