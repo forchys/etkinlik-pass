@@ -37,6 +37,15 @@ export default function RegistrationForm({
     return <Icon size={size} />;
   };
 
+  // Form gönderilmeden önce son bir temizlik yapıp üst fonksiyona iletiyoruz
+  const onFormSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    // Sorgu gitmeden önce state'i temizlenmiş veriyle güncelliyoruz
+    setAdSoyad(adSoyad.trim());
+    setTelefon(telefon.trim());
+    handleSubmit(e);
+  };
+
   return (
     <>
       {step === 0 && (
@@ -111,7 +120,7 @@ export default function RegistrationForm({
             <h1 className="text-4xl font-black tracking-tighter bg-gradient-to-b from-white to-slate-500 bg-clip-text text-transparent uppercase">BİLGİLERİNİZ</h1>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={onFormSubmit} className="space-y-6">
             <div className="relative group">
               <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-blue-500 transition-colors" size={20} />
               <input required type="text" placeholder="Ad ve Soyad" value={adSoyad} className="w-full bg-slate-950/50 border border-slate-800 p-4 pl-12 rounded-2xl text-white outline-none focus:border-blue-500/50 focus:ring-4 focus:ring-blue-500/5 transition-all" onChange={(e) => setAdSoyad(e.target.value)} />
