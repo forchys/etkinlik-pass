@@ -124,21 +124,26 @@ export default function NewRegistration({
     e.preventDefault();
     setErrorMessage(null);
 
+    // Boşluk temizleme işlemi
+    const cleanAdSoyad = formData.ad_soyad.trim();
+    const cleanEmail = formData.email.trim();
+    const cleanTelefon = formData.telefon.trim();
+
     if (!emailVerified) return setErrorMessage("Lütfen önce e-posta adresinizi doğrulayın!");
     if (!waJoined || countdown > 0) return setErrorMessage("Lütfen önce WhatsApp grubuna katılın!");
-    if (formData.telefon.length !== 10) return setErrorMessage("Telefon numarası 10 hane olmalıdır!");
+    if (cleanTelefon.length !== 10) return setErrorMessage("Telefon numarası 10 hane olmalıdır!");
     
     const isPaid = eventSettings?.is_paid === true || String(eventSettings?.is_paid) === "true";
     if (isPaid && !file) return setErrorMessage("Lütfen ödeme dekontunu yükleyin!");
 
     setLoading(true);
     try {
-      // --- Mükerrer Kayıt Kontrolü Başlangıcı ---
+      // --- Mükerrer Kayıt Kontrolü (Temizlenmiş veriyle) ---
       const { data: existingUser, error: checkError } = await supabase
         .from('katilimcilar')
         .select('onayli_mi')
-        .ilike('ad_soyad', formData.ad_soyad.trim())
-        .eq('telefon', formData.telefon.trim())
+        .ilike('ad_soyad', cleanAdSoyad)
+        .eq('telefon', cleanTelefon)
         .eq('etkinlik_id', selectedEventId)
         .maybeSingle();
 
@@ -151,14 +156,17 @@ export default function NewRegistration({
           setErrorMessage("böyle bir kayıt var. biletinizi alabilirsiniz");
         }
         setLoading(false);
-        return; // Kayıt işlemini burada durduruyoruz
+        return; 
       }
-      // --- Mükerrer Kayıt Kontrolü Bitişi ---
 
+      // Kayıt işlemini temizlenmiş (trim yapılmış) verilerle gerçekleştiriyoruz
       const { data: user, error: userError } = await supabase
         .from('katilimcilar')
         .insert([{
           ...formData,
+          ad_soyad: cleanAdSoyad,
+          email: cleanEmail,
+          telefon: cleanTelefon,
           etkinlik_id: selectedEventId,
           onayli_mi: false,
           geldi_mi: false,
@@ -190,7 +198,6 @@ export default function NewRegistration({
     return ` (${s.slice(0, 3)}) ${s.slice(3, 6)} ${s.slice(6, 8)} ${s.slice(8, 10)}`;
   };
 
-  // YÜKLEME EKRANI: Veriler çekilirken hiçbir şey göstermiyoruz
   if (fetchingSettings) {
     return (
       <div className="flex items-center justify-center p-20">
@@ -199,7 +206,6 @@ export default function NewRegistration({
     );
   }
 
-  // KAPALI EKRANI: Kayıtlar kapalıysa form yerine bu döner
   if (eventSettings && eventSettings.is_registration_open === false) {
     return (
       <div className="bg-slate-900/60 backdrop-blur-2xl border border-white/10 p-10 rounded-[2.5rem] shadow-2xl flex flex-col items-center justify-center text-center space-y-6 animate-in fade-in zoom-in duration-500">
@@ -433,7 +439,6 @@ export default function NewRegistration({
     </div>
   );
 }
-
 
 function InputItem({ icon, placeholder, value, onChange, type = "text", disabled = false }: any) {
   return (
