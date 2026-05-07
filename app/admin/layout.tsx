@@ -16,6 +16,8 @@ export const useAdmin = () => useContext(AdminContext);
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthLoading, setIsAuthLoading] = useState(true); // YENİ: Oturum kontrolü yapılırken ekran titremesini önler
+  const [email, setEmail] = useState(""); // YENİ: Supabase için e-posta
   const [password, setPassword] = useState("");
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [participants, setParticipants] = useState<any[]>([]);
@@ -37,8 +39,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   
   const seatRows = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P'].reverse();
   const seatCols = Array.from({ length: 25 }, (_, i) => i + 1);
-
-  const ADMIN_PASSWORD = "flickbaba31";
 
   const fetchEventSlots = async () => {
     const { data } = await supabase
@@ -129,26 +129,55 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     if (isAuthenticated) fetchParticipants();
   }, [selectedSlotId, isAuthenticated]);
 
+  // --- SUPABASE AUTH KONTROLÜ (YENİLENEN KISIM) ---
   useEffect(() => {
-    const authStatus = localStorage.getItem('flick_admin_auth');
-    if (authStatus === 'true') setIsAuthenticated(true);
+    const checkSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      setIsAuthenticated(!!session);
+      setIsAuthLoading(false);
+    };
+    
+    checkSession();
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      setIsAuthenticated(!!session);
+    });
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
   }, []);
 
-  const handleLogin = (e: React.FormEvent) => {
+  // --- SUPABASE GİRİŞ YAPMA (YENİLENEN KISIM) ---
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (password === ADMIN_PASSWORD) {
-      localStorage.setItem('flick_admin_auth', 'true');
-      setIsAuthenticated(true);
-    } else alert("Hatalı şifre!");
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+    if (error) alert("Giriş başarısız: " + error.message);
   };
 
-  const handleLogout = () => { localStorage.removeItem('flick_admin_auth'); setIsAuthenticated(false); };
+  // --- SUPABASE ÇIKIŞ YAPMA (YENİLENEN KISIM) ---
+  const handleLogout = async () => { 
+    await supabase.auth.signOut(); 
+  };
 
   useEffect(() => {
     if (!isAuthenticated) return;
     fetchEventSlots();
   }, [isAuthenticated]);
 
+  // YENİ: Oturum kontrol edilirken boş bir ekran göstererek "Giriş" ekranının saliselik görünmesini engeller
+  if (isAuthLoading) {
+    return (
+      <main className="min-h-screen bg-[#020617] flex items-center justify-center">
+        <Loader2 className="animate-spin text-blue-600" size={48} />
+      </main>
+    );
+  }
+
+  // YENİLENEN GİRİŞ EKRANI (E-posta + Şifre)
   if (!isAuthenticated) {
     return (
       <main className="min-h-screen bg-[#020617] flex items-center justify-center p-6 text-white">
@@ -156,8 +185,26 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <div className="bg-blue-600 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6"><Lock size={32} /></div>
           <h1 className="text-2xl font-black mb-8">Flick Admin</h1>
           <form onSubmit={handleLogin} className="space-y-4">
-            <input type="password" placeholder="Şifre" className="w-full bg-slate-950 border border-white/10 p-5 rounded-2xl outline-none text-center" value={password} onChange={(e) => setPassword(e.target.value)} autoFocus />
-            <button type="submit" className="w-full bg-blue-600 p-5 rounded-2xl font-bold uppercase text-xs tracking-widest">Giriş</button>
+            <input 
+              type="email" 
+              placeholder="E-posta Adresi" 
+              className="w-full bg-slate-950 border border-white/10 p-5 rounded-2xl outline-none text-center" 
+              value={email} 
+              onChange={(e) => setEmail(e.target.value)} 
+              autoFocus 
+              required 
+            />
+            <input 
+              type="password" 
+              placeholder="Şifre" 
+              className="w-full bg-slate-950 border border-white/10 p-5 rounded-2xl outline-none text-center" 
+              value={password} 
+              onChange={(e) => setPassword(e.target.value)} 
+              required 
+            />
+            <button type="submit" className="w-full bg-blue-600 p-5 rounded-2xl font-bold uppercase text-xs tracking-widest hover:bg-blue-500 transition-colors">
+              Giriş Yap
+            </button>
           </form>
         </div>
       </main>
