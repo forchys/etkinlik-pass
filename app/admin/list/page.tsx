@@ -47,13 +47,12 @@ export default function ListPage() {
     const confirmText = prompt(`Slot ${selectedSlotId} içindeki tüm kayıtları silmek için ONAYLIYORUM yazın.`);
     
     if (confirmText === "ONAYLIYORUM") {
-      setLoading(true);
+      setLoading(true); // İşlem sürerken yükleniyor göster
       
-      // DÜZELTME: selectedSlotId veritabanında genellikle integer tutulur, String zorlaması silmeyi engelleyebilir.
       const { error } = await supabase
         .from('katilimcilar')
         .delete()
-        .eq('etkinlik_id', selectedSlotId);
+        .eq('etkinlik_id', String(selectedSlotId)); // ID'nin string olduğundan emin ol
 
       if (error) {
         console.error("Silme Hatası:", error);
