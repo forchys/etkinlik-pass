@@ -182,8 +182,8 @@ export default function ListPage() {
 
   {/* Referans Satırı - Tek Başına */}
   {person.referans && (
-    <div className="flex flex-col gap-1 bg-slate-950/50 p-3 rounded-xl border border-white/5">
-      <span className="text-purple-500 font-black uppercase text-[9px] tracking-widest">Referans Bilgisi</span>
+    <div className="flex flex-col gap-1 min-w-[140px] flex-1">
+      <span className="text-purple-500 font-black uppercase text-[9px] tracking-widest">Referans </span>
       <span className="text-xs text-slate-400 italic">"{person.referans}"</span>
     </div>
   )}
