@@ -38,13 +38,12 @@ export default function ScannerPage() {
 
         // Kamera Seçimi Optimizasyonu (iPhone 0.5x lensini önlemek için)
         const devices = await Html5Qrcode.getCameras();
-        let cameraId = { facingMode: "environment" };
+        let cameraId: any = { facingMode: "environment" };
 
-        if (devices && devices.length > 0) {
-          // Genellikle dizideki son kamera ana (main) kameradır. 
-          // 0.5x lensi genellikle listenin başında veya ortasındadır.
-          const backCamera = devices.find(d => d.label.toLowerCase().includes('back') || d.label.toLowerCase().includes('rear'));
-          cameraId = backCamera ? { deviceId: devices[devices.length - 1].id } : { facingMode: "environment" };
+          if (devices && devices.length > 0) {
+          // Listenin sonundaki kamera genellikle ana (ana odaklı) kameradır.
+          // Direkt ID olarak atama yapıyoruz (Html5Qrcode bunu destekler).
+          cameraId = devices[devices.length - 1].id;
         }
 
         await html5QrCode.start(
