@@ -160,6 +160,28 @@ export default function ListPage() {
                   </div>
                   <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6 pt-2">
                     <p className={`text-sm md:text-base font-medium ${isDuplicate ? 'text-amber-400' : 'text-slate-400'}`}>📞 {person.telefon}</p>
+                    {/* YENİ: Okul, E-posta ve Referans Bilgileri */}
+<div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 mt-2">
+  {person.email && (
+    <p className="text-xs text-slate-400 flex items-center gap-2">
+      <span className="text-blue-500 font-bold uppercase text-[9px] tracking-wider">E-Posta:</span> 
+      {person.email}
+    </p>
+  )}
+  {person.okul && (
+    <p className="text-xs text-slate-400 flex items-center gap-2">
+      <span className="text-emerald-500 font-bold uppercase text-[9px] tracking-wider">Okul:</span> 
+      {person.okul}
+    </p>
+  )}
+  {person.referans && (
+    <p className="text-xs text-slate-400 flex items-center gap-2 col-span-full">
+      <span className="text-purple-500 font-bold uppercase text-[9px] tracking-wider">Referans:</span> 
+      {person.referans}
+    </p>
+  )}
+</div>
+                    
                     <p className="text-[10px] text-slate-600 font-mono tracking-widest uppercase">Kayıt No: {person.id} | Slot: {person.etkinlik_id}</p>
                   </div>
                 </div>
