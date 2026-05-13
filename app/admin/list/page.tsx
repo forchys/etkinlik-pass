@@ -44,38 +44,57 @@ export default function ListPage() {
   };
 
   const deleteAllParticipants = async () => {
-  // 1. Güvenlik Kontrolü: Ekranda kimse yoksa işlem yapma
-  if (participants.length === 0) {
-    alert("Silinecek katılımcı bulunamadı.");
+  console.log("Butona basıldı..."); // DEBUG 1
+  
+  if (!participants || participants.length === 0) {
+    alert("Hata: Silinecek katılımcı bulunamadı veya liste henüz yüklenmedi.");
     return;
   }
 
-  const confirmText = prompt(`Şu an listede gördüğünüz ${participants.length} kişinin TAMAMINI silmek için ONAYLIYORUM yazın.`);
+  const confirmText = prompt(`Slot ${selectedSlotId} içindeki ${participants.length} kaydı silmek için ONAYLIYORUM yazın.`);
   
   if (confirmText === "ONAYLIYORUM") {
-    setLoading(true);
-    
-    // 2. ADIM: Ekranda yüklü olan tüm katılımcıların ID'lerini bir diziye topluyoruz
-    const idsToDelete = participants.map((p: any) => p.id);
+    try {
+      setLoading(true);
+      console.log("Silme işlemi başlıyor..."); // DEBUG 2
 
-    // 3. ADIM: .in() komutu ile "bu ID listesindeki her şeyi sil" diyoruz
-    // Tek tek silerken kullandığın mantığın aynısını toplu yapar
-    const { error } = await supabase
-      .from('katilimcilar')
-      .delete()
-      .in('id', idsToDelete); 
+      // Katılımcıların ID listesini alıyoruz
+      const idsToDelete = participants.map((p: any) => p.id);
+      console.log("Silinecek ID'ler:", idsToDelete); // DEBUG 3
 
-    if (error) {
-      console.error("Silme Hatası:", error);
-      alert("Silme başarısız: " + error.message);
-    } else {
-      alert(`${idsToDelete.length} kayıt başarıyla temizlendi.`);
-      
-      // 4. ADIM: Arayüzü anında güncelle (Zorla temizle)
-      setParticipants([]); 
-      fetchParticipants(); // Veritabanından son durumu tekrar çek
+      if (idsToDelete.length === 0) {
+        throw new Error("ID listesi boş oluşturuldu.");
+      }
+
+      // Supabase silme komutu
+      const { data, error, count } = await supabase
+        .from('katilimcilar')
+        .delete()
+        .in('id', idsToDelete)
+        .select(); // Hangi satırların silindiğini görmek için select ekledik
+
+      if (error) {
+        console.error("Supabase Hatası:", error);
+        alert("Supabase Hatası: " + error.message);
+      } else {
+        console.log("Silinen veri özeti:", data);
+        alert(`${data?.length || 0} adet kayıt başarıyla silindi.`);
+        
+        // Yerel durumu (UI) hemen temizle
+        if (setParticipants) setParticipants([]); 
+        
+        // Veritabanından taze veriyi çek
+        await fetchParticipants();
+      }
+    } catch (err: any) {
+      console.error("Yazılım Hatası:", err);
+      alert("Bir şeyler ters gitti: " + err.message);
+    } finally {
+      setLoading(false);
+      console.log("İşlem bitti."); // DEBUG 4
     }
-    setLoading(false);
+  } else {
+    console.log("Silme işlemi kullanıcı tarafından iptal edildi.");
   }
 };
 
