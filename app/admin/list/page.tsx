@@ -160,25 +160,32 @@ export default function ListPage() {
                   </div>
                   <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6 pt-2">
                     <p className={`text-sm md:text-base font-medium ${isDuplicate ? 'text-amber-400' : 'text-slate-400'}`}>📞 {person.telefon}</p>
-                    {/* YENİ: Okul, E-posta ve Referans Bilgileri */}
-<div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 mt-2">
-  {person.email && (
-    <p className="text-xs text-slate-400 flex items-center gap-2">
-      <span className="text-blue-500 font-bold uppercase text-[9px] tracking-wider">E-Posta:</span> 
-      {person.email}
-    </p>
-  )}
-  {person.okul && (
-    <p className="text-xs text-slate-400 flex items-center gap-2">
-      <span className="text-emerald-500 font-bold uppercase text-[9px] tracking-wider">Okul:</span> 
-      {person.okul}
-    </p>
-  )}
+                    {/* YENİ: Daha Düzenli Veri Yapısı */}
+<div className="mt-4 grid grid-cols-1 gap-y-3 pt-4 border-t border-white/5">
+  
+  {/* E-Posta ve Okul Yan Yana (Geniş ekranlarda) */}
+  <div className="flex flex-wrap gap-4">
+    {person.email && (
+      <div className="flex flex-col gap-1 min-w-[140px]">
+        <span className="text-blue-500 font-black uppercase text-[9px] tracking-widest">E-Posta</span>
+        <span className="text-xs text-slate-300 break-all">{person.email}</span>
+      </div>
+    )}
+    
+    {person.okul && (
+      <div className="flex flex-col gap-1 min-w-[140px] flex-1">
+        <span className="text-emerald-500 font-black uppercase text-[9px] tracking-widest">Okul / Bölüm</span>
+        <span className="text-xs text-slate-300">{person.okul}</span>
+      </div>
+    )}
+  </div>
+
+  {/* Referans Satırı - Tek Başına */}
   {person.referans && (
-    <p className="text-xs text-slate-400 flex items-center gap-2 col-span-full">
-      <span className="text-purple-500 font-bold uppercase text-[9px] tracking-wider">Referans:</span> 
-      {person.referans}
-    </p>
+    <div className="flex flex-col gap-1 bg-slate-950/50 p-3 rounded-xl border border-white/5">
+      <span className="text-purple-500 font-black uppercase text-[9px] tracking-widest">Referans Bilgisi</span>
+      <span className="text-xs text-slate-400 italic">"{person.referans}"</span>
+    </div>
   )}
 </div>
                     
