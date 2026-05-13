@@ -189,9 +189,7 @@ export default function ListPage() {
   )}
 </div>
                     
-                    <p className="text-[10px] text-slate-600 font-mono tracking-widest uppercase">Kayıt No: {person.id} | Slot: {person.etkinlik_id}</p>
-                  </div>
-                </div>
+            
 
                 <div className="flex flex-row md:flex-col gap-2 w-full md:w-auto border-t md:border-none pt-4 md:pt-0">
                   {!person.geldi_mi && (
