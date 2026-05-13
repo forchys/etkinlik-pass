@@ -44,7 +44,6 @@ export default function ListPage() {
   };
 
   const deleteAllParticipants = async () => {
-  // participants listesi boşsa direkt çık
   if (!participants || participants.length === 0) {
     alert("Silinecek kimse bulunamadı.");
     return;
@@ -55,11 +54,7 @@ export default function ListPage() {
   if (confirmText === "ONAYLIYORUM") {
     try {
       setLoading(true);
-
-      // ID'leri al
       const idsToDelete = participants.map((p: any) => p.id);
-
-      // Supabase'e silme isteği gönder
       const { error } = await supabase
         .from('katilimcilar')
         .delete()
@@ -67,9 +62,6 @@ export default function ListPage() {
 
       if (error) throw error;
 
-      // BAŞARILI: Burası kritik. 
-      // Context fonksiyonları (j is not a function hatası veren yerler) 
-      // yerine tarayıcıyı zorla yeniliyoruz.
       alert("Liste başarıyla temizlendi.");
       window.location.reload(); 
 
@@ -158,38 +150,35 @@ export default function ListPage() {
                       </span>
                     )}
                   </div>
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6 pt-2">
+                  <div className="flex flex-col gap-1">
                     <p className={`text-sm md:text-base font-medium ${isDuplicate ? 'text-amber-400' : 'text-slate-400'}`}>📞 {person.telefon}</p>
-                    {/* YENİ: Daha Düzenli Veri Yapısı */}
-<div className="mt-4 grid grid-cols-1 gap-y-3 pt-4 border-t border-white/5">
-  
-  {/* E-Posta ve Okul Yan Yana (Geniş ekranlarda) */}
-  <div className="flex flex-wrap gap-4">
-    {person.email && (
-      <div className="flex flex-col gap-1 min-w-[140px]">
-        <span className="text-blue-500 font-black uppercase text-[9px] tracking-widest">E-Posta</span>
-        <span className="text-xs text-slate-300 break-all">{person.email}</span>
-      </div>
-    )}
-    
-    {person.okul && (
-      <div className="flex flex-col gap-1 min-w-[140px] flex-1">
-        <span className="text-emerald-500 font-black uppercase text-[9px] tracking-widest">Okul / Bölüm</span>
-        <span className="text-xs text-slate-300">{person.okul}</span>
-      </div>
-    )}
-  </div>
+                    <p className="text-[10px] text-slate-600 font-mono tracking-widest uppercase">Kayıt No: {person.id} | Slot: {person.etkinlik_id}</p>
+                  </div>
 
-  {/* Referans Satırı - Tek Başına */}
-  {person.referans && (
-    <div className="flex flex-col gap-1 min-w-[140px] flex-1">
-      <span className="text-purple-500 font-black uppercase text-[9px] tracking-widest">Referans </span>
-      <span className="text-xs text-slate-400 italic">"{person.referans}"</span>
-    </div>
-  )}
-</div>
-                    
-            
+                  {/* YENİ: Daha Düzenli Veri Yapısı Bloğu */}
+                  <div className="mt-4 grid grid-cols-1 gap-y-3 pt-4 border-t border-white/5">
+                    <div className="flex flex-wrap gap-4">
+                      {person.email && (
+                        <div className="flex flex-col gap-1 min-w-[140px]">
+                          <span className="text-blue-500 font-black uppercase text-[9px] tracking-widest">E-Posta</span>
+                          <span className="text-xs text-slate-300 break-all">{person.email}</span>
+                        </div>
+                      )}
+                      {person.okul && (
+                        <div className="flex flex-col gap-1 min-w-[140px] flex-1">
+                          <span className="text-emerald-500 font-black uppercase text-[9px] tracking-widest">Okul / Bölüm</span>
+                          <span className="text-xs text-slate-300">{person.okul}</span>
+                        </div>
+                      )}
+                    </div>
+                    {person.referans && (
+                      <div className="flex flex-col gap-1 bg-slate-950/50 p-3 rounded-xl border border-white/5">
+                        <span className="text-purple-500 font-black uppercase text-[9px] tracking-widest">Referans Bilgisi</span>
+                        <span className="text-xs text-slate-400 italic">"{person.referans}"</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
 
                 <div className="flex flex-row md:flex-col gap-2 w-full md:w-auto border-t md:border-none pt-4 md:pt-0">
                   {!person.geldi_mi && (
