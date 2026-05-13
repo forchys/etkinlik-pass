@@ -44,48 +44,38 @@ export default function ListPage() {
   };
 
   const deleteAllParticipants = async () => {
-  // 1. Veri kontrolü
+  // participants listesi boşsa direkt çık
   if (!participants || participants.length === 0) {
-    alert("Silinecek katılımcı bulunamadı.");
+    alert("Silinecek kimse bulunamadı.");
     return;
   }
 
-  const confirmText = prompt(`Slot ${selectedSlotId} içindeki tüm kayıtları silmek için ONAYLIYORUM yazın.`);
+  const confirmText = prompt(`Slot ${selectedSlotId} listesini temizlemek için ONAYLIYORUM yazın.`);
   
   if (confirmText === "ONAYLIYORUM") {
     try {
       setLoading(true);
 
-      // ID listesini güvenli al
+      // ID'leri al
       const idsToDelete = participants.map((p: any) => p.id);
 
-      // Supabase silme isteği
+      // Supabase'e silme isteği gönder
       const { error } = await supabase
         .from('katilimcilar')
         .delete()
         .in('id', idsToDelete);
 
-      if (error) {
-        alert("Veritabanı Hatası: " + error.message);
-      } else {
-        alert("Kayıtlar silindi. Liste yenileniyor...");
-        
-        // HATA BURADAYDI: setParticipants fonksiyon mu diye kontrol ediyoruz
-        if (typeof setParticipants === 'function') {
-          setParticipants([]); 
-        }
+      if (error) throw error;
 
-        // Listeyi tazele
-        if (typeof fetchParticipants === 'function') {
-          await fetchParticipants();
-        } else {
-          // Eğer fonksiyon gelmiyorsa sayfayı yenileyerek veriyi zorla getir
-          window.location.reload();
-        }
-      }
+      // BAŞARILI: Burası kritik. 
+      // Context fonksiyonları (j is not a function hatası veren yerler) 
+      // yerine tarayıcıyı zorla yeniliyoruz.
+      alert("Liste başarıyla temizlendi.");
+      window.location.reload(); 
+
     } catch (err: any) {
-      console.error("Detaylı Hata:", err);
-      alert("İşlem sırasında bir hata oluştu. Konsolu kontrol edin.");
+      console.error("Silme Hatası:", err);
+      alert("Hata oluştu: " + (err.message || "Bilinmeyen hata"));
     } finally {
       setLoading(false);
     }
