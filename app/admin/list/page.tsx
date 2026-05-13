@@ -43,24 +43,37 @@ export default function ListPage() {
     }
   };
 
-  // YENİ VE KESİN ÇÖZÜM KODUN
-const deleteAllParticipants = async () => {
-  const confirmText = prompt(`Slot ${selectedSlotId} içindeki tüm kayıtları silmek için ONAYLIYORUM yazın.`);
+  const deleteAllParticipants = async () => {
+  // 1. Güvenlik Kontrolü: Ekranda kimse yoksa işlem yapma
+  if (participants.length === 0) {
+    alert("Silinecek katılımcı bulunamadı.");
+    return;
+  }
+
+  const confirmText = prompt(`Şu an listede gördüğünüz ${participants.length} kişinin TAMAMINI silmek için ONAYLIYORUM yazın.`);
   
   if (confirmText === "ONAYLIYORUM") {
     setLoading(true);
     
-    // Burada veritabanına öğrettiğimiz 'delete_slot_participants' fonksiyonunu çağırıyoruz
-    const { error } = await supabase.rpc('delete_slot_participants', { 
-      target_slot_id: Number(selectedSlotId) // ID'nin sayı olduğundan emin oluyoruz
-    });
+    // 2. ADIM: Ekranda yüklü olan tüm katılımcıların ID'lerini bir diziye topluyoruz
+    const idsToDelete = participants.map((p: any) => p.id);
+
+    // 3. ADIM: .in() komutu ile "bu ID listesindeki her şeyi sil" diyoruz
+    // Tek tek silerken kullandığın mantığın aynısını toplu yapar
+    const { error } = await supabase
+      .from('katilimcilar')
+      .delete()
+      .in('id', idsToDelete); 
 
     if (error) {
       console.error("Silme Hatası:", error);
       alert("Silme başarısız: " + error.message);
     } else {
-      alert("Slot başarıyla temizlendi.");
-      fetchParticipants(); // Listeyi güncelle
+      alert(`${idsToDelete.length} kayıt başarıyla temizlendi.`);
+      
+      // 4. ADIM: Arayüzü anında güncelle (Zorla temizle)
+      setParticipants([]); 
+      fetchParticipants(); // Veritabanından son durumu tekrar çek
     }
     setLoading(false);
   }
