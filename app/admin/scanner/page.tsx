@@ -46,17 +46,19 @@ export default function ScannerPage() {
           cameraId = devices[devices.length - 1].id;
         }
 
+// Config nesnesini 'as any' ile geçerek TS hatasını engelliyoruz
+        const scanConfig: any = {
+          fps: 24,
+          qrbox: { width: 260, height: 260 },
+          aspectRatio: 1.0,
+          experimentalFeatures: {
+            useBarCodeDetectorIfSupported: true
+          }
+        };
+
         await html5QrCode.start(
-          cameraId, 
-          { 
-            fps: 24, // Daha akıcı tarama için FPS artırıldı
-            qrbox: { width: 260, height: 260 },
-            aspectRatio: 1.0,
-            // Native tarama desteği varsa kullan (hızı inanılmaz artırır)
-            experimentalFeatures: {
-              useBarCodeDetectorIfSupported: true
-            }
-          },
+          cameraId,
+          scanConfig,
           async (decodedText) => {
             if (scanStatus.status !== 'idle') return;
 
