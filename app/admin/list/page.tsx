@@ -43,28 +43,28 @@ export default function ListPage() {
     }
   };
 
-  const deleteAllParticipants = async () => {
-    const confirmText = prompt(`Slot ${selectedSlotId} içindeki tüm kayıtları silmek için ONAYLIYORUM yazın.`);
+  // YENİ VE KESİN ÇÖZÜM KODUN
+const deleteAllParticipants = async () => {
+  const confirmText = prompt(`Slot ${selectedSlotId} içindeki tüm kayıtları silmek için ONAYLIYORUM yazın.`);
+  
+  if (confirmText === "ONAYLIYORUM") {
+    setLoading(true);
     
-    if (confirmText === "ONAYLIYORUM") {
-      setLoading(true);
-      
-      // DÜZELTME: Veritabanı sütun tipiyle uyum için String() kaldırıldı
-      const { error } = await supabase
-        .from('katilimcilar')
-        .delete()
-        .eq('etkinlik_id', selectedSlotId);
+    // Burada veritabanına öğrettiğimiz 'delete_slot_participants' fonksiyonunu çağırıyoruz
+    const { error } = await supabase.rpc('delete_slot_participants', { 
+      target_slot_id: Number(selectedSlotId) // ID'nin sayı olduğundan emin oluyoruz
+    });
 
-      if (error) {
-        console.error("Silme Hatası:", error);
-        alert("Silme başarısız: " + error.message);
-      } else {
-        alert("Tüm kayıtlar başarıyla silindi.");
-        fetchParticipants();
-      }
-      setLoading(false);
+    if (error) {
+      console.error("Silme Hatası:", error);
+      alert("Silme başarısız: " + error.message);
+    } else {
+      alert("Slot başarıyla temizlendi.");
+      fetchParticipants(); // Listeyi güncelle
     }
-  };
+    setLoading(false);
+  }
+};
 
   const filteredList = participants.filter((p: any) => {
     const isApproved = p.onayli_mi === true;
