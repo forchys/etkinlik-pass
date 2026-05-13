@@ -44,57 +44,51 @@ export default function ListPage() {
   };
 
   const deleteAllParticipants = async () => {
-  console.log("Butona basıldı..."); // DEBUG 1
-  
+  // 1. Veri kontrolü
   if (!participants || participants.length === 0) {
-    alert("Hata: Silinecek katılımcı bulunamadı veya liste henüz yüklenmedi.");
+    alert("Silinecek katılımcı bulunamadı.");
     return;
   }
 
-  const confirmText = prompt(`Slot ${selectedSlotId} içindeki ${participants.length} kaydı silmek için ONAYLIYORUM yazın.`);
+  const confirmText = prompt(`Slot ${selectedSlotId} içindeki tüm kayıtları silmek için ONAYLIYORUM yazın.`);
   
   if (confirmText === "ONAYLIYORUM") {
     try {
       setLoading(true);
-      console.log("Silme işlemi başlıyor..."); // DEBUG 2
 
-      // Katılımcıların ID listesini alıyoruz
+      // ID listesini güvenli al
       const idsToDelete = participants.map((p: any) => p.id);
-      console.log("Silinecek ID'ler:", idsToDelete); // DEBUG 3
 
-      if (idsToDelete.length === 0) {
-        throw new Error("ID listesi boş oluşturuldu.");
-      }
-
-      // Supabase silme komutu
-      const { data, error, count } = await supabase
+      // Supabase silme isteği
+      const { error } = await supabase
         .from('katilimcilar')
         .delete()
-        .in('id', idsToDelete)
-        .select(); // Hangi satırların silindiğini görmek için select ekledik
+        .in('id', idsToDelete);
 
       if (error) {
-        console.error("Supabase Hatası:", error);
-        alert("Supabase Hatası: " + error.message);
+        alert("Veritabanı Hatası: " + error.message);
       } else {
-        console.log("Silinen veri özeti:", data);
-        alert(`${data?.length || 0} adet kayıt başarıyla silindi.`);
+        alert("Kayıtlar silindi. Liste yenileniyor...");
         
-        // Yerel durumu (UI) hemen temizle
-        if (setParticipants) setParticipants([]); 
-        
-        // Veritabanından taze veriyi çek
-        await fetchParticipants();
+        // HATA BURADAYDI: setParticipants fonksiyon mu diye kontrol ediyoruz
+        if (typeof setParticipants === 'function') {
+          setParticipants([]); 
+        }
+
+        // Listeyi tazele
+        if (typeof fetchParticipants === 'function') {
+          await fetchParticipants();
+        } else {
+          // Eğer fonksiyon gelmiyorsa sayfayı yenileyerek veriyi zorla getir
+          window.location.reload();
+        }
       }
     } catch (err: any) {
-      console.error("Yazılım Hatası:", err);
-      alert("Bir şeyler ters gitti: " + err.message);
+      console.error("Detaylı Hata:", err);
+      alert("İşlem sırasında bir hata oluştu. Konsolu kontrol edin.");
     } finally {
       setLoading(false);
-      console.log("İşlem bitti."); // DEBUG 4
     }
-  } else {
-    console.log("Silme işlemi kullanıcı tarafından iptal edildi.");
   }
 };
 
