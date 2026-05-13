@@ -213,7 +213,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   return (
     <AdminContext.Provider value={{
-      participants, setParticipants, fetchParticipants, loading,
+      participants, setParticipants, fetchParticipants, loading, setLoading,
       eventSlots, selectedSlotId,
       isAuthenticated
     }}>
