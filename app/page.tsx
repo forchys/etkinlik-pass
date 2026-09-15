@@ -5,8 +5,8 @@ import { supabase } from '@/lib/supabase';
 import RegistrationForm from './components/RegistrationForm';
 import SeatMap from './components/SeatMap';
 import TicketView from './components/TicketView';
-import NewRegistration from './components/NewRegistration'; // Yeni eklendi
-import { UserPlus, Info, ArrowLeft } from 'lucide-react'; // Yeni ikonlar
+import NewRegistration from './components/NewRegistration';
+import { UserPlus, Info, ArrowLeft } from 'lucide-react';
 
 export default function Home() {
   const [adSoyad, setAdSoyad] = useState("");
@@ -127,7 +127,6 @@ export default function Home() {
     setLoading(true);
 
     try {
-      // Form alanlarını güvenli hale getiriyoruz
       const temizAd = adSoyad.trim();
       const temizTel = telefon.replace(/\D/g, "");
 
@@ -137,7 +136,6 @@ export default function Home() {
         return;
       }
 
-      // Veritabanı sorgusu
       const { data, error: supabaseError } = await supabase
         .from('katilimcilar')
         .select('*')
@@ -148,19 +146,16 @@ export default function Home() {
 
       if (supabaseError) throw supabaseError;
 
-      // Kullanıcı hiç bulunamadıysa
       if (!data) {
         setError(`${selectedEvent.event_name || 'Bu etkinlik'} için kayıt bulunamadı. Lütfen bilgilerinizi kontrol edin.`);
         return; 
       } 
 
-      // Kullanıcı var ama onaylanmadıysa
       if (data.onayli_mi === false) {
         setError("Kaydınız sisteme ulaştı ancak henüz onaylanmadı. Lütfen onay bekleyin.");
         return;
       }
       
-      // Başarılı giriş
       setCurrentUserData(data);
       setUserDisplayName(data.ad_soyad);
       
@@ -217,66 +212,95 @@ export default function Home() {
     if (!canvas) return;
     const qrImage = canvas.toDataURL("image/png");
     
-    doc.setFillColor(10, 15, 30); doc.rect(0, 0, 210, 297, 'F');
-    doc.saveGraphicsState(); doc.setGState(new (doc as any).GState({ opacity: 0.07 }));
-    doc.setFillColor(59, 135, 245); doc.roundedRect(20, 30, 170, 240, 15, 15, 'F');
-    doc.restoreGraphicsState(); doc.saveGraphicsState(); doc.setGState(new (doc as any).GState({ opacity: 0.15 }));
-    doc.setDrawColor(59, 130, 246); doc.setLineWidth(0.5); doc.roundedRect(20, 30, 170, 240, 15, 15, 'S');
-    doc.restoreGraphicsState();
-    doc.setTextColor(255, 255, 255); doc.setFontSize(28); doc.setFont("helvetica", "bold"); doc.text("FLICK BILET", 105, 55, { align: "center" });
-    doc.saveGraphicsState(); doc.setGState(new (doc as any).GState({ opacity: 0.1 }));
-    doc.setFillColor(59, 130, 246); doc.roundedRect(40, 70, 130, 45, 10, 10, 'F');
-    doc.restoreGraphicsState();
-    doc.setTextColor(255, 255, 255); doc.setFontSize(22); doc.text(userDisplayName.toUpperCase(), 105, 88, { align: "center" });
-    doc.setFontSize(12); doc.setTextColor(150, 150, 150); doc.text("KOLTUK NO:", 105, 96, { align: "center" });
-    doc.setFontSize(20); doc.setTextColor(59, 130, 246); doc.text(selectedSeat || "---", 105, 106, { align: "center" });
-    doc.saveGraphicsState(); doc.setGState(new (doc as any).GState({ opacity: 0.95 }));
-    doc.setFillColor(255, 255, 255); doc.roundedRect(65, 130, 80, 80, 10, 10, 'F');
+    doc.setFillColor(254, 240, 138); doc.rect(0, 0, 210, 297, 'F');
+    doc.setDrawColor(30, 27, 75); doc.setLineWidth(1.5); doc.roundedRect(20, 30, 170, 240, 10, 10, 'S');
+    
+    doc.setTextColor(30, 27, 75); doc.setFontSize(28); doc.setFont("helvetica", "bold"); doc.text("FLICK BILET", 105, 55, { align: "center" });
+    
+    doc.setFillColor(255, 255, 255); doc.roundedRect(40, 70, 130, 45, 5, 5, 'FD');
+    doc.setTextColor(30, 27, 75); doc.setFontSize(22); doc.text(userDisplayName.toUpperCase(), 105, 88, { align: "center" });
+    doc.setFontSize(12); doc.setTextColor(100, 100, 100); doc.text("KOLTUK NO:", 105, 96, { align: "center" });
+    doc.setFontSize(20); doc.setTextColor(16, 185, 129); doc.text(selectedSeat || "---", 105, 106, { align: "center" });
+    
+    doc.setFillColor(255, 255, 255); doc.roundedRect(65, 130, 80, 80, 5, 5, 'FD');
     doc.addImage(qrImage, 'PNG', 70, 135, 70, 70);
-    doc.restoreGraphicsState();
-    doc.setDrawColor(255, 255, 255); doc.saveGraphicsState(); doc.setGState(new (doc as any).GState({ opacity: 0.1 }));
-    doc.line(40, 230, 170, 230);
-    doc.restoreGraphicsState();
-    doc.setTextColor(255, 255, 255); doc.setFontSize(11); doc.text(selectedEvent?.event_name || "", 105, 245, { align: "center" });
-    doc.setFontSize(9); doc.setTextColor(160, 160, 160); doc.text(`${selectedEvent?.event_date}  •  ${selectedEvent?.event_location}`, 105, 255, { align: "center" });
+    
+    doc.setTextColor(30, 27, 75); doc.setFontSize(11); doc.text(selectedEvent?.event_name || "", 105, 245, { align: "center" });
+    doc.setFontSize(9); doc.setTextColor(100, 100, 100); doc.text(`${selectedEvent?.event_date}  •  ${selectedEvent?.event_location}`, 105, 255, { align: "center" });
     
     doc.save(`${userDisplayName}_Flick_Bilet.pdf`);
   };
 
   return (
-    <main className="min-h-screen bg-[#020617] text-slate-200 p-6 flex flex-col items-center justify-start font-sans overflow-x-hidden relative">
-      <header className="w-full max-w-2xl py-8 mb-4 text-center z-50">
-        <div className="space-y-1">
-          <h2 className="text-blue-500 font-bold text-[10px] tracking-[0.3em] uppercase italic">
-            ANKARA MEDIPOL SINEMA VE TIYATRO TOPLULUGU
-          </h2>
-          <h1 className="text-3xl font-black tracking-tighter flex items-center justify-center gap-2 text-white">
-            FLICK <span className="text-white">BILET</span>
-          </h1>
+    <main className="min-h-screen bg-[#e2e8f0] text-[#1e1b4b] p-4 md:p-8 flex flex-col items-center justify-start font-sans overflow-x-hidden relative select-none">
+      
+      {/* ==================== MEMPHIS ARKA PLAN AMORF MATERYALLERİ ==================== */}
+      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+        {/* 1. Sol Üst Yamuk Üçgen (Mavi & Yeşil Dalga) */}
+        <div className="absolute -top-5 -left-24 w-44 h-40 bg-[repeating-radial-gradient(circle_at_10%_20%,#2563eb_0,#2563eb_8px,#22c55e_8px,#22c55e_16px,#2563eb_16px,#2563eb_24px)] -rotate-18 opacity-90 [clip-path:path('M_20_15_Q_10_10_25_25_L_140_40_Q_155_45_140_60_L_65_125_Q_50_135_45_115_Z')] filter drop-shadow-[4px_8px_8px_rgba(0,0,0,0.22)]" />
+        
+        {/* 2. Sağ Üst Blob (Mavi & Mor Izgara) */}
+        <div className="absolute -top-16 -right-20 w-44 h-36 bg-[repeating-linear-gradient(45deg,#3b82f6,#3b82f6_10px,#7c3aed_10px,#7c3aed_20px)] rotate-22 rounded-[43%_57%_71%_29%/34%_52%_48%_66%] opacity-90 filter drop-shadow-[4px_8px_8px_rgba(0,0,0,0.22)]" />
+
+        {/* 3. Sağ Orta Yamuk Üçgen (Mor & Sarı Zikzak) */}
+        <div className="absolute top-[38%] -right-24 w-44 h-40 bg-[repeating-linear-gradient(135deg,#6d28d9_0px,#6d28d9_8px,#facc15_8px,#facc15_16px,#6d28d9_16px,#6d28d9_24px)] rotate-38 opacity-90 [clip-path:path('M_40_15_Q_30_5_45_15_L_145_70_Q_155_80_140_90_L_20_135_Q_5_145_10_125_Z')] filter drop-shadow-[4px_8px_8px_rgba(0,0,0,0.22)]" />
+
+        {/* 4. Sol Orta Blob (Mor & Sarı Şerit) */}
+        <div className="absolute top-[32%] -left-20 w-40 h-32 bg-[repeating-linear-gradient(-60deg,#7c3aed,#7c3aed_8px,#fbbf24_8px,#fbbf24_16px)] -rotate-38 rounded-[67%_33%_41%_59%/61%_38%_62%_39%] opacity-90 filter drop-shadow-[4px_8px_8px_rgba(0,0,0,0.22)]" />
+
+        {/* 5. Sol Alt Yamuk Üçgen (Mor & Turuncu Dalga) */}
+        <div className="absolute -bottom-16 -left-20 w-48 h-36 bg-[repeating-radial-gradient(circle_at_80%_80%,#7c3aed_0,#7c3aed_10px,#f97316_10px,#f97316_20px)] -rotate-28 opacity-90 [clip-path:path('M_15_40_Q_5_30_25_25_L_150_10_Q_165_5_150_20_L_75_115_Q_60_130_55_110_Z')] filter drop-shadow-[4px_8px_8px_rgba(0,0,0,0.22)]" />
+
+        {/* 6. Sağ Alt Blob (Mavi & Yeşil Şerit) */}
+        <div className="absolute -bottom-16 -right-20 w-44 h-36 bg-[repeating-linear-gradient(90deg,#2563eb,#2563eb_10px,#10b981_10px,#10b981_20px)] -rotate-14 rounded-[38%_62%_35%_65%/53%_31%_69%_47%] opacity-90 filter drop-shadow-[4px_8px_8px_rgba(0,0,0,0.22)]" />
+
+        {/* 7. UÇUŞAN MEMPHIS POP-ART SÜSLEMELERİ */}
+        <span className="absolute top-3 left-3 text-[#facc15] font-black text-3xl rotate-12 drop-shadow-[2px_3px_0px_#1e1b4b]">✦</span>
+        <span className="absolute top-9 left-11 text-[#8b5cf6] font-normal text-sm -rotate-12">✧</span>
+        <span className="absolute top-2 right-4 text-[#ec4899] font-black text-3xl rotate-25 drop-shadow-[2px_2px_0px_#1e1b4b]">✚</span>
+        <span className="absolute top-12 right-14 text-[#06b6d4] font-black text-base -rotate-15">✖</span>
+        <span className="absolute top-[25%] right-3 text-[#f97316] font-black text-xl rotate-35">∿∿</span>
+        <span className="absolute top-[50%] left-8 text-[#10b981] font-normal text-sm rotate-15">◆</span>
+        <span className="absolute top-[48%] right-3 text-[#facc15] font-black text-2xl -rotate-20 drop-shadow-[2px_2px_0px_#1e1b4b]">✦</span>
+        <span className="absolute top-[56%] right-9 text-[#ec4899] font-normal text-sm rotate-8">★</span>
+        <span className="absolute bottom-[32%] left-3 text-[#6d28d9] font-black text-xl rotate-12">✚</span>
+        <span className="absolute bottom-9 right-3 text-[#f97316] font-black text-3xl -rotate-15 drop-shadow-[2px_3px_0px_#1e1b4b]">✦</span>
+        <span className="absolute bottom-16 right-12 text-[#facc15] font-normal text-base">✧</span>
+        <span className="absolute bottom-20 left-3 text-[#10b981] font-black text-2xl rotate-40">✚</span>
+        <span className="absolute bottom-11 left-10 text-[#ef4444] font-normal text-sm -rotate-25">◆</span>
+        <span className="absolute bottom-4 left-6 text-[#7c3aed] font-black text-lg -rotate-10">∿</span>
+      </div>
+
+      {/* HEADER: MEMPHIS BAŞLIK (KATMANLI 3D ETIKETLER) */}
+      <header className="w-full max-w-2xl py-6 mb-2 text-center z-10">
+        <div className="relative inline-block rotate-[-2.5deg] mb-2">
+          {/* Çift Vurgu Pembe Alt Gölge */}
+          <div className="absolute top-[7px] left-[7px] right-[-7px] bottom-[-7px] bg-[#ec4899] rounded-2xl border-[3.5px] border-[#1e1b4b] -z-10" />
+          
+          <div className="bg-[#10b981] border-[3.5px] border-[#1e1b4b] px-8 py-3 rounded-2xl shadow-[4px_5px_0px_#1e1b4b]">
+            <h1 className="text-3xl md:text-4xl font-[#950] tracking-[4.5px] text-white uppercase drop-shadow-[2px_2.5px_0px_#047857] leading-none">
+              FLICK BİLET
+            </h1>
+          </div>
+        </div>
+
+        {/* Üst Üste Binen (Overlapping) Alt Başlık Etiketi */}
+        <div className="-mt-3 relative z-20">
+          <div className="inline-block bg-[#fef08a] border-[2.5px] border-[#1e1b4b] px-5 py-1.5 rounded-lg rotate-2 shadow-[3.5px_3.5px_0px_#1e1b4b]">
+            <span className="text-[#1e1b4b] font-[#950] text-xs md:text-sm uppercase tracking-[2.2px]">
+              ANKARA MEDİPOL SİNEMA VE TİYATRO TOPLULUĞU
+            </span>
+          </div>
         </div>
       </header>
 
-      <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none select-none">
-        <div className="absolute -inset-[100%] opacity-[0.08] flex flex-col justify-center gap-4 rotate-[-25deg] scale-150">
-          {[...Array(50)].map((_, i) => (
-            <div key={i} className={`whitespace-nowrap text-[0.7rem] font-bold tracking-[0.2em] leading-none flex ${i % 2 === 0 ? 'animate-scroll-left' : 'animate-scroll-right'}`}>
-              {[...Array(4)].map((_, j) => (
-                <span key={j} className="inline-block pr-8">ANKARA MEDİPOL SİNEMA VE TİYATRO TOPLULUĞU • FLICK BİLET •</span>
-              ))}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="w-full max-w-lg relative z-10">
-        <div className="relative bg-slate-900/40 backdrop-blur-3xl p-8 rounded-[3rem] border border-white/10 shadow-2xl overflow-hidden">
+      {/* KART GÖVDESİ (SEMPATİK NOKTALI / NOKTASIZ DOKULU NOKTA DESENLİ MEMPHIS KUTUSU) */}
+      <div className="w-full max-w-lg relative z-10 my-auto">
+        <div className="relative bg-white border-[3.5px] border-[#1e1b4b] p-6 md:p-8 rounded-[28px] shadow-[0_30px_60px_-12px_rgba(15,23,42,0.18),5px_6px_0px_#1e1b4b] bg-[radial-gradient(#cbd5e1_1.5px,transparent_1.5px)] [background-size:13px_13px] overflow-visible">
           
-          <div className="absolute inset-0 z-0 pointer-events-none opacity-[0.06] blur-[1px] flex items-center justify-center">
-            <div className="w-[120%] h-[120%] animate-super-slow-rotate">
-              <Image src="/flick-logo.png" alt="" fill className="object-contain" priority />
-            </div>
-          </div>
-
+          {/* Sol Üst Şeffaf Koli Bandı Çıkartması */}
+          <div className="absolute -top-3 left-6 w-14 h-4 bg-amber-300/80 border border-amber-700/50 -rotate-9 shadow-sm z-20 pointer-events-none" />
+          
           <div className="relative z-10">
             {(step === 0 || step === 1) && (
               <div className="space-y-6">
@@ -295,45 +319,45 @@ export default function Home() {
                   error={error}
                 />
                 
-                {/* Step 1'deyken Yeni Kayıt Butonunu göster */}
                 {step === 1 && (
-                  <div className="pt-6 border-t border-white/5 text-center">
-                    <p className="text-[10px] text-slate-500 mb-4 uppercase font-black tracking-widest italic">Henüz Kayıt Yapmadınız mı?</p>
+                  <div className="pt-6 border-t-2 border-dashed border-[#64748b] text-center">
+                    <p className="text-[11px] text-slate-600 mb-3 uppercase font-black tracking-wider">Henüz Kayıt Yapmadınız mı?</p>
                     <button 
                       onClick={() => setStep(4)}
-                      className="w-full bg-blue-600 hover:bg-blue-500 text-white py-4 rounded-2xl flex items-center justify-center gap-2 transition-all font-bold text-xs uppercase shadow-lg shadow-blue-500/20 active:scale-95"
+                      className="w-full bg-[#3b82f6] hover:bg-blue-600 text-white py-3.5 rounded-xl flex items-center justify-center gap-2 font-black text-xs uppercase border-2 border-[#1e1b4b] shadow-[4px_4px_0px_#1e1b4b] active:translate-x-1 active:translate-y-1 active:shadow-none transition-all"
                     >
-                      <UserPlus size={16} /> Yeni Kayıt Oluştur
+                      <UserPlus size={18} /> Yeni Kayıt Oluştur
                     </button>
-                    <button onClick={() => setStep(0)} className="mt-4 w-full text-slate-600 text-[10px] font-black uppercase hover:text-white transition-colors flex items-center justify-center gap-2">
-                      <ArrowLeft size={12} /> Etkinlik Listesine Dön
+                    <button 
+                      onClick={() => setStep(0)} 
+                      className="mt-4 w-full text-slate-600 text-[11px] font-black uppercase hover:text-[#1e1b4b] transition-colors flex items-center justify-center gap-2"
+                    >
+                      <ArrowLeft size={14} /> Etkinlik Listesine Dön
                     </button>
                   </div>
                 )}
               </div>
             )}
 
-            {/* Yeni Kayıt Formu (NewRegistration.tsx) */}
             {step === 4 && (
               <div className="space-y-4">
                 <NewRegistration selectedEventId={selectedEvent?.id} whatsappLink={selectedEvent?.whatsapp_link} onSuccess={() => setStep(5)} />
-                <button onClick={() => setStep(1)} className="w-full text-slate-500 text-[10px] font-black uppercase py-2 hover:text-white transition-colors">Vazgeç ve Geri Dön</button>
+                <button onClick={() => setStep(1)} className="w-full text-slate-600 text-[11px] font-black uppercase py-2 hover:text-[#1e1b4b] transition-colors">Vazgeç ve Geri Dön</button>
               </div>
             )}
 
-            {/* Başarılı Kayıt Mesajı */}
             {step === 5 && (
-              <div className="text-center py-8 animate-in zoom-in duration-500">
-                <div className="w-16 h-16 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-6 border border-emerald-500/30">
-                  <Info className="text-emerald-500" size={32} />
+              <div className="text-center py-6">
+                <div className="w-16 h-16 bg-[#10b981] border-2 border-[#1e1b4b] rounded-full flex items-center justify-center mx-auto mb-4 shadow-[3px_3px_0px_#1e1b4b]">
+                  <Info className="text-white" size={32} />
                 </div>
-                <h2 className="text-xl font-black uppercase italic text-white mb-2 tracking-tighter">Başvuru Alındı</h2>
-                <p className="text-slate-400 text-[11px] font-bold leading-relaxed px-4 uppercase">
+                <h2 className="text-xl font-black uppercase text-[#1e1b4b] mb-2 tracking-tight">Başvuru Alındı 🚀</h2>
+                <p className="text-slate-700 text-xs font-bold leading-relaxed px-2 uppercase">
                   Kaydınız yöneticilerimiz tarafından onaylandıktan sonra biletinizi buradan alabileceksiniz.
                 </p>
                 <button 
                   onClick={() => { setStep(0); setAdSoyad(""); setTelefon(""); }} 
-                  className="mt-8 w-full bg-white text-black font-black py-4 rounded-2xl uppercase text-[10px] tracking-widest active:scale-95 transition-all"
+                  className="mt-6 w-full bg-[#facc15] text-[#1e1b4b] border-2 border-[#1e1b4b] font-black py-3.5 rounded-xl uppercase text-xs tracking-wider shadow-[4px_4px_0px_#1e1b4b] active:translate-x-1 active:translate-y-1 active:shadow-none transition-all"
                 >
                   Ana Menüye Dön
                 </button>
@@ -350,61 +374,67 @@ export default function Home() {
                 loading={loading}
                 setStep={setStep}
                 setError={setError}
-                // DÜZELTİLEN SATIR: selectedSlotId yerine selectedEvent içindeki slot_id'yi kullanıyoruz.
                 seatLayout={eventSlots.find(s => s.slot_id === selectedEvent?.slot_id)?.seat_layout || []}
               />
             )}
 
+            {/* STEP 3: GERÇEKÇİ YIRTILMIŞ KAĞIT, 3D ZIMBA TELİ VE WINDOWS XP MOUSE CURSOR BİLET EKRANI */}
             {step === 3 && (
-              <TicketView 
-                userDisplayName={userDisplayName}
-                selectedSeat={selectedSeat}
-                qrValue={qrValue}
-                indirPDF={indirPDF}
-              />
+              <div className="relative my-4 rotate-[1.2deg]">
+                {/* 3D Metalik Zımba Teli */}
+                <div className="absolute -top-[7px] right-7 w-[22px] h-[6px] bg-gradient-to-b from-[#f1f5f9] via-[#94a3b8] to-[#475569] border border-[#1e293b] rounded-sm shadow-[0_3px_4px_rgba(0,0,0,0.4),inset_0_1px_1px_rgba(255,255,255,0.8)] z-30 -rotate-6">
+                  <div className="absolute top-[1px] -left-[3px] w-[2px] h-[4px] bg-[#0f172a] rounded-[1px]" />
+                  <div className="absolute top-[1px] -right-[3px] w-[2px] h-[4px] bg-[#0f172a] rounded-[1px]" />
+                </div>
+
+                {/* Sol Üst Kağıt Bant */}
+                <div className="absolute -top-[14px] left-[18px] w-[65px] h-[20px] bg-[#fef08a]/75 border border-amber-700/40 -rotate-12 shadow-sm z-20" />
+
+                {/* Yırtık Kağıt Gövdesi */}
+                <div className="bg-[#fef08a] p-6 shadow-[0_15px_30px_-5px_rgba(0,0,0,0.22),5px_6px_0px_#1e1b4b] border-l-2 border-r-2 border-[#1e1b4b] bg-[radial-gradient(rgba(161,98,7,0.2)_1.2px,transparent_1.2px)] [background-size:8px_8px] relative min-h-[140px] flex flex-col items-center justify-center">
+                  
+                  {/* Üst Tırtık */}
+                  <div className="absolute -top-[9px] -left-[2px] -right-[2px] h-[9px] bg-[linear-gradient(-45deg,transparent_5px,#fef08a_0),linear-gradient(45deg,transparent_5px,#fef08a_0)] [background-size:10px_10px] filter drop-shadow-[0_-2px_1px_rgba(0,0,0,0.12)]" />
+
+                  {/* Kırmızı Etiket Bant */}
+                  <div className="absolute -top-[16px] -left-[8px] bg-[#ef4444] text-white px-3.5 py-1 text-[10.5px] font-[950] -rotate-3 rounded-md tracking-widest shadow-[2.5px_2.5px_0px_#1e1b4b] border-[1.8px] border-[#1e1b4b] z-30 whitespace-nowrap uppercase">
+                    BİLETİNİZ HAZIR
+                  </div>
+
+                  {/* Bilet ve QR Bileşeni */}
+                  <TicketView 
+                    userDisplayName={userDisplayName}
+                    selectedSeat={selectedSeat}
+                    qrValue={qrValue}
+                    indirPDF={indirPDF}
+                  />
+
+                  {/* Alt Tırtık */}
+                  <div className="absolute -bottom-[9px] -left-[2px] -right-[2px] h-[9px] bg-[linear-gradient(-45deg,#fef08a_5px,transparent_0),linear-gradient(45deg,#fef08a_5px,transparent_0)] [background-size:10px_10px] filter drop-shadow-[0_2px_2px_rgba(0,0,0,0.15)]" />
+
+                  {/* SAĞ ALT KÖŞE: WINDOWS XP MOUSE CURSOR (52px) */}
+                  <div className="absolute -bottom-[22px] -right-[16px] z-40 -rotate-4 filter drop-shadow-[3px_4px_0px_#1e1b4b]">
+                    <svg width="52" height="52" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path fillRule="evenodd" clipRule="evenodd" d="M 4 2 V 26 L 10.5 19.5 L 14.5 28 L 18.5 26 L 14.5 17.5 L 22 17.5 Z" fill="#ffffff" stroke="#1e1b4b" strokeWidth="2.5" strokeLinejoin="round"/>
+                    </svg>
+                  </div>
+                </div>
+              </div>
             )}
           </div>
         </div>
       </div>
 
-      <style jsx global>{`
-        @keyframes scroll-left { from { transform: translateX(0); } to { transform: translateX(-50%); } }
-        @keyframes scroll-right { from { transform: translateX(-50%); } to { transform: translateX(0); } }
-        @keyframes rotate-slow { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        
-        .view-transition {
-          animation: flickerFadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-          will-change: transform, opacity;
-        }
+      {/* FOOTER: KOLLAJ KULÜP İMZASI (KART ROZETİ) */}
+      <footer className="mt-8 z-10 text-center">
+        <div className="inline-block bg-[#f8fafc] border-2 border-[#1e1b4b] rounded-xl px-5 py-2.5 shadow-[3px_3px_0px_#6d28d9] -rotate-1">
+          <span className="text-xs font-[950] text-[#1e293b] uppercase tracking-wider leading-relaxed block">
+            Ankara Medipol Üniversitesi<br />
+            <span className="text-[#6d28d9] text-[13.5px] font-[950]">Sinema ve Tiyatro Topluluğu</span>
+          </span>
+        </div>
+      </footer>
 
-        @keyframes flickerFadeIn {
-          from {
-            opacity: 0;
-            transform: translateY(12px) scale(0.98);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0) scale(1);
-          }
-        }
-
-        .animate-scroll-left { animation: scroll-left 40s linear infinite; }
-        .animate-scroll-right { animation: scroll-right 40s linear infinite; }
-        .animate-super-slow-rotate { animation: rotate-slow 150s linear infinite; }
-        .scrollbar-hide::-webkit-scrollbar { display: none; }
-        .grid-cols-25 { grid-template-columns: repeat(25, minmax(0, 1fr)); }
-        .empty-seat { color: #334155; transition: all 0.2s; }
-        .empty-seat:hover { color: #94a3b8; transform: scale(1.1); }
-        .occupied-seat { color: #e11d48; cursor: not-allowed; opacity: 0.6; }
-        .occupied-seat .seat-img { filter: sepia(1) saturate(5) hue-rotate(-50deg); }
-        .selected-seat { color: #3b82f6; transform: scale(1.2); z-index: 20; }
-        .selected-seat .seat-img { filter: drop-shadow(0 0 8px #3b82f6) brightness(1.2) contrast(1.2); }
-
-        button:active {
-          transform: scale(0.96);
-          transition: transform 0.1s;
-        }
-      `}</style>
     </main>
   );
 }
