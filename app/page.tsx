@@ -234,76 +234,115 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-[#e2e8f0] text-[#1e1b4b] p-4 md:p-8 flex flex-col items-center justify-start font-sans overflow-x-hidden relative select-none">
       
-      {/* ==================== MEMPHIS ARKA PLAN AMORF MATERYALLERİ ==================== */}
-      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
-        {/* 1. Sol Üst Yamuk Üçgen (Mavi & Yeşil Dalga) */}
-        <div className="absolute -top-5 -left-24 w-44 h-40 bg-[repeating-radial-gradient(circle_at_10%_20%,#2563eb_0,#2563eb_8px,#22c55e_8px,#22c55e_16px,#2563eb_16px,#2563eb_24px)] -rotate-18 opacity-90 [clip-path:path('M_20_15_Q_10_10_25_25_L_140_40_Q_155_45_140_60_L_65_125_Q_50_135_45_115_Z')] filter drop-shadow-[4px_8px_8px_rgba(0,0,0,0.22)]" />
-        
-        {/* 2. Sağ Üst Blob (Mavi & Mor Izgara) */}
-        <div className="absolute -top-16 -right-20 w-44 h-36 bg-[repeating-linear-gradient(45deg,#3b82f6,#3b82f6_10px,#7c3aed_10px,#7c3aed_20px)] rotate-22 rounded-[43%_57%_71%_29%/34%_52%_48%_66%] opacity-90 filter drop-shadow-[4px_8px_8px_rgba(0,0,0,0.22)]" />
-
-        {/* 3. Sağ Orta Yamuk Üçgen (Mor & Sarı Zikzak) */}
-        <div className="absolute top-[38%] -right-24 w-44 h-40 bg-[repeating-linear-gradient(135deg,#6d28d9_0px,#6d28d9_8px,#facc15_8px,#facc15_16px,#6d28d9_16px,#6d28d9_24px)] rotate-38 opacity-90 [clip-path:path('M_40_15_Q_30_5_45_15_L_145_70_Q_155_80_140_90_L_20_135_Q_5_145_10_125_Z')] filter drop-shadow-[4px_8px_8px_rgba(0,0,0,0.22)]" />
-
-        {/* 4. Sol Orta Blob (Mor & Sarı Şerit) */}
-        <div className="absolute top-[32%] -left-20 w-40 h-32 bg-[repeating-linear-gradient(-60deg,#7c3aed,#7c3aed_8px,#fbbf24_8px,#fbbf24_16px)] -rotate-38 rounded-[67%_33%_41%_59%/61%_38%_62%_39%] opacity-90 filter drop-shadow-[4px_8px_8px_rgba(0,0,0,0.22)]" />
-
-        {/* 5. Sol Alt Yamuk Üçgen (Mor & Turuncu Dalga) */}
-        <div className="absolute -bottom-16 -left-20 w-48 h-36 bg-[repeating-radial-gradient(circle_at_80%_80%,#7c3aed_0,#7c3aed_10px,#f97316_10px,#f97316_20px)] -rotate-28 opacity-90 [clip-path:path('M_15_40_Q_5_30_25_25_L_150_10_Q_165_5_150_20_L_75_115_Q_60_130_55_110_Z')] filter drop-shadow-[4px_8px_8px_rgba(0,0,0,0.22)]" />
-
-        {/* 6. Sağ Alt Blob (Mavi & Yeşil Şerit) */}
-        <div className="absolute -bottom-16 -right-20 w-44 h-36 bg-[repeating-linear-gradient(90deg,#2563eb,#2563eb_10px,#10b981_10px,#10b981_20px)] -rotate-14 rounded-[38%_62%_35%_65%/53%_31%_69%_47%] opacity-90 filter drop-shadow-[4px_8px_8px_rgba(0,0,0,0.22)]" />
-
-        {/* 7. UÇUŞAN MEMPHIS POP-ART SÜSLEMELERİ */}
-        <span className="absolute top-3 left-3 text-[#facc15] font-black text-3xl rotate-12 drop-shadow-[2px_3px_0px_#1e1b4b]">✦</span>
-        <span className="absolute top-9 left-11 text-[#8b5cf6] font-normal text-sm -rotate-12">✧</span>
-        <span className="absolute top-2 right-4 text-[#ec4899] font-black text-3xl rotate-25 drop-shadow-[2px_2px_0px_#1e1b4b]">✚</span>
-        <span className="absolute top-12 right-14 text-[#06b6d4] font-black text-base -rotate-15">✖</span>
-        <span className="absolute top-[25%] right-3 text-[#f97316] font-black text-xl rotate-35">∿∿</span>
-        <span className="absolute top-[50%] left-8 text-[#10b981] font-normal text-sm rotate-15">◆</span>
-        <span className="absolute top-[48%] right-3 text-[#facc15] font-black text-2xl -rotate-20 drop-shadow-[2px_2px_0px_#1e1b4b]">✦</span>
-        <span className="absolute top-[56%] right-9 text-[#ec4899] font-normal text-sm rotate-8">★</span>
-        <span className="absolute bottom-[32%] left-3 text-[#6d28d9] font-black text-xl rotate-12">✚</span>
-        <span className="absolute bottom-9 right-3 text-[#f97316] font-black text-3xl -rotate-15 drop-shadow-[2px_3px_0px_#1e1b4b]">✦</span>
-        <span className="absolute bottom-16 right-12 text-[#facc15] font-normal text-base">✧</span>
-        <span className="absolute bottom-20 left-3 text-[#10b981] font-black text-2xl rotate-40">✚</span>
-        <span className="absolute bottom-11 left-10 text-[#ef4444] font-normal text-sm -rotate-25">◆</span>
-        <span className="absolute bottom-4 left-6 text-[#7c3aed] font-black text-lg -rotate-10">∿</span>
+      {/* 1. KATMAN: ESKİ TASARIMDAKİ SONSUZ HAREKET EDEN KAYAN YAZILAR (MARQUEE) */}
+      <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none opacity-[0.12]">
+        <div className="absolute -inset-[100%] flex flex-col justify-center gap-6 rotate-[-22deg] scale-150">
+          {[...Array(35)].map((_, i) => (
+            <div key={i} className={`whitespace-nowrap text-sm font-black tracking-[0.3em] leading-none flex text-[#1e1b4b] ${i % 2 === 0 ? 'animate-scroll-left' : 'animate-scroll-right'}`}>
+              {[...Array(6)].map((_, j) => (
+                <span key={j} className="inline-block pr-12">ANKARA MEDİPOL SİNEMA VE TİYATRO TOPLULUĞU • FLICK BİLET •</span>
+              ))}
+            </div>
+          ))}
+        </div>
       </div>
 
-      {/* HEADER: MEMPHIS BAŞLIK (KATMANLI 3D ETIKETLER) */}
+      {/* 2. KATMAN: DEV MEMPHIS BLOB VE ÜÇGEN MATERYALLERİ */}
+      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+        {/* Sol Üst Dev Yamuk Üçgen */}
+        <div className="absolute -top-10 -left-32 w-64 h-56 bg-[repeating-radial-gradient(circle_at_10%_20%,#2563eb_0,#2563eb_10px,#22c55e_10px,#22c55e_20px,#2563eb_20px,#2563eb_30px)] -rotate-18 opacity-90 [clip-path:path('M_20_15_Q_10_10_25_25_L_140_40_Q_155_45_140_60_L_65_125_Q_50_135_45_115_Z')] filter drop-shadow-[5px_10px_10px_rgba(0,0,0,0.25)]" />
+        
+        {/* Sağ Üst Dev Blob */}
+        <div className="absolute -top-20 -right-28 w-60 h-48 bg-[repeating-linear-gradient(45deg,#3b82f6,#3b82f6_12px,#7c3aed_12px,#7c3aed_24px)] rotate-22 rounded-[43%_57%_71%_29%/34%_52%_48%_66%] opacity-90 filter drop-shadow-[5px_10px_10px_rgba(0,0,0,0.25)]" />
+
+        {/* Sağ Orta Yamuk Üçgen */}
+        <div className="absolute top-[35%] -right-32 w-64 h-56 bg-[repeating-linear-gradient(135deg,#6d28d9_0px,#6d28d9_10px,#facc15_10px,#facc15_20px,#6d28d9_20px,#6d28d9_30px)] rotate-38 opacity-90 [clip-path:path('M_40_15_Q_30_5_45_15_L_145_70_Q_155_80_140_90_L_20_135_Q_5_145_10_125_Z')] filter drop-shadow-[5px_10px_10px_rgba(0,0,0,0.25)]" />
+
+        {/* Sol Orta Dev Blob */}
+        <div className="absolute top-[30%] -left-28 w-56 h-44 bg-[repeating-linear-gradient(-60deg,#7c3aed,#7c3aed_10px,#fbbf24_10px,#fbbf24_20px)] -rotate-38 rounded-[67%_33%_41%_59%/61%_38%_62%_39%] opacity-90 filter drop-shadow-[5px_10px_10px_rgba(0,0,0,0.25)]" />
+
+        {/* Sol Alt Yamuk Üçgen */}
+        <div className="absolute -bottom-20 -left-28 w-64 h-48 bg-[repeating-radial-gradient(circle_at_80%_80%,#7c3aed_0,#7c3aed_12px,#f97316_12px,#f97316_24px)] -rotate-28 opacity-90 [clip-path:path('M_15_40_Q_5_30_25_25_L_150_10_Q_165_5_150_20_L_75_115_Q_60_130_55_110_Z')] filter drop-shadow-[5px_10px_10px_rgba(0,0,0,0.25)]" />
+
+        {/* Sağ Alt Dev Blob */}
+        <div className="absolute -bottom-20 -right-28 w-60 h-48 bg-[repeating-linear-gradient(90deg,#2563eb,#2563eb_12px,#10b981_12px,#10b981_24px)] -rotate-14 rounded-[38%_62%_35%_65%/53%_31%_69%_47%] opacity-90 filter drop-shadow-[5px_10px_10px_rgba(0,0,0,0.25)]" />
+
+        {/* 3. KATMAN: SIKIŞIK SIKIŞIK POP-ART YILDIZ VE İKON SETİ */}
+        <span className="absolute top-4 left-4 text-[#facc15] font-black text-4xl rotate-12 drop-shadow-[3px_3px_0px_#1e1b4b]">✦</span>
+        <span className="absolute top-12 left-16 text-[#8b5cf6] font-black text-lg -rotate-12">✧</span>
+        <span className="absolute top-3 right-6 text-[#ec4899] font-black text-4xl rotate-25 drop-shadow-[3px_3px_0px_#1e1b4b]">✚</span>
+        <span className="absolute top-14 right-20 text-[#06b6d4] font-black text-xl -rotate-15">✖</span>
+        <span className="absolute top-[20%] right-4 text-[#f97316] font-black text-2xl rotate-35">∿∿</span>
+        <span className="absolute top-[28%] left-6 text-[#3b82f6] font-black text-xl">✦</span>
+        <span className="absolute top-[48%] left-10 text-[#10b981] font-black text-lg rotate-15">◆</span>
+        <span className="absolute top-[45%] right-4 text-[#facc15] font-black text-3xl -rotate-20 drop-shadow-[2px_2px_0px_#1e1b4b]">✦</span>
+        <span className="absolute top-[54%] right-14 text-[#ec4899] font-black text-base rotate-8">★</span>
+        <span className="absolute bottom-[35%] left-4 text-[#6d28d9] font-black text-2xl rotate-12">✚</span>
+        <span className="absolute bottom-12 right-4 text-[#f97316] font-black text-4xl -rotate-15 drop-shadow-[3px_3px_0px_#1e1b4b]">✦</span>
+        <span className="absolute bottom-20 right-16 text-[#facc15] font-black text-lg">✧</span>
+        <span className="absolute bottom-24 left-4 text-[#10b981] font-black text-3xl rotate-40">✚</span>
+        <span className="absolute bottom-14 left-14 text-[#ef4444] font-black text-base -rotate-25">◆</span>
+        <span className="absolute bottom-5 left-8 text-[#7c3aed] font-black text-2xl -rotate-10">∿</span>
+      </div>
+
+      {/* HEADER: MEMPHIS & TORN PAPER BAŞLIK KUTULARI */}
       <header className="w-full max-w-2xl py-6 mb-2 text-center z-10">
-        <div className="relative inline-block rotate-[-2.5deg] mb-2">
-          {/* Çift Vurgu Pembe Alt Gölge */}
-          <div className="absolute top-[7px] left-[7px] right-[-7px] bottom-[-7px] bg-[#ec4899] rounded-2xl border-[3.5px] border-[#1e1b4b] -z-10" />
+        
+        {/* DEV BAŞLIK KUTUSU (3D Katmanlı) */}
+        <div className="relative inline-block rotate-[-2.5deg] mb-1">
+          {/* Pembe Arka Gölge Katmanı */}
+          <div className="absolute top-[8px] left-[8px] right-[-8px] bottom-[-8px] bg-[#ec4899] rounded-2xl border-[4px] border-[#1e1b4b] -z-10" />
           
-          <div className="bg-[#10b981] border-[3.5px] border-[#1e1b4b] px-8 py-3 rounded-2xl shadow-[4px_5px_0px_#1e1b4b]">
-            <h1 className="text-3xl md:text-4xl font-[#950] tracking-[4.5px] text-white uppercase drop-shadow-[2px_2.5px_0px_#047857] leading-none">
+          <div className="bg-[#10b981] border-[4px] border-[#1e1b4b] px-9 py-3.5 rounded-2xl shadow-[4px_5px_0px_#1e1b4b]">
+            <h1 className="text-3xl md:text-5xl font-[#950] tracking-[5px] text-white uppercase drop-shadow-[2.5px_3px_0px_#047857] leading-none">
               FLICK BİLET
             </h1>
           </div>
         </div>
 
-        {/* Üst Üste Binen (Overlapping) Alt Başlık Etiketi */}
-        <div className="-mt-3 relative z-20">
-          <div className="inline-block bg-[#fef08a] border-[2.5px] border-[#1e1b4b] px-5 py-1.5 rounded-lg rotate-2 shadow-[3.5px_3.5px_0px_#1e1b4b]">
-            <span className="text-[#1e1b4b] font-[#950] text-xs md:text-sm uppercase tracking-[2.2px]">
+        {/* TORN PAPER SARI KUTUCUK (Topluluk İsmi) */}
+        <div className="-mt-3 relative z-20 inline-block">
+          <div className="relative bg-[#fef08a] border-[2.5px] border-[#1e1b4b] px-6 py-2 rounded-md rotate-2 shadow-[4px_4px_0px_#1e1b4b] bg-[radial-gradient(rgba(161,98,7,0.18)_1.2px,transparent_1.2px)] [background-size:8px_8px]">
+            {/* Üst Tırtık Efekti */}
+            <div className="absolute -top-[6px] left-0 right-0 h-[6px] bg-[linear-gradient(-45deg,transparent_3px,#fef08a_0),linear-gradient(45deg,transparent_3px,#fef08a_0)] [background-size:6px_6px]" />
+            
+            <span className="text-[#1e1b4b] font-[#950] text-xs md:text-sm uppercase tracking-[2.5px]">
               ANKARA MEDİPOL SİNEMA VE TİYATRO TOPLULUĞU
             </span>
+
+            {/* Alt Tırtık Efekti */}
+            <div className="absolute -bottom-[6px] left-0 right-0 h-[6px] bg-[linear-gradient(-45deg,#fef08a_3px,transparent_0),linear-gradient(45deg,#fef08a_3px,transparent_0)] [background-size:6px_6px]" />
           </div>
         </div>
       </header>
 
-      {/* KART GÖVDESİ (SEMPATİK NOKTALI / NOKTASIZ DOKULU NOKTA DESENLİ MEMPHIS KUTUSU) */}
+      {/* KART GÖVDESİ (PROFESYONEL KOLLAJ AÇIKLAMA VE FORM KUTUSU) */}
       <div className="w-full max-w-lg relative z-10 my-auto">
         <div className="relative bg-white border-[3.5px] border-[#1e1b4b] p-6 md:p-8 rounded-[28px] shadow-[0_30px_60px_-12px_rgba(15,23,42,0.18),5px_6px_0px_#1e1b4b] bg-[radial-gradient(#cbd5e1_1.5px,transparent_1.5px)] [background-size:13px_13px] overflow-visible">
           
+          {/* SAĞ ÜST 3D METALİK ZIMBA TELİ */}
+          <div className="absolute -top-[7px] right-8 w-[24px] h-[6px] bg-gradient-to-b from-[#f1f5f9] via-[#94a3b8] to-[#475569] border border-[#1e293b] rounded-sm shadow-[0_3px_4px_rgba(0,0,0,0.4),inset_0_1px_1px_rgba(255,255,255,0.8)] z-30 -rotate-6">
+            <div className="absolute top-[1px] -left-[3px] w-[2px] h-[4px] bg-[#0f172a] rounded-[1px]" />
+            <div className="absolute top-[1px] -right-[3px] w-[2px] h-[4px] bg-[#0f172a] rounded-[1px]" />
+          </div>
+
           {/* Sol Üst Şeffaf Koli Bandı Çıkartması */}
-          <div className="absolute -top-3 left-6 w-14 h-4 bg-amber-300/80 border border-amber-700/50 -rotate-9 shadow-sm z-20 pointer-events-none" />
+          <div className="absolute -top-3 left-6 w-16 h-5 bg-amber-300/80 border border-amber-700/50 -rotate-9 shadow-sm z-20 pointer-events-none" />
           
           <div className="relative z-10">
             {(step === 0 || step === 1) && (
               <div className="space-y-6">
+                
+                {/* KOLLAJ AÇIKLAMA METNİ KUTUSU */}
+                <div className="bg-white border-[2.5px] border-[#1e1b4b] rounded-2xl shadow-[5px_5px_0px_#6d28d9] p-4.5 -rotate-1 relative mb-6">
+                  {/* Sol Üst Bant Etiketi */}
+                  <div className="absolute -top-2.5 left-5 w-12 h-3.5 bg-pink-500/75 border border-[#1e1b4b] -rotate-8" />
+                  
+                  <p className="color-[#4338ca] text-xs md:text-sm font-extrabold leading-relaxed m-0 text-center">
+                    Etkinlik kaydınızı güvenle tamamlamak ve biletinizi almak için aşağıdaki adımları takip edin:
+                  </p>
+                </div>
+
                 <RegistrationForm 
                   step={step}
                   setStep={setStep}
@@ -396,7 +435,7 @@ export default function Home() {
                   {/* Üst Tırtık */}
                   <div className="absolute -top-[9px] -left-[2px] -right-[2px] h-[9px] bg-[linear-gradient(-45deg,transparent_5px,#fef08a_0),linear-gradient(45deg,transparent_5px,#fef08a_0)] [background-size:10px_10px] filter drop-shadow-[0_-2px_1px_rgba(0,0,0,0.12)]" />
 
-                  {/* Kırmızı Etiket Bant */}
+                  {/* KIRMIZI TAŞAN ETIKET BANT */}
                   <div className="absolute -top-[16px] -left-[8px] bg-[#ef4444] text-white px-3.5 py-1 text-[10.5px] font-[950] -rotate-3 rounded-md tracking-widest shadow-[2.5px_2.5px_0px_#1e1b4b] border-[1.8px] border-[#1e1b4b] z-30 whitespace-nowrap uppercase">
                     BİLETİNİZ HAZIR
                   </div>
@@ -412,7 +451,7 @@ export default function Home() {
                   {/* Alt Tırtık */}
                   <div className="absolute -bottom-[9px] -left-[2px] -right-[2px] h-[9px] bg-[linear-gradient(-45deg,#fef08a_5px,transparent_0),linear-gradient(45deg,#fef08a_5px,transparent_0)] [background-size:10px_10px] filter drop-shadow-[0_2px_2px_rgba(0,0,0,0.15)]" />
 
-                  {/* SAĞ ALT KÖŞE: WINDOWS XP MOUSE CURSOR (52px) */}
+                  {/* SAĞ ALT KÖŞE: RETRO WINDOWS XP MOUSE CURSOR (52px) */}
                   <div className="absolute -bottom-[22px] -right-[16px] z-40 -rotate-4 filter drop-shadow-[3px_4px_0px_#1e1b4b]">
                     <svg width="52" height="52" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
                       <path fillRule="evenodd" clipRule="evenodd" d="M 4 2 V 26 L 10.5 19.5 L 14.5 28 L 18.5 26 L 14.5 17.5 L 22 17.5 Z" fill="#ffffff" stroke="#1e1b4b" strokeWidth="2.5" strokeLinejoin="round"/>
@@ -425,15 +464,29 @@ export default function Home() {
         </div>
       </div>
 
-      {/* FOOTER: KOLLAJ KULÜP İMZASI (KART ROZETİ) */}
+      {/* FOOTER: KOLLAJ KULÜP İMZASI (TORN PAPER ROZET) */}
       <footer className="mt-8 z-10 text-center">
-        <div className="inline-block bg-[#f8fafc] border-2 border-[#1e1b4b] rounded-xl px-5 py-2.5 shadow-[3px_3px_0px_#6d28d9] -rotate-1">
+        <div className="inline-block bg-[#f8fafc] border-2 border-[#1e1b4b] rounded-xl px-5 py-2.5 shadow-[3px_3px_0px_#6d28d9] -rotate-1 relative">
           <span className="text-xs font-[950] text-[#1e293b] uppercase tracking-wider leading-relaxed block">
             Ankara Medipol Üniversitesi<br />
             <span className="text-[#6d28d9] text-[13.5px] font-[950]">Sinema ve Tiyatro Topluluğu</span>
           </span>
         </div>
       </footer>
+
+      {/* MARQUEE ANİMASYON CSS STİLLERİ */}
+      <style jsx global>{`
+        @keyframes scroll-left { 
+          from { transform: translateX(0); } 
+          to { transform: translateX(-50%); } 
+        }
+        @keyframes scroll-right { 
+          from { transform: translateX(-50%); } 
+          to { transform: translateX(0); } 
+        }
+        .animate-scroll-left { animation: scroll-left 45s linear infinite; }
+        .animate-scroll-right { animation: scroll-right 45s linear infinite; }
+      `}</style>
 
     </main>
   );
