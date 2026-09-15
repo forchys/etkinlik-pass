@@ -234,7 +234,7 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-[#e2e8f0] text-[#1e1b4b] p-4 md:p-8 flex flex-col items-center justify-start font-sans overflow-x-hidden relative select-none">
       
-      {/* 1. KATMAN: ESKİ TASARIMDAKİ SONSUZ HAREKET EDEN KAYAN YAZILAR (MARQUEE) */}
+      {/* 1. KATMAN: SONSUZ HAREKET EDEN KAYAN YAZILAR (MARQUEE) */}
       <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none opacity-[0.12]">
         <div className="absolute -inset-[100%] flex flex-col justify-center gap-6 rotate-[-22deg] scale-150">
           {[...Array(35)].map((_, i) => (
@@ -247,27 +247,29 @@ export default function Home() {
         </div>
       </div>
 
-      {/* 2. KATMAN: DEV MEMPHIS BLOB VE ÜÇGEN MATERYALLERİ */}
+      {/* 2. KATMAN: ÇOĞALTILMIŞ DEV & MİNİ MEMPHIS BLOB/ÜÇGEN MATERYALLERİ */}
       <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
-        {/* Sol Üst Dev Yamuk Üçgen */}
+        {/* DEV MATERYALLER (İki Katına Çıkarıldı) */}
         <div className="absolute -top-10 -left-32 w-64 h-56 bg-[repeating-radial-gradient(circle_at_10%_20%,#2563eb_0,#2563eb_10px,#22c55e_10px,#22c55e_20px,#2563eb_20px,#2563eb_30px)] -rotate-18 opacity-90 [clip-path:path('M_20_15_Q_10_10_25_25_L_140_40_Q_155_45_140_60_L_65_125_Q_50_135_45_115_Z')] filter drop-shadow-[5px_10px_10px_rgba(0,0,0,0.25)]" />
-        
-        {/* Sağ Üst Dev Blob */}
+        <div className="absolute top-[12%] -left-24 w-52 h-44 bg-[repeating-linear-gradient(135deg,#ef4444_0px,#ef4444_8px,#facc15_8px,#facc15_16px)] rotate-45 rounded-[50%_50%_20%_80%/60%_40%_60%_40%] opacity-85 filter drop-shadow-[4px_8px_8px_rgba(0,0,0,0.2)]" />
         <div className="absolute -top-20 -right-28 w-60 h-48 bg-[repeating-linear-gradient(45deg,#3b82f6,#3b82f6_12px,#7c3aed_12px,#7c3aed_24px)] rotate-22 rounded-[43%_57%_71%_29%/34%_52%_48%_66%] opacity-90 filter drop-shadow-[5px_10px_10px_rgba(0,0,0,0.25)]" />
-
-        {/* Sağ Orta Yamuk Üçgen */}
+        <div className="absolute top-[15%] -right-20 w-56 h-48 bg-[repeating-radial-gradient(circle_at_50%_50%,#ec4899_0,#ec4899_10px,#06b6d4_10px,#06b6d4_20px)] -rotate-12 [clip-path:path('M_10_30_Q_0_15_25_10_L_130_20_Q_145_25_135_45_L_75_130_Q_55_140_45_120_Z')] opacity-85 filter drop-shadow-[4px_8px_8px_rgba(0,0,0,0.2)]" />
         <div className="absolute top-[35%] -right-32 w-64 h-56 bg-[repeating-linear-gradient(135deg,#6d28d9_0px,#6d28d9_10px,#facc15_10px,#facc15_20px,#6d28d9_20px,#6d28d9_30px)] rotate-38 opacity-90 [clip-path:path('M_40_15_Q_30_5_45_15_L_145_70_Q_155_80_140_90_L_20_135_Q_5_145_10_125_Z')] filter drop-shadow-[5px_10px_10px_rgba(0,0,0,0.25)]" />
-
-        {/* Sol Orta Dev Blob */}
+        <div className="absolute top-[55%] -right-24 w-52 h-44 bg-[repeating-linear-gradient(-45deg,#10b981,#10b981_8px,#3b82f6_8px,#3b82f6_16px)] rotate-12 rounded-[30%_70%_70%_30%/50%_30%_70%_50%] opacity-85 filter drop-shadow-[4px_8px_8px_rgba(0,0,0,0.2)]" />
         <div className="absolute top-[30%] -left-28 w-56 h-44 bg-[repeating-linear-gradient(-60deg,#7c3aed,#7c3aed_10px,#fbbf24_10px,#fbbf24_20px)] -rotate-38 rounded-[67%_33%_41%_59%/61%_38%_62%_39%] opacity-90 filter drop-shadow-[5px_10px_10px_rgba(0,0,0,0.25)]" />
-
-        {/* Sol Alt Yamuk Üçgen */}
+        <div className="absolute top-[52%] -left-20 w-60 h-48 bg-[repeating-radial-gradient(circle_at_20%_80%,#f97316_0,#f97316_10px,#22c55e_10px,#22c55e_20px)] rotate-28 [clip-path:path('M_25_10_Q_15_0_35_15_L_150_50_Q_160_60_145_75_L_40_120_Q_20_125_20_105_Z')] opacity-85 filter drop-shadow-[4px_8px_8px_rgba(0,0,0,0.2)]" />
         <div className="absolute -bottom-20 -left-28 w-64 h-48 bg-[repeating-radial-gradient(circle_at_80%_80%,#7c3aed_0,#7c3aed_12px,#f97316_12px,#f97316_24px)] -rotate-28 opacity-90 [clip-path:path('M_15_40_Q_5_30_25_25_L_150_10_Q_165_5_150_20_L_75_115_Q_60_130_55_110_Z')] filter drop-shadow-[5px_10px_10px_rgba(0,0,0,0.25)]" />
-
-        {/* Sağ Alt Dev Blob */}
         <div className="absolute -bottom-20 -right-28 w-60 h-48 bg-[repeating-linear-gradient(90deg,#2563eb,#2563eb_12px,#10b981_12px,#10b981_24px)] -rotate-14 rounded-[38%_62%_35%_65%/53%_31%_69%_47%] opacity-90 filter drop-shadow-[5px_10px_10px_rgba(0,0,0,0.25)]" />
 
-        {/* 3. KATMAN: SIKIŞIK SIKIŞIK POP-ART YILDIZ VE İKON SETİ */}
+        {/* 3 ADET MİNİ MEMPHIS MATERYALİ */}
+        {/* Mini 1: Üst Arka Ortada Küçük Blob */}
+        <div className="absolute top-8 left-[38%] w-[110px] h-[70px] bg-[repeating-linear-gradient(60deg,#6d28d9,#6d28d9_6px,#3b82f6_6px,#3b82f6_12px)] rounded-[54%_46%_62%_38%/41%_59%_41%_59%] -rotate-8 opacity-80" />
+        {/* Mini 2: Kartın Sağ Yanında Küçük Yamuk Üçgen */}
+        <div className="absolute top-[48%] right-[18%] w-[85px] h-[65px] bg-[repeating-linear-gradient(135deg,#f97316,#f97316_5px,#facc15_5px,#facc15_10px)] [clip-path:path('M_10_5_L_75_25_L_35_60_Z')] rotate-25 opacity-85 filter drop-shadow-[2px_4px_4px_rgba(0,0,0,0.15)]" />
+        {/* Mini 3: Sol Alt Tarafta Küçük Blob */}
+        <div className="absolute bottom-[22%] left-[16%] w-[90px] h-[60px] bg-[repeating-radial-gradient(circle_at_50%_50%,#ec4899_0,#ec4899_5px,#10b981_5px,#10b981_10px)] rounded-full -rotate-15 opacity-80" />
+
+        {/* POP-ART YILDIZ VE İKON SETİ */}
         <span className="absolute top-4 left-4 text-[#facc15] font-black text-4xl rotate-12 drop-shadow-[3px_3px_0px_#1e1b4b]">✦</span>
         <span className="absolute top-12 left-16 text-[#8b5cf6] font-black text-lg -rotate-12">✧</span>
         <span className="absolute top-3 right-6 text-[#ec4899] font-black text-4xl rotate-25 drop-shadow-[3px_3px_0px_#1e1b4b]">✚</span>
@@ -285,12 +287,11 @@ export default function Home() {
         <span className="absolute bottom-5 left-8 text-[#7c3aed] font-black text-2xl -rotate-10">∿</span>
       </div>
 
-      {/* HEADER: MEMPHIS & TORN PAPER BAŞLIK KUTULARI */}
+      {/* HEADER: MEMPHIS BAŞLIK & SADECE BURADA YIRTILMIŞ SARI KAĞIT (TORN PAPER) EFEKTİ */}
       <header className="w-full max-w-2xl py-6 mb-2 text-center z-10">
         
         {/* DEV BAŞLIK KUTUSU (3D Katmanlı) */}
         <div className="relative inline-block rotate-[-2.5deg] mb-1">
-          {/* Pembe Arka Gölge Katmanı */}
           <div className="absolute top-[8px] left-[8px] right-[-8px] bottom-[-8px] bg-[#ec4899] rounded-2xl border-[4px] border-[#1e1b4b] -z-10" />
           
           <div className="bg-[#10b981] border-[4px] border-[#1e1b4b] px-9 py-3.5 rounded-2xl shadow-[4px_5px_0px_#1e1b4b]">
@@ -300,23 +301,23 @@ export default function Home() {
           </div>
         </div>
 
-        {/* TORN PAPER SARI KUTUCUK (Topluluk İsmi) */}
+        {/* ÖZEL SARI TORN PAPER KUTUCUĞU (Tek Burada Var) */}
         <div className="-mt-3 relative z-20 inline-block">
           <div className="relative bg-[#fef08a] border-[2.5px] border-[#1e1b4b] px-6 py-2 rounded-md rotate-2 shadow-[4px_4px_0px_#1e1b4b] bg-[radial-gradient(rgba(161,98,7,0.18)_1.2px,transparent_1.2px)] [background-size:8px_8px]">
-            {/* Üst Tırtık Efekti */}
+            {/* Üst Yırtık Tırtığı */}
             <div className="absolute -top-[6px] left-0 right-0 h-[6px] bg-[linear-gradient(-45deg,transparent_3px,#fef08a_0),linear-gradient(45deg,transparent_3px,#fef08a_0)] [background-size:6px_6px]" />
             
             <span className="text-[#1e1b4b] font-[#950] text-xs md:text-sm uppercase tracking-[2.5px]">
               ANKARA MEDİPOL SİNEMA VE TİYATRO TOPLULUĞU
             </span>
 
-            {/* Alt Tırtık Efekti */}
+            {/* Alt Yırtık Tırtığı */}
             <div className="absolute -bottom-[6px] left-0 right-0 h-[6px] bg-[linear-gradient(-45deg,#fef08a_3px,transparent_0),linear-gradient(45deg,#fef08a_3px,transparent_0)] [background-size:6px_6px]" />
           </div>
         </div>
       </header>
 
-      {/* KART GÖVDESİ (PROFESYONEL KOLLAJ AÇIKLAMA VE FORM KUTUSU) */}
+      {/* KART GÖVDESİ (Açıklama Kutusu Kaldırıldı, Doğrudan Form Akışı) */}
       <div className="w-full max-w-lg relative z-10 my-auto">
         <div className="relative bg-white border-[3.5px] border-[#1e1b4b] p-6 md:p-8 rounded-[28px] shadow-[0_30px_60px_-12px_rgba(15,23,42,0.18),5px_6px_0px_#1e1b4b] bg-[radial-gradient(#cbd5e1_1.5px,transparent_1.5px)] [background-size:13px_13px] overflow-visible">
           
@@ -332,17 +333,6 @@ export default function Home() {
           <div className="relative z-10">
             {(step === 0 || step === 1) && (
               <div className="space-y-6">
-                
-                {/* KOLLAJ AÇIKLAMA METNİ KUTUSU */}
-                <div className="bg-white border-[2.5px] border-[#1e1b4b] rounded-2xl shadow-[5px_5px_0px_#6d28d9] p-4.5 -rotate-1 relative mb-6">
-                  {/* Sol Üst Bant Etiketi */}
-                  <div className="absolute -top-2.5 left-5 w-12 h-3.5 bg-pink-500/75 border border-[#1e1b4b] -rotate-8" />
-                  
-                  <p className="color-[#4338ca] text-xs md:text-sm font-extrabold leading-relaxed m-0 text-center">
-                    Etkinlik kaydınızı güvenle tamamlamak ve biletinizi almak için aşağıdaki adımları takip edin:
-                  </p>
-                </div>
-
                 <RegistrationForm 
                   step={step}
                   setStep={setStep}
@@ -464,7 +454,7 @@ export default function Home() {
         </div>
       </div>
 
-      {/* FOOTER: KOLLAJ KULÜP İMZASI (TORN PAPER ROZET) */}
+      {/* FOOTER: KOLLAJ KULÜP İMZASI */}
       <footer className="mt-8 z-10 text-center">
         <div className="inline-block bg-[#f8fafc] border-2 border-[#1e1b4b] rounded-xl px-5 py-2.5 shadow-[3px_3px_0px_#6d28d9] -rotate-1 relative">
           <span className="text-xs font-[950] text-[#1e293b] uppercase tracking-wider leading-relaxed block">
