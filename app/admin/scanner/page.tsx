@@ -10,6 +10,12 @@ export default function ScannerPage() {
   const [scanStatus, setScanStatus] = useState<{status: 'idle' | 'processing' | 'success' | 'error' | 'warning', message: string}>({ status: 'idle', message: '' });
   const [isInitializing, setIsInitializing] = useState(true);
   const scannerRef = useRef<Html5Qrcode | null>(null);
+  const scanStatusRef = useRef(scanStatus.status);
+
+  // Status durumunu ref'te tutarak useEffect re-render döngüsünü kırıyoruz
+  useEffect(() => {
+    scanStatusRef.current = scanStatus.status;
+  }, [scanStatus.status]);
 
   const safeStopScanner = async () => {
     if (scannerRef.current && scannerRef.current.isScanning) {
@@ -36,14 +42,7 @@ export default function ScannerPage() {
         });
         scannerRef.current = html5QrCode;
 
-        // YÖNTEM 1: MediaTrackConstraints ile iOS Safari'de 0.5x lens yerine 1.0x ana kamerayı zorlama
-        const cameraConstraints: MediaTrackConstraints = {
-          facingMode: "environment",
-          width: { min: 640, ideal: 1280, max: 1920 },
-          height: { min: 480, ideal: 720, max: 1080 }
-        };
-
-        // Config nesnesini 'as any' ile geçerek TS hatasını engelliyoruz
+        // Config ayarları
         const scanConfig: any = {
           fps: 24,
           qrbox: { width: 260, height: 260 },
@@ -53,17 +52,41 @@ export default function ScannerPage() {
           }
         };
 
+        // iOS Safari için en kararlı kamerayı seçme
+        let cameraConfig: any = { facingMode: "environment" };
+
+        try {
+          const devices = await Html5Qrcode.getCameras();
+          if (devices && devices.length > 0) {
+            // Ultra Wide (0.5x) lensleri eleyip ana arka kamerayı seçme
+            const mainCamera = devices.find(d => {
+              const lbl = d.label.toLowerCase();
+              return (lbl.includes('back') || lbl.includes('arka') || lbl.includes('rear')) &&
+                     !lbl.includes('ultra') && !lbl.includes('0.5') && !lbl.includes('wide-angle');
+            });
+
+            if (mainCamera) {
+              cameraConfig = mainCamera.id;
+            } else if (devices.length > 1) {
+              // Genellikle sondan bir önceki ana kameradır
+              cameraConfig = devices[devices.length - 2].id;
+            } else {
+              cameraConfig = devices[0].id;
+            }
+          }
+        } catch (e) {
+          console.warn("Kamera listesi alınamadı, facingMode kullanılacak:", e);
+        }
+
         await html5QrCode.start(
-          cameraConstraints as any,
+          cameraConfig,
           scanConfig,
           async (decodedText) => {
-            if (scanStatus.status !== 'idle') return;
+            if (scanStatusRef.current !== 'idle') return;
             
-            // İstek atılmadan önce işlem durumunu aktif et ve yeni taramaları engelle
             setScanStatus({ status: 'processing', message: 'Kontrol Ediliyor...' });
 
             const cleanCode = decodedText.trim();
-            // Başarı hissi için hafif bir titreşim (Mobil destekliyorsa)
             if (window.navigator.vibrate) window.navigator.vibrate(100);
 
             const { data: user, error } = await supabase.from('katilimcilar')
@@ -84,10 +107,9 @@ export default function ScannerPage() {
               }
             }
             
-            // 2 saniye bekle ve normale dön
             setTimeout(() => setScanStatus({ status: 'idle', message: '' }), 2000);
           }, 
-          () => {} // Tarama hatası (QR bulunamadığında sessiz kal)
+          () => {}
         );
         setIsInitializing(false);
       } catch (err) {
@@ -98,7 +120,7 @@ export default function ScannerPage() {
 
     startCamera();
     return () => { safeStopScanner(); };
-  }, [isAuthenticated, selectedSlotId, scanStatus.status]); // scanStatus.status bağımlılığını state kilitlenmesinde doğru yönetebilmek için ekledim.
+  }, [isAuthenticated, selectedSlotId]); // scanStatus.status buradan çıkarıldı (kilitlenmeyi çözer)
 
   return (
     <div className="max-w-md mx-auto space-y-6">
