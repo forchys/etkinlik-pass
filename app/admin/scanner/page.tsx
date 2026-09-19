@@ -7,7 +7,7 @@ import { CheckCircle2, XCircle, AlertCircle, Camera, Loader2 } from 'lucide-reac
 
 export default function ScannerPage() {
   const { participants, setParticipants, selectedSlotId, isAuthenticated } = useAdmin();
-  const [scanStatus, setScanStatus] = useState<{status: 'idle' | 'success' | 'error' | 'warning', message: string}>({ status: 'idle', message: '' });
+  const [scanStatus, setScanStatus] = useState<{status: 'idle' | 'processing' | 'success' | 'error' | 'warning', message: string}>({ status: 'idle', message: '' });
   const [isInitializing, setIsInitializing] = useState(true);
   const scannerRef = useRef<Html5Qrcode | null>(null);
 
@@ -40,13 +40,21 @@ export default function ScannerPage() {
         const devices = await Html5Qrcode.getCameras();
         let cameraId: any = { facingMode: "environment" };
 
-          if (devices && devices.length > 0) {
-          // Listenin sonundaki kamera genellikle ana (ana odaklı) kameradır.
-          // Direkt ID olarak atama yapıyoruz (Html5Qrcode bunu destekler).
-          cameraId = devices[devices.length - 1].id;
+        if (devices && devices.length > 0) {
+          const backCameras = devices.filter(d => 
+            (d.label.toLowerCase().includes('back') || d.label.toLowerCase().includes('arka')) &&
+            !d.label.toLowerCase().includes('ultra') && 
+            !d.label.toLowerCase().includes('0.5')
+          );
+        
+          if (backCameras.length > 0) {
+            cameraId = backCameras[0].id;
+          } else {
+            cameraId = devices.length > 1 ? devices[devices.length - 2].id : devices[0].id;
+          }
         }
 
-// Config nesnesini 'as any' ile geçerek TS hatasını engelliyoruz
+        // Config nesnesini 'as any' ile geçerek TS hatasını engelliyoruz
         const scanConfig: any = {
           fps: 24,
           qrbox: { width: 260, height: 260 },
@@ -61,6 +69,9 @@ export default function ScannerPage() {
           scanConfig,
           async (decodedText) => {
             if (scanStatus.status !== 'idle') return;
+            
+            // İstek atılmadan önce işlem durumunu aktif et ve yeni taramaları engelle
+            setScanStatus({ status: 'processing', message: 'Kontrol Ediliyor...' });
 
             const cleanCode = decodedText.trim();
             // Başarı hissi için hafif bir titreşim (Mobil destekliyorsa)
@@ -98,7 +109,7 @@ export default function ScannerPage() {
 
     startCamera();
     return () => { safeStopScanner(); };
-  }, [isAuthenticated, selectedSlotId]);
+  }, [isAuthenticated, selectedSlotId, scanStatus.status]); // scanStatus.status bağımlılığını state kilitlenmesinde doğru yönetebilmek için ekledim.
 
   return (
     <div className="max-w-md mx-auto space-y-6">
@@ -107,6 +118,7 @@ export default function ScannerPage() {
         scanStatus.status === 'success' ? 'border-emerald-500 shadow-emerald-500/20' : 
         scanStatus.status === 'error' ? 'border-rose-500 shadow-rose-500/20' : 
         scanStatus.status === 'warning' ? 'border-amber-500 shadow-amber-500/20' : 
+        scanStatus.status === 'processing' ? 'border-blue-500 shadow-blue-500/20' : 
         'border-white/10'
       }`}>
         
@@ -131,11 +143,13 @@ export default function ScannerPage() {
           <div className={`absolute inset-0 flex flex-col items-center justify-center p-6 text-center backdrop-blur-md z-30 animate-in fade-in zoom-in duration-300 ${
             scanStatus.status === 'success' ? 'bg-emerald-950/80' : 
             scanStatus.status === 'error' ? 'bg-rose-950/80' : 
+            scanStatus.status === 'processing' ? 'bg-blue-950/80' :
             'bg-amber-950/80'
           }`}>
             {scanStatus.status === 'success' && <CheckCircle2 className="w-20 h-20 text-emerald-400 mb-4" />}
             {scanStatus.status === 'error' && <XCircle className="w-20 h-20 text-rose-400 mb-4" />}
             {scanStatus.status === 'warning' && <AlertCircle className="w-20 h-20 text-amber-400 mb-4" />}
+            {scanStatus.status === 'processing' && <Loader2 className="w-20 h-20 text-blue-400 mb-4 animate-spin" />}
             
             <p className="text-2xl font-black text-white uppercase leading-tight">
               {scanStatus.message}
@@ -161,7 +175,7 @@ export default function ScannerPage() {
         Otomatik Netleme Aktif
       </p>
 
-      {/* Tarama Çizgisi İçin Tailwind CSS Animasyonu */}
+      {/* Tarama Çizgisi İçin Tailwind CSS Animasyonu ve HTML5-QRCode CSS Overflow Düzeltmesi */}
       <style jsx global>{`
         @keyframes scan {
           0% { top: 0%; }
@@ -170,6 +184,10 @@ export default function ScannerPage() {
         .animate-scan-line {
           position: absolute;
           animation: scan 2s linear infinite;
+        }
+        #reader video {
+          object-fit: cover !important;
+          border-radius: inherit !important;
         }
       `}</style>
     </div>
