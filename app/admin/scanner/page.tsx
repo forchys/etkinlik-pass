@@ -36,23 +36,12 @@ export default function ScannerPage() {
         });
         scannerRef.current = html5QrCode;
 
-        // Kamera Seçimi Optimizasyonu (iPhone 0.5x lensini önlemek için)
-        const devices = await Html5Qrcode.getCameras();
-        let cameraId: any = { facingMode: "environment" };
-
-        if (devices && devices.length > 0) {
-          const backCameras = devices.filter(d => 
-            (d.label.toLowerCase().includes('back') || d.label.toLowerCase().includes('arka')) &&
-            !d.label.toLowerCase().includes('ultra') && 
-            !d.label.toLowerCase().includes('0.5')
-          );
-        
-          if (backCameras.length > 0) {
-            cameraId = backCameras[0].id;
-          } else {
-            cameraId = devices.length > 1 ? devices[devices.length - 2].id : devices[0].id;
-          }
-        }
+        // YÖNTEM 1: MediaTrackConstraints ile iOS Safari'de 0.5x lens yerine 1.0x ana kamerayı zorlama
+        const cameraConstraints: MediaTrackConstraints = {
+          facingMode: "environment",
+          width: { min: 640, ideal: 1280, max: 1920 },
+          height: { min: 480, ideal: 720, max: 1080 }
+        };
 
         // Config nesnesini 'as any' ile geçerek TS hatasını engelliyoruz
         const scanConfig: any = {
@@ -65,7 +54,7 @@ export default function ScannerPage() {
         };
 
         await html5QrCode.start(
-          cameraId,
+          cameraConstraints as any,
           scanConfig,
           async (decodedText) => {
             if (scanStatus.status !== 'idle') return;
